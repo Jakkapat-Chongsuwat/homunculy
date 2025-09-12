@@ -1,0 +1,90 @@
+{
+    "language": "en",
+    "ignorePaths": [
+        "Dockerfile",
+        "Makefile",
+        "docker-compose.yml",
+        "pyproject.toml",
+        ".cspell.jsonc",
+        "scripts/mongodb-init.sh"
+    ],
+    "overrides": [
+        {
+            "filename": "src/settings/db/*.py",
+            "ignoreWords": [
+                "doseq",
+                "dbapi"
+            ]
+        },
+        {
+            "filename": "tests/conftest.py",
+            "ignoreWords": [
+                "ASGI"
+            ]
+        },
+        {
+            "filename": "README.md",
+            "ignoreWords": [
+                "Stmts",
+                "dbname",
+                "gitbook",
+                "htmlcov",
+                "mydatabase",
+                "yoan-thirion"
+            ]
+        }
+    ],
+    "words": [
+        // Python packages
+        "aiosqlite",
+        "anyio",
+        "asyncio",
+        "asyncmy",
+        "asyncpg",
+        "fastapi",
+        "httpx",
+        "pydantic",
+        "pytest",
+        "starlette",
+        "uvicorn",
+        "bson",
+        "pylint",
+        "pyright",
+        // SQLAlchemy
+        "autoflush",
+        "autouse",
+        "backref",
+        "joinedload",
+        "ondelete",
+        "primaryjoin",
+        "scopefunc",
+        "selectinload",
+        "sessionmaker",
+        "sqlalchemy",
+        // Redis
+        "SADD",
+        "SREM",
+        "SMEMBERS",
+        "HGET",
+        "HGETALL",
+        "HSET",
+        "HMSET",
+        // Pokémon names
+        "Bulbasaur",
+        "Ivysaur",
+        "Venusaur",
+        "Charizard",
+        "Charmander",
+        "Charmeleon",
+        // Customized words
+        "NoSQL",
+        "Pokédex",
+        "Statefulness",
+        "Usecase",
+        "auow",
+        "evos",
+        "pokemons",
+        "ucase",
+        "usecases"
+    ]
+}
