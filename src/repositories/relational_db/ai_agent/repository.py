@@ -348,4 +348,9 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
 
     async def list_available_providers(self) -> List[AgentProvider]:
         """List all available AI agent providers."""
-        return [AgentProvider.PYDANTIC_AI]  # Placeholder
+        return [
+            AgentProvider.PYDANTIC_AI,
+            AgentProvider.OPENAI,
+            AgentProvider.LANGRAPH,
+            AgentProvider.AUTOGEN,
+        ]

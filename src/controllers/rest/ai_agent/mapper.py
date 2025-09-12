@@ -154,11 +154,19 @@ class AgentResponseMapper:
     @staticmethod
     def providers_to_response(providers: List[AgentProvider]) -> List[AgentProviderResponse]:
         """Convert list of providers to API responses."""
+        # Define available models for each provider
+        provider_models = {
+            AgentProvider.PYDANTIC_AI: ["gpt-4", "gpt-3.5-turbo", "claude-3", "claude-3.5-sonnet"],
+            AgentProvider.OPENAI: ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"],
+            AgentProvider.LANGRAPH: ["gpt-4", "claude-3", "gemini-pro"],
+            AgentProvider.AUTOGEN: ["gpt-4", "gpt-3.5-turbo", "claude-3"],
+        }
+        
         return [
             AgentProviderResponse(
                 name=provider.value,
                 display_name=provider.value.replace("_", " ").title(),
-                models=[],  # This would be populated based on actual provider capabilities
+                models=provider_models.get(provider, []),
             )
             for provider in providers
         ]
