@@ -4,7 +4,7 @@ from typing import List, Optional
 from redis.asyncio import StrictRedis as AsyncRedis
 
 from common.type import PokemonNumberStr
-from models.exception import PokemonAlreadyExists, PokemonNotFound, PokemonUnknownError
+from models.pokemon.exception import PokemonAlreadyExists, PokemonNotFound, PokemonUnknownError
 from models.pokemon import (
     CreatePokemonModel,
     GetPokemonParamsModel,

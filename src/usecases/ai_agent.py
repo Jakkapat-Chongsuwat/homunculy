@@ -9,14 +9,13 @@ Use cases work directly with repositories through Unit of Work.
 from typing import AsyncIterator, Dict, List, Optional
 
 from di.unit_of_work import AbstractUnitOfWork
-from models.ai_agent import (
+from models.ai_agent.ai_agent import (
     AgentConfiguration,
     AgentMessage,
     AgentPersonality,
     AgentProvider,
     AgentResponse,
 )
-from models.exception import AgentException
 
 
 async def initialize_ai_agent(

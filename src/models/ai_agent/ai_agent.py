@@ -89,24 +89,3 @@ class AgentThread(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-# Domain exceptions
-class AgentException(Exception):
-    """Base exception for agent-related errors."""
-    pass
-
-
-class AgentInitializationError(AgentException):
-    """Raised when agent initialization fails."""
-    pass
-
-
-class AgentExecutionError(AgentException):
-    """Raised when agent execution fails."""
-    pass
-
-
-class AgentConfigurationError(AgentException):
-    """Raised when agent configuration is invalid."""
-    pass

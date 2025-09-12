@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from pydantic import ValidationError
 
-from src.models.ai_agent import (
+from models.ai_agent.ai_agent import (
     AgentProvider,
     AgentStatus,
     AgentPersonality,
@@ -15,7 +15,9 @@ from src.models.ai_agent import (
     AgentThread,
     AgentMessage,
     AgentResponse,
-    AgentException,
+)
+from models.ai_agent.exception import (
+    AIAgentError,
     AgentInitializationError,
     AgentExecutionError,
     AgentConfigurationError,
@@ -311,13 +313,13 @@ class TestAgentThread:
         assert len(data["messages"]) == 1
 
 
-class TestAgentExceptions:
+class TestAIAgentErrors:
     """Test AI agent exception classes."""
     
     def test_agent_exception(self):
-        """Test base AgentException."""
-        with pytest.raises(AgentException) as exc_info:
-            raise AgentException("Base agent error")
+        """Test base AIAgentError."""
+        with pytest.raises(AIAgentError) as exc_info:
+            raise AIAgentError("Base agent error")
         
         assert str(exc_info.value) == "Base agent error"
         assert isinstance(exc_info.value, Exception)
@@ -328,7 +330,7 @@ class TestAgentExceptions:
             raise AgentInitializationError("Failed to initialize agent")
         
         assert str(exc_info.value) == "Failed to initialize agent"
-        assert isinstance(exc_info.value, AgentException)
+        assert isinstance(exc_info.value, AIAgentError)
     
     def test_agent_execution_error(self):
         """Test AgentExecutionError."""
@@ -336,7 +338,7 @@ class TestAgentExceptions:
             raise AgentExecutionError("Agent execution failed")
         
         assert str(exc_info.value) == "Agent execution failed"
-        assert isinstance(exc_info.value, AgentException)
+        assert isinstance(exc_info.value, AIAgentError)
     
     def test_agent_configuration_error(self):
         """Test AgentConfigurationError."""
@@ -344,7 +346,7 @@ class TestAgentExceptions:
             raise AgentConfigurationError("Invalid configuration")
         
         assert str(exc_info.value) == "Invalid configuration"
-        assert isinstance(exc_info.value, AgentException)
+        assert isinstance(exc_info.value, AIAgentError)
 
 
 class TestModelIntegration:

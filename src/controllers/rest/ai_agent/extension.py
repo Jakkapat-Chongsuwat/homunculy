@@ -8,8 +8,8 @@ domain-specific exceptions for AI agent operations.
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from models.exception import (
-    AgentException,
+from models.ai_agent.exception import (
+    AIAgentError,
     AgentNotFound,
     PersonalityNotFound,
     ThreadNotFound,
@@ -18,7 +18,7 @@ from models.exception import (
 
 def add_ai_agent_exception_handlers(app: FastAPI):
     """Add exception handlers for AI agent-related errors."""
-    @app.exception_handler(AgentException)
+    @app.exception_handler(AIAgentError)
     async def handle_general_agent_error(_: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(content={'error': f'{type(exc).__name__}: {exc}'}, status_code=400)
 

@@ -2,7 +2,7 @@ import abc
 from typing import Any, List, Optional
 
 from common.type import PokemonNumberStr
-from models.pokemon import (
+from models.pokemon.pokemon import (
     CreatePokemonModel,
     GetPokemonParamsModel,
     PokemonModel,

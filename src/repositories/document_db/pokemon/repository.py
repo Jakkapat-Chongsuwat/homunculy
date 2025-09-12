@@ -4,8 +4,8 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClientSession, AsyncIOMotorCollection
 
 from common.type import PokemonNumberStr
-from models.exception import PokemonAlreadyExists, PokemonNotFound
-from models.pokemon import (
+from models.pokemon.exception import PokemonAlreadyExists, PokemonNotFound
+from models.pokemon.pokemon import (
     CreatePokemonModel,
     GetPokemonParamsModel,
     PokemonModel,

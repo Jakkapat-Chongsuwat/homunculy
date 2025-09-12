@@ -1,7 +1,7 @@
-from common.type import PokemonNumberStr
+﻿from common.type import PokemonNumberStr
 from di.unit_of_work import AbstractUnitOfWork
-from models.exception import PokemonNotFound
-from models.pokemon import CreatePokemonModel, PokemonModel, UpdatePokemonModel
+from models.pokemon.exception import PokemonNotFound
+from models.pokemon.pokemon import CreatePokemonModel, PokemonModel, UpdatePokemonModel
 
 
 async def create_pokemon(

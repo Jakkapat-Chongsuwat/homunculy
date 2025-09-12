@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import delete, func, insert, select, update
 
 from common.type import PokemonNumberStr
-from models.exception import PokemonAlreadyExists, PokemonNotFound
+from models.pokemon.exception import PokemonAlreadyExists, PokemonNotFound
 from models.pokemon import (
     CreatePokemonModel,
     GetPokemonParamsModel,

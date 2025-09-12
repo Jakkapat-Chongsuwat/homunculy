@@ -8,7 +8,7 @@ domain-specific exceptions for Pokemon operations.
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from models.exception import (
+from models.pokemon.exception import (
     PokemonAlreadyExists,
     PokemonError,
     PokemonNotFound,

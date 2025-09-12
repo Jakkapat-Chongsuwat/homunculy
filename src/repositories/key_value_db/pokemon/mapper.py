@@ -1,7 +1,7 @@
 import uuid
 
 from common.type import UUIDStr
-from models.pokemon import PokemonEvolutionModel, PokemonModel, TypeModel
+from models.pokemon.pokemon import PokemonEvolutionModel, PokemonModel, TypeModel
 
 
 class PokemonKeyValueMapper:
