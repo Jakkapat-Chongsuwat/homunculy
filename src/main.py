@@ -8,6 +8,7 @@ from controllers.graphql.extension import customize_graphql_openapi
 from controllers.graphql.pokemon.router import router as pokemon_graphql_router
 from controllers.rest.extension import add_exception_handlers as add_rest_exception_handlers
 from controllers.rest.pokemon.router import router as pokemon_rest_router
+from controllers.rest.ai_agent.router import router as ai_agent_rest_router
 from settings import APP_NAME, APP_VERSION
 from settings.db import IS_RELATIONAL_DB, initialize_db
 
@@ -17,12 +18,14 @@ from settings.db import IS_RELATIONAL_DB, initialize_db
 async def lifespan(app: FastAPI):  # pylint: disable=redefined-outer-name
     # pylint: disable=import-outside-toplevel
 
-    kwargs = {}
     if IS_RELATIONAL_DB:
-        from repositories.relational_db.pokemon.orm import Base  # fmt: skip
-        kwargs = {'declarative_base': Base}
-
-    await initialize_db(**kwargs)
+        from repositories.relational_db.pokemon.orm import Base as PokemonBase  # fmt: skip
+        from repositories.relational_db.ai_agent.orm import Base as AIAgentBase  # fmt: skip
+        
+        # Initialize both Pokemon and AI Agent tables separately
+        from settings.db.sqlite import initialize_sqlite_db
+        await initialize_sqlite_db(PokemonBase)
+        await initialize_sqlite_db(AIAgentBase)
     yield
 
 
@@ -37,6 +40,7 @@ app.add_middleware(
 
 # controllers/rest
 app.include_router(pokemon_rest_router, tags=['REST'])
+app.include_router(ai_agent_rest_router, tags=['AI Agent'])
 add_rest_exception_handlers(app)
 
 # controllers/graphql

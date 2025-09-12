@@ -26,10 +26,20 @@ lint:
 	fi
 
 test:
+	@echo "Running comprehensive test suite..."
+	@coverage erase
+	@echo "Running multi-database compatibility tests..."
+	@bats --timing ./tests/api_db_test.bats
+	@echo "Running AI Agent specific tests..."
+	@make test-ai-agent
+	@coverage report --show-missing --skip-covered --fail-under 90
+	@coverage html
+
+test-legacy:
+	@echo "Running legacy multi-database tests only..."
 	@coverage erase
 	@bats --timing ./tests/api_db_test.bats
 	@coverage report --show-missing --skip-covered --fail-under 90
-	@coverage html
 
 test-ai-agent:
 	@echo "Running AI Agent tests with test containers..."

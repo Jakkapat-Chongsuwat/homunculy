@@ -96,7 +96,13 @@ if IS_RELATIONAL_DB:
 
     @pytest.fixture(scope='package', autouse=True)
     async def engine():
-        await initialize_db(declarative_base=Base)  # pyright: ignore[reportCallIssue]
+        from repositories.relational_db.pokemon.orm import Base as PokemonBase
+        from repositories.relational_db.ai_agent.orm import Base as AIAgentBase
+        from settings.db.sqlite import initialize_sqlite_db
+        
+        # Initialize both Pokemon and AI Agent tables
+        await initialize_sqlite_db(PokemonBase)
+        await initialize_sqlite_db(AIAgentBase)
 
     @pytest.fixture(scope='function', autouse=True)
     async def session():

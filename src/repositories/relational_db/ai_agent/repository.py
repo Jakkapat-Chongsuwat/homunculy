@@ -338,8 +338,13 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
 
     async def shutdown_agent(self, agent_id: str) -> bool:
         """Shutdown a specific agent."""
-        # For now, just return True as we don't have actual agent instances to shutdown
-        return True
+        # Check if agent exists
+        agent_config = await self.get_agent_config(agent_id)
+        if agent_config is None:
+            return False
+        
+        # Delete the agent configuration from database
+        return await self.delete_agent_config(agent_id)
 
     async def list_available_providers(self) -> List[AgentProvider]:
         """List all available AI agent providers."""
