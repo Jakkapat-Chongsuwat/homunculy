@@ -12,7 +12,7 @@ from typing import AsyncIterator, Dict, List, Optional
 
 from redis.asyncio import Redis
 
-from models.ai_agent import AgentConfiguration, AgentMessage, AgentPersonality, AgentProvider, AgentResponse, AgentStatus, AgentThread
+from models.ai_agent.ai_agent import AgentConfiguration, AgentMessage, AgentPersonality, AgentProvider, AgentResponse, AgentStatus, AgentThread
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
 
 

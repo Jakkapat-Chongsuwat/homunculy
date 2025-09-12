@@ -19,8 +19,51 @@ from repositories.relational_db.ai_agent.repository import RelationalDBAIAgentRe
 
 
 T = TypeVar('T', bound=AbstractPokemonRepository)
+U = TypeVar('U', bound=AbstractAIAgentRepository)
 
 
+# Domain-specific Unit of Work base classes
+class AbstractPokemonUnitOfWork(abc.ABC):
+    pokemon_repo: AbstractPokemonRepository
+
+    @abstractmethod
+    async def __aenter__(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    async def __aexit__(self, exc_type, exc, tb):
+        raise NotImplementedError
+
+    @abstractmethod
+    def commit(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def rollback(self):
+        raise NotImplementedError
+
+
+class AbstractAIAgentUnitOfWork(abc.ABC):
+    ai_agent_repo: AbstractAIAgentRepository
+
+    @abstractmethod
+    async def __aenter__(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    async def __aexit__(self, exc_type, exc, tb):
+        raise NotImplementedError
+
+    @abstractmethod
+    def commit(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def rollback(self):
+        raise NotImplementedError
+
+
+# Legacy mixed-domain UoW (for backward compatibility during migration)
 class AbstractUnitOfWork(Generic[T], abc.ABC):
     pokemon_repo: AbstractPokemonRepository
     ai_agent_repo: AbstractAIAgentRepository
@@ -35,6 +78,139 @@ class AbstractUnitOfWork(Generic[T], abc.ABC):
     @abstractmethod
     async def __aexit__(self, exc_type, exc, tb):
         raise NotImplementedError
+
+
+# Concrete implementations for Pokemon domain
+class RelationalPokemonUnitOfWork(AbstractPokemonUnitOfWork):
+    def __init__(self, session: AsyncSession, pokemon_repo: RelationalDBPokemonRepository):
+        self._session = session
+        self.pokemon_repo = pokemon_repo
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        try:
+            if exc_type is None:
+                await self._session.commit()
+            else:
+                await self._session.rollback()
+        finally:
+            await self._session.close()
+            await self.remove()
+
+    async def remove(self):
+        from settings.db import AsyncScopedSession
+        await AsyncScopedSession.remove()
+
+    def commit(self):
+        # Note: In async context, this would be called within the context manager
+        # The actual commit happens in __aexit__ if no exception
+        pass
+
+    def rollback(self):
+        # Note: In async context, this would be called within the context manager
+        # The actual rollback happens in __aexit__ if there's an exception
+        pass
+
+
+class MongoDBPokemonUnitOfWork(AbstractPokemonUnitOfWork):
+    def __init__(self, engine: AsyncIOMotorClient, pokemon_repo: MongoDBPokemonRepository):
+        self._engine = engine
+        self.pokemon_repo = pokemon_repo
+
+    async def __aenter__(self):
+        self._session = await self._engine.start_session()
+        self._session.start_transaction()
+        self.pokemon_repo.session = self._session
+        return self
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        try:
+            if exc_type is None:
+                await self._session.commit_transaction()
+            else:
+                await self._session.abort_transaction()
+        finally:
+            await self._session.end_session()
+
+
+class RedisPokemonUnitOfWork(AbstractPokemonUnitOfWork):
+    def __init__(self, client: AsyncRedis, pokemon_repo: RedisPokemonRepository):
+        self._client = client
+        self.pokemon_repo = pokemon_repo
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        await self._client.aclose()  # type: ignore
+
+
+# Concrete implementations for AI Agent domain
+class RelationalAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
+    def __init__(self, session: AsyncSession, ai_agent_repo: AbstractAIAgentRepository):
+        self._session = session
+        self.ai_agent_repo = ai_agent_repo
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        try:
+            if exc_type is None:
+                await self._session.commit()
+            else:
+                await self._session.rollback()
+        finally:
+            await self._session.close()
+            await self.remove()
+
+    async def remove(self):
+        from settings.db import AsyncScopedSession
+        await AsyncScopedSession.remove()
+
+    def commit(self):
+        # Note: In async context, this would be called within the context manager
+        # The actual commit happens in __aexit__ if no exception
+        pass
+
+    def rollback(self):
+        # Note: In async context, this would be called within the context manager
+        # The actual rollback happens in __aexit__ if there's an exception
+        pass
+
+
+class MongoDBAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
+    def __init__(self, engine: AsyncIOMotorClient, ai_agent_repo: AbstractAIAgentRepository):
+        self._engine = engine
+        self.ai_agent_repo = ai_agent_repo
+
+    async def __aenter__(self):
+        self._session = await self._engine.start_session()
+        self._session.start_transaction()
+        return self
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        try:
+            if exc_type is None:
+                await self._session.commit_transaction()
+            else:
+                await self._session.abort_transaction()
+        finally:
+            await self._session.end_session()
+
+
+class RedisAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
+    def __init__(self, client: AsyncRedis, ai_agent_repo: AbstractAIAgentRepository):
+        self._client = client
+        self.ai_agent_repo = ai_agent_repo
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        await self._client.aclose()  # type: ignore
 
 
 class AsyncSQLAlchemyUnitOfWork(AbstractUnitOfWork[RelationalDBPokemonRepository]):

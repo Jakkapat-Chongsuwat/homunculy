@@ -43,6 +43,15 @@ from .unit_of_work import (
     AsyncMotorUnitOfWork,
     AsyncRedisUnitOfWork,
     AsyncSQLAlchemyUnitOfWork,
+    # New domain-specific UoW classes
+    AbstractPokemonUnitOfWork,
+    AbstractAIAgentUnitOfWork,
+    RelationalPokemonUnitOfWork,
+    RelationalAIAgentUnitOfWork,
+    MongoDBPokemonUnitOfWork,
+    MongoDBAIAgentUnitOfWork,
+    RedisPokemonUnitOfWork,
+    RedisAIAgentUnitOfWork,
 )
 
 
@@ -93,6 +102,22 @@ class RelationalDBModule(Module):
         return RelationalDBAIAgentRepository(session)
 
     @provider
+    def provide_pokemon_unit_of_work(
+        self, 
+        session: AsyncSession, 
+        pokemon_repo: RelationalDBPokemonRepository,
+    ) -> AbstractPokemonUnitOfWork:
+        return RelationalPokemonUnitOfWork(session, pokemon_repo)
+
+    @provider
+    def provide_ai_agent_unit_of_work(
+        self, 
+        session: AsyncSession, 
+        ai_agent_repo: AbstractAIAgentRepository,
+    ) -> AbstractAIAgentUnitOfWork:
+        return RelationalAIAgentUnitOfWork(session, ai_agent_repo)
+
+    @provider
     def provide_async_sqlalchemy_unit_of_work(
         self, 
         session: AsyncSession, 
@@ -127,6 +152,22 @@ class DocumentDBModule(Module):
         return MongoDBAIAgentRepository(collection)
 
     @provider
+    def provide_pokemon_unit_of_work(
+        self,
+        pokemon_repo: MongoDBPokemonRepository,
+    ) -> AbstractPokemonUnitOfWork:
+        from settings.db.mongodb import AsyncMongoDBEngine
+        return MongoDBPokemonUnitOfWork(AsyncMongoDBEngine, pokemon_repo)
+
+    @provider
+    def provide_ai_agent_unit_of_work(
+        self,
+        ai_agent_repo: AbstractAIAgentRepository,
+    ) -> AbstractAIAgentUnitOfWork:
+        from settings.db.mongodb import AsyncMongoDBEngine
+        return MongoDBAIAgentUnitOfWork(AsyncMongoDBEngine, ai_agent_repo)
+
+    @provider
     def provide_async_motor_unit_of_work(
         self, pokemon_repo: MongoDBPokemonRepository, ai_agent_repo: AbstractAIAgentRepository
     ) -> AbstractUnitOfWork:
@@ -148,6 +189,14 @@ class KeyValueDBModule(Module):
     @provider
     def provide_ai_agent_repository(self, client) -> AbstractAIAgentRepository:
         return RedisAIAgentRepository(client)
+
+    @provider
+    def provide_pokemon_unit_of_work(self, client, pokemon_repo: RedisPokemonRepository) -> AbstractPokemonUnitOfWork:
+        return RedisPokemonUnitOfWork(client, pokemon_repo)
+
+    @provider
+    def provide_ai_agent_unit_of_work(self, client, ai_agent_repo: AbstractAIAgentRepository) -> AbstractAIAgentUnitOfWork:
+        return RedisAIAgentUnitOfWork(client, ai_agent_repo)
 
     @provider
     def provide_async_redis_unit_of_work(self, client, pokemon_repo: RedisPokemonRepository, ai_agent_repo: AbstractAIAgentRepository) -> AbstractUnitOfWork:

@@ -9,7 +9,7 @@ AI agents combine both data persistence AND execution logic in repositories.
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, Dict, List, Optional
 
-from models.ai_agent import (
+from models.ai_agent.ai_agent import (
     AgentConfiguration,
     AgentMessage,
     AgentPersonality,
