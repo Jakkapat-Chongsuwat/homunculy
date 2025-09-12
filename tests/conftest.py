@@ -135,3 +135,4 @@ elif IS_DOCUMENT_DB or IS_KEY_VALUE_DB:
     @pytest.fixture(scope='function', autouse=True)
     async def engine():
         await initialize_db()
+        yield  # Yield control back to the test

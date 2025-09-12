@@ -31,6 +31,24 @@ test:
 	@coverage report --show-missing --skip-covered --fail-under 90
 	@coverage html
 
+test-ai-agent:
+	@echo "Running AI Agent tests with test containers..."
+	@coverage erase
+	@pytest tests/unit/ai_agent/ tests/integration/test_ai_agent_*.py tests/e2e/test_ai_agent_*.py -v --cov=src --cov-report=html --cov-report=term
+	@coverage report --show-missing --skip-covered --fail-under 85
+
+test-ai-agent-unit:
+	@echo "Running AI Agent unit tests..."
+	@pytest tests/unit/ai_agent/ -v
+
+test-ai-agent-integration:
+	@echo "Running AI Agent integration tests with containers..."
+	@pytest tests/integration/test_ai_agent_*.py -v --cov=src --cov-report=term
+
+test-ai-agent-e2e:
+	@echo "Running AI Agent e2e tests with containers..."
+	@pytest tests/e2e/test_ai_agent_*.py -v --cov=src --cov-report=term
+
 up:
 	uvicorn main:app \
 		--port $(PORT) \

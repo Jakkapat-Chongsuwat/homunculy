@@ -43,6 +43,7 @@ pytest-cov = "^4.1.0"
 pytest-dependency = "^0.5.1"
 pytest-env = "^0.8.2"
 pytest-asyncio = "^1.1.1"
+testcontainers = "^4.8.0"
 
 [tool.poetry.group.db.dependencies]
 aiosqlite = "^0.19.0"
@@ -135,6 +136,7 @@ filterwarnings = [
   "error",
   "ignore:pkg_resources is deprecated as an API*:DeprecationWarning",
   "ignore::sqlalchemy.exc.MovedIn20Warning",
+  "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning",
 ]
 python_files = ["test*.py"]
 

@@ -185,6 +185,7 @@ class MongoDBAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
     def __init__(self, engine: AsyncIOMotorClient, ai_agent_repo: AbstractAIAgentRepository):
         self._engine = engine
         self.ai_agent_repo = ai_agent_repo
+        self._session: Optional[Any] = None
 
     async def __aenter__(self):
         self._session = await self._engine.start_session()
@@ -192,6 +193,8 @@ class MongoDBAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
         return self
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
+        if self._session is None:
+            return
         try:
             if exc_type is None:
                 await self._session.commit_transaction()
@@ -199,6 +202,16 @@ class MongoDBAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
                 await self._session.abort_transaction()
         finally:
             await self._session.end_session()
+
+    def commit(self):
+        # For MongoDB, commit is handled in __aexit__
+        # This method is here for interface compliance
+        pass
+
+    def rollback(self):
+        # For MongoDB, rollback is handled in __aexit__
+        # This method is here for interface compliance
+        pass
 
 
 class RedisAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
@@ -211,6 +224,16 @@ class RedisAIAgentUnitOfWork(AbstractAIAgentUnitOfWork):
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
         await self._client.aclose()  # type: ignore
+
+    def commit(self):
+        # Redis doesn't support transactions in the same way as relational databases
+        # This method is here for interface compliance
+        pass
+
+    def rollback(self):
+        # Redis doesn't support transactions in the same way as relational databases
+        # This method is here for interface compliance
+        pass
 
 
 class AsyncSQLAlchemyUnitOfWork(AbstractUnitOfWork[RelationalDBPokemonRepository]):

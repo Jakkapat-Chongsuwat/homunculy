@@ -16,7 +16,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from typing import Optional, Dict
 
-from src.models.ai_agent import (
+from models.ai_agent.ai_agent import (
     AgentProvider,
     AgentStatus,
     AgentPersonality,
