@@ -3,113 +3,100 @@ AI Agent Use Cases.
 
 This module implements the business logic use cases for AI agents,
 following the use case pattern established in the Pokemon system.
-Use cases work directly with repositories through Unit of Work.
+Use cases work directly with repository layer (LLM providers).
 """
 
-from typing import AsyncIterator, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from di.unit_of_work import AbstractAIAgentUnitOfWork
+from repositories.llm_service.llm_factory import LLMFactory
 from models.ai_agent.ai_agent import (
     AgentConfiguration,
-    AgentMessage,
-    AgentPersonality,
-    AgentProvider,
     AgentResponse,
 )
 
 
-async def initialize_ai_agent(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork, config: AgentConfiguration
-) -> str:
-    """Initialize an AI agent and store its configuration."""
-    async with ai_agent_unit_of_work as aauow:
-        agent_id = await aauow.ai_agent_repo.initialize_agent(config)
-        return agent_id
+async def create_llm_agent(
+    llm_factory: LLMFactory,
+    agent_id: str,
+    config: AgentConfiguration
+) -> None:
+    """
+    Create an LLM agent using the repository layer.
+    
+    This use case handles the business logic of creating LLM agents
+    while delegating the actual LLM operations to the repository layer.
+    """
+    # Get the appropriate client from the factory
+    provider_str = str(config.provider.value) if hasattr(config.provider, 'value') else str(config.provider)
+    client = llm_factory.create_client(provider_str)
+    
+    # Create the agent using the repository
+    await client.create_agent(config)
+    
+    # Note: In a full implementation, we might want to store agent metadata
+    # in the repository, but for now we keep it simple
 
 
-async def chat_with_agent(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
+async def chat_with_llm_agent(
+    llm_factory: LLMFactory,
     agent_id: str,
     message: str,
-    thread_id: Optional[str] = None,
-    context: Optional[Dict] = None,
+    context: Optional[Dict[str, str]] = None
 ) -> AgentResponse:
-    """Send a message to an AI agent and get response."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.chat(agent_id, message, thread_id, context)
+    """
+    Send a message to an LLM agent and get response.
+    
+    This use case orchestrates the chat functionality using the repository layer.
+    """
+    # For now, we'll assume the agent was created with a known provider
+    # In a full implementation, we'd look up the provider from the repository
+    provider_str = "pydantic_ai"  # Default provider
+    
+    client = llm_factory.create_client(provider_str)
+    return await client.chat(agent_id, message, context)
 
 
-async def stream_chat_with_agent(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
+async def update_llm_agent(
+    llm_factory: LLMFactory,
     agent_id: str,
-    message: str,
-    thread_id: Optional[str] = None,
-    context: Optional[Dict] = None,
-) -> AsyncIterator[AgentResponse]:
-    """Send a message to an AI agent and get streaming response."""
-    async with ai_agent_unit_of_work as aauow:
-        async for response in aauow.ai_agent_repo.chat_stream(agent_id, message, thread_id, context):
-            yield response
+    config: AgentConfiguration
+) -> None:
+    """
+    Update an LLM agent's configuration.
+    
+    This use case handles updating agent configurations through the repository layer.
+    """
+    provider_str = str(config.provider.value) if hasattr(config.provider, 'value') else str(config.provider)
+    client = llm_factory.create_client(provider_str)
+    await client.update_agent(agent_id, config)
 
 
-async def update_agent_personality(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
-    agent_id: str,
-    personality: AgentPersonality,
-) -> bool:
-    """Update an agent's personality."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.update_agent_personality(agent_id, personality)
-
-
-async def get_agent_configuration(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
+async def remove_llm_agent(
+    llm_factory: LLMFactory,
     agent_id: str
-) -> Optional[AgentConfiguration]:
-    """Get agent configuration."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.get_agent_config(agent_id)
+) -> None:
+    """
+    Remove an LLM agent.
+    
+    This use case handles agent cleanup through the repository layer.
+    """
+    # For now, we'll try both providers (in a real implementation, 
+    # we'd track which provider each agent uses)
+    for provider in ["pydantic_ai", "openai"]:
+        try:
+            client = llm_factory.create_client(provider)
+            await client.remove_agent(agent_id)
+            break  # Success, no need to try other providers
+        except Exception:
+            continue  # Try next provider
 
 
-async def get_agent_status(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
-    agent_id: str
-) -> Dict:
-    """Get current status of an agent."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.get_agent_status(agent_id)
-
-
-async def get_conversation_history(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
-    thread_id: str
-) -> List[AgentMessage]:
-    """Get conversation history for a thread."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.get_thread_history(thread_id)
-
-
-async def clear_conversation_history(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
-    thread_id: str
-) -> bool:
-    """Clear conversation history for a thread."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.clear_thread_history(thread_id)
-
-
-async def shutdown_agent(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork,
-    agent_id: str
-) -> bool:
-    """Shutdown an AI agent."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.shutdown_agent(agent_id)
-
-
-async def list_available_providers(
-    ai_agent_unit_of_work: AbstractAIAgentUnitOfWork
-) -> List[AgentProvider]:
-    """List all available AI agent providers."""
-    async with ai_agent_unit_of_work as aauow:
-        return await aauow.ai_agent_repo.list_available_providers()
+def get_supported_llm_providers(
+    llm_factory: LLMFactory
+) -> List[str]:
+    """
+    Get list of supported LLM providers.
+    
+    This use case exposes the repository capabilities.
+    """
+    return llm_factory.get_supported_providers()

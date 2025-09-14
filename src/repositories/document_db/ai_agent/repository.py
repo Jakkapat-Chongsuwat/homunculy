@@ -14,14 +14,16 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 
 from models.ai_agent.ai_agent import AgentConfiguration, AgentMessage, AgentPersonality, AgentProvider, AgentResponse, AgentStatus, AgentThread
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
+from repositories.llm_service.llm_factory import LLMFactory
 
 
 class MongoDBAIAgentRepository(AbstractAIAgentRepository):
     """MongoDB repository for AI agents using Motor."""
 
-    def __init__(self, collection: AsyncIOMotorCollection, session=None):
+    def __init__(self, collection: AsyncIOMotorCollection, session=None, llm_factory: Optional[LLMFactory] = None):
         self.collection = collection
         self.session = session
+        self.llm_factory = llm_factory or LLMFactory()
 
     async def save_agent_config(self, config: AgentConfiguration) -> str:
         """Save agent configuration and return agent ID."""
@@ -290,9 +292,19 @@ class MongoDBAIAgentRepository(AbstractAIAgentRepository):
     # AI Execution Methods (following Pokemon pattern where repos handle business logic)
     async def initialize_agent(self, config: AgentConfiguration) -> str:
         """Initialize an AI agent with the given configuration."""
-        # For now, just save the config and return the ID
-        # TODO: Implement actual PydanticAI initialization
-        return await self.save_agent_config(config)
+        # Save the configuration first
+        agent_id = await self.save_agent_config(config)
+
+        try:
+            # Create real LLM agent using the factory
+            client = self.llm_factory.create_client(config.provider.value.lower())
+            await client.create_agent(config)
+        except Exception as e:
+            # If LLM service fails, still save config but mark as inactive
+            from models.ai_agent.exception import AgentInitializationError
+            raise AgentInitializationError(f"Failed to initialize LLM agent: {str(e)}")
+
+        return agent_id
 
     async def chat(
         self,
@@ -302,15 +314,77 @@ class MongoDBAIAgentRepository(AbstractAIAgentRepository):
         context: Optional[Dict] = None,
     ) -> AgentResponse:
         """Send a message to an agent and get response."""
-        # TODO: Implement actual PydanticAI chat functionality
-        # For now, return a mock response
-        return AgentResponse(
-            message=f"MongoDB Mock response to: {message}",
-            confidence=0.8,
-            reasoning="Mock reasoning for MongoDB implementation",
-            status=AgentStatus.COMPLETED,
-            metadata={"provider": "mongodb", "agent_id": agent_id}
+        # Check if agent exists in database
+        config = await self.get_agent_config(agent_id)
+        if not config:
+            from models.ai_agent.exception import AgentNotFound
+            raise AgentNotFound(f"Agent {agent_id} not found")
+
+        try:
+            # Use real LLM factory for chat
+            client = self.llm_factory.create_client(config.provider.value.lower())
+            response = await client.chat(agent_id, message, context)
+
+            # Store the conversation in database if thread_id is provided
+            if thread_id:
+                await self._store_message_in_thread(thread_id, agent_id, message, response.message)
+
+            return response
+
+        except Exception as e:
+            # Fallback to mock response if LLM fails
+            return AgentResponse(
+                message=f"MongoDB Mock response to: {message} (LLM service unavailable)",
+                confidence=0.5,
+                reasoning=f"LLM service failed: {str(e)}",
+                status=AgentStatus.COMPLETED,
+                metadata={
+                    "agent_id": agent_id,
+                    "thread_id": thread_id,
+                    "status": "fallback_mock_response",
+                    "error": str(e)
+                }
+            )
+
+    async def _store_message_in_thread(
+        self,
+        thread_id: str,
+        agent_id: str,
+        user_message: str,
+        agent_response: str
+    ) -> None:
+        """Store conversation messages in a thread."""
+        # Get existing thread or create new one
+        thread = await self.get_thread(thread_id)
+        if not thread:
+            thread = AgentThread(
+                id=thread_id,
+                agent_id=agent_id,
+                messages=[],
+                metadata={}
+            )
+
+        # Add user message
+        user_msg = AgentMessage(
+            role="user",
+            content=user_message,
+            timestamp=datetime.utcnow(),
+            metadata={"thread_id": thread_id}
         )
+
+        # Add agent response
+        agent_msg = AgentMessage(
+            role="assistant",
+            content=agent_response,
+            timestamp=datetime.utcnow(),
+            metadata={"thread_id": thread_id}
+        )
+
+        # Update thread with new messages
+        thread.messages.extend([user_msg, agent_msg])
+        thread.updated_at = datetime.utcnow()
+
+        await self.update_thread(thread)
 
     async def chat_stream(
         self,

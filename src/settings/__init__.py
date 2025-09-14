@@ -22,3 +22,12 @@ SQLALCHEMY_ISOLATION_LEVEL = os.environ.get('SQLALCHEMY_ISOLATION_LEVEL') or 'SE
 #   sqlite+aiosqlite:///sqlite.db?reinitialize=true
 
 DATABASE_URI = os.environ.get('DATABASE_URI', 'sqlite+aiosqlite:///:memory:')
+
+# LLM API Keys for different providers
+PYDANTIC_AI_API_KEY = os.environ.get('PYDANTIC_AI_API_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+# LLM Configuration
+LLM_DEFAULT_MODEL = os.environ.get('LLM_DEFAULT_MODEL', 'gpt-4')
+LLM_DEFAULT_TEMPERATURE = float(os.environ.get('LLM_DEFAULT_TEMPERATURE', '0.7'))
+LLM_DEFAULT_MAX_TOKENS = int(os.environ.get('LLM_DEFAULT_MAX_TOKENS', '1000'))

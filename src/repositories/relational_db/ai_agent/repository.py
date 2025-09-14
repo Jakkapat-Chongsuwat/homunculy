@@ -30,6 +30,13 @@ from models.ai_agent.exception import (
     ThreadNotFound,
 )
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
+from repositories.llm_service.llm_factory import LLMFactory
+from usecases.ai_agent import (
+    chat_with_llm_agent,
+    create_llm_agent,
+    remove_llm_agent,
+    update_llm_agent,
+)
 
 from .mapper import AgentConfigurationOrmMapper, AgentPersonalityOrmMapper, AgentThreadOrmMapper
 from .orm import AgentConfiguration as AgentConfigurationOrm, AgentPersonality as AgentPersonalityOrm, AgentThread as AgentThreadOrm
@@ -38,10 +45,9 @@ from .orm import AgentConfiguration as AgentConfigurationOrm, AgentPersonality a
 class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
     """Relational database repository for AI agents using SQLAlchemy."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, llm_factory: Optional[LLMFactory] = None):
         self.session = session
-        # Store active PydanticAI agents by agent_id
-        self._active_agents: Dict[str, Any] = {}
+        self.llm_factory = llm_factory
 
     async def save_agent_config(self, config: AgentConfiguration) -> str:
         """Save agent configuration and return agent ID."""
@@ -234,13 +240,15 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         """Initialize an AI agent with the given configuration."""
         # Save the configuration first
         agent_id = await self.save_agent_config(config)
-        
-        # Create PydanticAI agent based on provider
-        if config.provider == AgentProvider.PYDANTIC_AI:
-            # For now, use a simple agent. In production, you'd configure based on model_name
-            # Mock agent creation to avoid constructor issues
-            self._active_agents[agent_id] = f"mock_agent_{agent_id}"  # Store mock reference
-        
+
+        try:
+            # Create real LLM agent using the use case
+            if self.llm_factory:
+                await create_llm_agent(self.llm_factory, agent_id, config)
+        except Exception as e:
+            # If LLM creation fails, still save config but raise error
+            raise AgentInitializationError(f"Failed to initialize LLM agent: {str(e)}")
+
         return agent_id
 
     async def chat(
@@ -251,17 +259,87 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         context: Optional[Dict] = None,
     ) -> AgentResponse:
         """Send a message to an agent and get response."""
-        # This is a placeholder - in a real implementation, this would call the actual AI service
-        return AgentResponse(
-            message=f"Mock response to: {message}",
-            confidence=0.8,
-            reasoning="This is a mock response for development purposes",
-            metadata={
-                "agent_id": agent_id,
-                "thread_id": thread_id,
-                "status": "mock_response"
-            }
+        # Check if agent exists in database
+        config = await self.get_agent_config(agent_id)
+        if not config:
+            raise AgentNotFound(f"Agent {agent_id} not found")
+
+        try:
+            # Use the use case for chat
+            if self.llm_factory:
+                response = await chat_with_llm_agent(self.llm_factory, agent_id, message, context)
+            else:
+                # Fallback to mock response if no factory
+                response = AgentResponse(
+                    message=f"Mock response to: {message} (LLM factory not available)",
+                    confidence=0.5,
+                    reasoning="LLM factory not configured",
+                    metadata={
+                        "agent_id": agent_id,
+                        "thread_id": thread_id,
+                        "status": "fallback_mock_response"
+                    }
+                )
+
+            # Store the conversation in database if thread_id is provided
+            if thread_id:
+                await self._store_message_in_thread(thread_id, agent_id, message, response.message)
+
+            return response
+
+        except Exception as e:
+            # Fallback to mock response if LLM fails
+            return AgentResponse(
+                message=f"Mock response to: {message} (LLM service unavailable)",
+                confidence=0.5,
+                reasoning=f"LLM service failed: {str(e)}",
+                metadata={
+                    "agent_id": agent_id,
+                    "thread_id": thread_id,
+                    "status": "fallback_mock_response",
+                    "error": str(e)
+                }
+            )
+
+    async def _store_message_in_thread(
+        self,
+        thread_id: str,
+        agent_id: str,
+        user_message: str,
+        agent_response: str
+    ) -> None:
+        """Store conversation messages in a thread."""
+        # Get existing thread or create new one
+        thread = await self.get_thread(thread_id)
+        if not thread:
+            thread = AgentThread(
+                id=thread_id,
+                agent_id=agent_id,
+                messages=[],
+                metadata={}
+            )
+
+        # Add user message
+        user_msg = AgentMessage(
+            role="user",
+            content=user_message,
+            timestamp=datetime.now(timezone.utc),
+            metadata={"thread_id": thread_id}
         )
+
+        # Add agent response
+        agent_msg = AgentMessage(
+            role="assistant",
+            content=agent_response,
+            timestamp=datetime.now(timezone.utc),
+            metadata={"thread_id": thread_id}
+        )
+
+        # Update thread with new messages
+        thread.messages.extend([user_msg, agent_msg])
+        thread.updated_at = datetime.now(timezone.utc)
+
+        await self.update_thread(thread)
 
     async def chat_stream(
         self,
@@ -299,7 +377,18 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         config.personality = personality
         
         # Save updated config
-        return await self.update_agent_config(agent_id, config)
+        success = await self.update_agent_config(agent_id, config)
+        
+        if success:
+            try:
+                # Update the LLM agent with new configuration
+                if self.llm_factory:
+                    await update_llm_agent(self.llm_factory, agent_id, config)
+            except Exception:
+                # If LLM update fails, we still return success since DB was updated
+                pass
+        
+        return success
 
     async def get_thread_history(self, thread_id: str) -> List[AgentMessage]:
         """Get conversation history for a thread."""
@@ -342,6 +431,14 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         agent_config = await self.get_agent_config(agent_id)
         if agent_config is None:
             return False
+        
+        # Clean up LLM agent
+        try:
+            if self.llm_factory:
+                await remove_llm_agent(self.llm_factory, agent_id)
+        except Exception:
+            # Continue with shutdown even if LLM cleanup fails
+            pass
         
         # Delete the agent configuration from database
         return await self.delete_agent_config(agent_id)

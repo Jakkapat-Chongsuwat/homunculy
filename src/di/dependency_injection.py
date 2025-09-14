@@ -36,6 +36,7 @@ from repositories.key_value_db.ai_agent.repository import RedisAIAgentRepository
 from repositories.relational_db import RelationalDBPokemonRepository
 from repositories.relational_db.ai_agent.repository import RelationalDBAIAgentRepository
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
+from repositories.llm_service.llm_factory import LLMFactory
 from settings.db import IS_DOCUMENT_DB, IS_KEY_VALUE_DB, IS_RELATIONAL_DB
 
 from .unit_of_work import (
@@ -53,6 +54,16 @@ from .unit_of_work import (
     RedisPokemonUnitOfWork,
     RedisAIAgentUnitOfWork,
 )
+
+
+class LLMModule(Module):
+    """Module for LLM service dependencies."""
+
+    @singleton
+    @provider
+    def provide_llm_factory(self) -> LLMFactory:
+        """Provides the LLM factory for creating LLM clients."""
+        return LLMFactory()
 
 
 class RelationalDBModule(Module):
@@ -98,8 +109,8 @@ class RelationalDBModule(Module):
         return RelationalDBPokemonRepository(session)
 
     @provider
-    def provide_ai_agent_repository(self, session: AsyncSession) -> AbstractAIAgentRepository:
-        return RelationalDBAIAgentRepository(session)
+    def provide_ai_agent_repository(self, session: AsyncSession, llm_factory: LLMFactory) -> AbstractAIAgentRepository:
+        return RelationalDBAIAgentRepository(session, llm_factory)
 
     @provider
     def provide_pokemon_unit_of_work(
@@ -148,8 +159,9 @@ class DocumentDBModule(Module):
     def provide_ai_agent_repository(
         self,
         collection: AsyncIOMotorCollection,  # pyright: ignore[reportInvalidTypeForm]
+        llm_factory: LLMFactory,
     ) -> AbstractAIAgentRepository:
-        return MongoDBAIAgentRepository(collection)
+        return MongoDBAIAgentRepository(collection, llm_factory)
 
     @provider
     def provide_pokemon_unit_of_work(
@@ -187,8 +199,8 @@ class KeyValueDBModule(Module):
         return RedisPokemonRepository(client)
 
     @provider
-    def provide_ai_agent_repository(self, client) -> AbstractAIAgentRepository:
-        return RedisAIAgentRepository(client)
+    def provide_ai_agent_repository(self, client, llm_factory: LLMFactory) -> AbstractAIAgentRepository:
+        return RedisAIAgentRepository(client, llm_factory)
 
     @provider
     def provide_pokemon_unit_of_work(self, client, pokemon_repo: RedisPokemonRepository) -> AbstractPokemonUnitOfWork:
@@ -217,4 +229,4 @@ class DatabaseModuleFactory:
         )
 
 
-injector = Injector([DatabaseModuleFactory().create_module()])
+injector = Injector([DatabaseModuleFactory().create_module(), LLMModule()])

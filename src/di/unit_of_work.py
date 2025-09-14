@@ -134,6 +134,16 @@ class MongoDBPokemonUnitOfWork(AbstractPokemonUnitOfWork):
         finally:
             await self._session.end_session()
 
+    def commit(self):
+        # For MongoDB, commit is handled in __aexit__
+        # This method is here for interface compliance
+        pass
+
+    def rollback(self):
+        # For MongoDB, rollback is handled in __aexit__
+        # This method is here for interface compliance
+        pass
+
 
 class RedisPokemonUnitOfWork(AbstractPokemonUnitOfWork):
     def __init__(self, client: AsyncRedis, pokemon_repo: RedisPokemonRepository):
@@ -145,6 +155,16 @@ class RedisPokemonUnitOfWork(AbstractPokemonUnitOfWork):
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Any):
         await self._client.aclose()  # type: ignore
+
+    def commit(self):
+        # Redis doesn't support transactions in the same way as relational databases
+        # This method is here for interface compliance
+        pass
+
+    def rollback(self):
+        # Redis doesn't support transactions in the same way as relational databases
+        # This method is here for interface compliance
+        pass
 
 
 # Concrete implementations for AI Agent domain
