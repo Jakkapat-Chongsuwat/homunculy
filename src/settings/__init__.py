@@ -1,33 +1,58 @@
-import os
+"""
+Settings module for the application.
 
-# application name and version
-APP_NAME = 'Pokédex API'
-APP_VERSION = '3'
+This module provides centralized configuration management using Pydantic BaseSettings
+for type-safe configuration with environment variable support.
+"""
 
-# enable/disable logging of SQL statements
-SQLALCHEMY_ECHO = os.environ.get('SQLALCHEMY_ECHO', '').lower() == 'true'
+from .config import settings
 
-# set the isolation level for the database connection
-SQLALCHEMY_ISOLATION_LEVEL = os.environ.get('SQLALCHEMY_ISOLATION_LEVEL') or 'SERIALIZABLE'
+# Application settings
+APP_NAME = settings.app.name
+APP_VERSION = settings.app.version
 
-# database connection string, e.g.:
-# - sqlite+aiosqlite:///sqlite.db (SQLite3)
-# - sqlite+aiosqlite:///:memory: (SQLite3 in-memory)
-# - mysql+asyncmy://<username>:<password>@<host>:<port>/<dbname> (MySQL)
-# - postgresql+asyncpg://<username>:<password>@<host>:<port>/<dbname> (PostgreSQL)
-# - mongodb://<username>:<password>@<host>:<port>/<dbname> (MongoDB)
-#
-# if "reinitialize" query parameter is set to "true", existing tables will be dropped before
-# creating new tables. Example:
-#   sqlite+aiosqlite:///sqlite.db?reinitialize=true
+# Database settings
+DATABASE_URI = settings.database.uri
+SQLALCHEMY_ECHO = settings.database.echo
+SQLALCHEMY_ISOLATION_LEVEL = settings.database.isolation_level
 
-DATABASE_URI = os.environ.get('DATABASE_URI', 'sqlite+aiosqlite:///:memory:')
+# LLM settings
+OPENAI_API_KEY = settings.llm.openai_api_key
+LLM_DEFAULT_MODEL = settings.llm.default_model
+LLM_DEFAULT_TEMPERATURE = settings.llm.default_temperature
+LLM_DEFAULT_MAX_TOKENS = settings.llm.default_max_tokens
 
-# LLM API Keys for different providers
-PYDANTIC_AI_API_KEY = os.environ.get('PYDANTIC_AI_API_KEY', '')
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+# Security settings
+JWT_SECRET_KEY = settings.security.jwt_secret_key
+JWT_ALGORITHM = settings.security.jwt_algorithm
+JWT_EXPIRATION_HOURS = settings.security.jwt_expiration_hours
 
-# LLM Configuration
-LLM_DEFAULT_MODEL = os.environ.get('LLM_DEFAULT_MODEL', 'gpt-4')
-LLM_DEFAULT_TEMPERATURE = float(os.environ.get('LLM_DEFAULT_TEMPERATURE', '0.7'))
-LLM_DEFAULT_MAX_TOKENS = int(os.environ.get('LLM_DEFAULT_MAX_TOKENS', '1000'))
+# Logging settings
+LOG_LEVEL = settings.logging.level
+LOG_FORMAT = settings.logging.format
+LOG_DATE_FORMAT = settings.logging.date_format
+
+# Export the settings instance and individual service settings for direct access
+__all__ = [
+    "settings",
+    # Application
+    "APP_NAME",
+    "APP_VERSION",
+    # Database
+    "DATABASE_URI",
+    "SQLALCHEMY_ECHO",
+    "SQLALCHEMY_ISOLATION_LEVEL",
+    # LLM
+    "OPENAI_API_KEY",
+    "LLM_DEFAULT_MODEL",
+    "LLM_DEFAULT_TEMPERATURE",
+    "LLM_DEFAULT_MAX_TOKENS",
+    # Security
+    "JWT_SECRET_KEY",
+    "JWT_ALGORITHM",
+    "JWT_EXPIRATION_HOURS",
+    # Logging
+    "LOG_LEVEL",
+    "LOG_FORMAT",
+    "LOG_DATE_FORMAT",
+]

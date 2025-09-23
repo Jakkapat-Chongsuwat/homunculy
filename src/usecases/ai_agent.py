@@ -19,7 +19,7 @@ async def create_llm_agent(
     llm_factory: LLMFactory,
     agent_id: str,
     config: AgentConfiguration
-) -> None:
+) -> str:
     """
     Create an LLM agent using the repository layer.
     
@@ -30,11 +30,8 @@ async def create_llm_agent(
     provider_str = str(config.provider.value) if hasattr(config.provider, 'value') else str(config.provider)
     client = llm_factory.create_client(provider_str)
     
-    # Create the agent using the repository
-    await client.create_agent(config)
-    
-    # Note: In a full implementation, we might want to store agent metadata
-    # in the repository, but for now we keep it simple
+    # Create the agent using the repository and return the agent_id
+    return await client.create_agent(config)
 
 
 async def chat_with_llm_agent(

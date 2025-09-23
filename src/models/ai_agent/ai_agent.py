@@ -44,8 +44,7 @@ class AgentMessage:
     metadata: Optional[Dict[str, Any]] = None
 
 
-@dataclass
-class AgentResponse:
+class AgentResponse(BaseModel):
     """Represents an agent's response."""
     
     message: str
