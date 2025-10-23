@@ -1,23 +1,39 @@
-version: "3.8"
-
 services:
   postgres:
-    image: postgres:15
+    image: postgres:18
     container_name: homunculy_postgres
     environment:
       POSTGRES_USER: homunculy_user
-      POSTGRES_PASSWORD: homunculy_pass
-      POSTGRES_DB: homunculy_db
+      POSTGRES_PASSWORD: homunculy_password
+      POSTGRES_DB: homunculy
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U homunculy_user -d homunculy_db"]
+      test: ["CMD-SHELL", "pg_isready -U homunculy_user -d homunculy"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - homunculy_network
+
+  migrations:
+    image: liquibase/liquibase:4.33.0
+    container_name: homunculy_migrations
+    environment:
+      - LIQUIBASE_COMMAND_URL=jdbc:postgresql://postgres:5432/homunculy
+      - LIQUIBASE_COMMAND_USERNAME=homunculy_user
+      - LIQUIBASE_COMMAND_PASSWORD=homunculy_password
+      - LIQUIBASE_COMMAND_CHANGELOG_FILE=db/changelog/db.changelog-master.xml
+    volumes:
+      - .:/liquibase/changelog
+    working_dir: /liquibase/changelog
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["liquibase", "update"]
     networks:
       - homunculy_network
 
@@ -33,23 +49,25 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - homunculy_network
 
   app:
     build: .
     container_name: homunculy_app
+    env_file:
+      - .env
     environment:
-      - DATABASE_URI=postgresql+asyncpg://homunculy_user:homunculy_pass@postgres:5432/homunculy_db
+      - DATABASE_URI=postgresql+asyncpg://homunculy_user:homunculy_password@postgres:5432/homunculy
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     networks:
       - homunculy_network
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

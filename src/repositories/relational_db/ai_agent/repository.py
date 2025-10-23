@@ -31,12 +31,6 @@ from models.ai_agent.exception import (
 )
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
 from repositories.llm_service.llm_factory import LLMFactory
-from usecases.ai_agent import (
-    chat_with_llm_agent,
-    create_llm_agent,
-    remove_llm_agent,
-    update_llm_agent,
-)
 
 from .mapper import AgentConfigurationOrmMapper, AgentPersonalityOrmMapper, AgentThreadOrmMapper
 from .orm import AgentConfiguration as AgentConfigurationOrm, AgentPersonality as AgentPersonalityOrm, AgentThread as AgentThreadOrm
@@ -242,9 +236,10 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         agent_id = await self.save_agent_config(config)
 
         try:
-            # Create real LLM agent using the use case
+            # Create real LLM agent using the factory
             if self.llm_factory:
-                await create_llm_agent(self.llm_factory, agent_id, config)
+                client = self.llm_factory.create_client(config.provider.value.lower())
+                client.create_agent(agent_id, config)
         except Exception as e:
             # If LLM creation fails, still save config but raise error
             raise AgentInitializationError(f"Failed to initialize LLM agent: {str(e)}")
@@ -265,9 +260,14 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
             raise AgentNotFound(f"Agent {agent_id} not found")
 
         try:
-            # Use the use case for chat
+            # Use the LLM client for chat
             if self.llm_factory:
-                response = await chat_with_llm_agent(self.llm_factory, agent_id, message, context)
+                config = await self.get_agent_config(agent_id)
+                if config:
+                    client = self.llm_factory.create_client(config.provider.value.lower())
+                    response = await client.chat(agent_id, message, context)
+                else:
+                    raise AgentNotFound(f"Agent {agent_id} not found")
             else:
                 # Fallback to mock response if no factory
                 response = AgentResponse(
@@ -383,7 +383,8 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
             try:
                 # Update the LLM agent with new configuration
                 if self.llm_factory:
-                    await update_llm_agent(self.llm_factory, agent_id, config)
+                    client = self.llm_factory.create_client(config.provider.value.lower())
+                    client.update_agent(agent_id, config)
             except Exception:
                 # If LLM update fails, we still return success since DB was updated
                 pass
@@ -435,7 +436,8 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         # Clean up LLM agent
         try:
             if self.llm_factory:
-                await remove_llm_agent(self.llm_factory, agent_id)
+                client = self.llm_factory.create_client(agent_config.provider.value.lower())
+                client.remove_agent(agent_id)
         except Exception:
             # Continue with shutdown even if LLM cleanup fails
             pass

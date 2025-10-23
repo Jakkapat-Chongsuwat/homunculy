@@ -179,7 +179,75 @@ $ docker compose down --remove-orphans -v
 $ docker compose up dockerize
 ```
 
-### 🔧 Development Setup
+### �️ Database Migrations with Liquibase
+
+This project uses **Liquibase** for database schema migrations, providing language-agnostic, version-controlled database changes.
+
+#### Prerequisites
+
+1. **Install Liquibase** on your system:
+   - Download from [Liquibase Downloads](https://www.liquibase.org/download)
+   - Add to your system PATH
+
+2. **Install PostgreSQL JDBC Driver** (if not included):
+   - Download `postgresql-<version>.jar` from [PostgreSQL JDBC](https://jdbc.postgresql.org/)
+   - Place in Liquibase's `lib` directory
+
+#### Running Migrations
+
+1. **Start the PostgreSQL database:**
+   ```sh
+   $ docker compose up postgres pgadmin -d
+   ```
+
+2. **Run database migrations:**
+   ```powershell
+   # Windows PowerShell
+   .\scripts\migrations\run-migrations.ps1
+   
+   # Or directly with Liquibase
+   liquibase --defaultsFile=liquibase.properties update
+   ```
+
+3. **Check migration status:**
+   ```powershell
+   # Windows PowerShell
+   .\scripts\migrations\check-migrations.ps1
+   
+   # Or directly with Liquibase
+   liquibase --defaultsFile=liquibase.properties status
+   ```
+
+4. **Start the application:**
+   ```sh
+   $ docker compose up app
+   ```
+
+#### Migration Files Structure
+
+```
+db/
+└── changelog/
+    ├── db.changelog-master.xml    # Master changelog file
+    └── 001-initial-schema.sql     # Individual migration files
+```
+
+#### Adding New Migrations
+
+1. Create a new SQL file in `db/changelog/` with format: `NNN-description.sql`
+2. Add the changeset header:
+   ```sql
+   --liquibase formatted sql
+   
+   --changeset yourname:NNN-description
+   --comment: Description of the change
+   
+   -- Your SQL statements here
+   ```
+3. Update `db.changelog-master.xml` to include the new file
+4. Run migrations to apply changes
+
+### �🔧 Development Setup
 
 Set up your local development environment:
 

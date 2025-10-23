@@ -142,3 +142,8 @@ cython_debug/
 .pre-commit-config.yaml
 *.db
 .flake8
+
+# Liquibase
+liquibase.properties.local
+.liquibase/logs/
+.liquibase/liquibase.csv

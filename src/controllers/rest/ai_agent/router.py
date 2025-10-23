@@ -37,11 +37,13 @@ router = APIRouter()
 async def create_agent(body: CreateAgentRequest) -> CreateAgentResponse:
     """Create a new AI agent."""
     from di.dependency_injection import injector
-    from repositories.llm_service.llm_factory import LLMFactory
+    from di.unit_of_work import AbstractAIAgentUnitOfWork
 
-    llm_factory = injector.get(LLMFactory)
+    uow: AbstractAIAgentUnitOfWork = injector.get(AbstractAIAgentUnitOfWork)
     config = AgentRequestMapper.create_request_to_entity(body)
-    agent_id = await ai_agent.create_llm_agent(llm_factory, "", config)
+
+    async with uow:
+        agent_id = await uow.ai_agent_repo.initialize_agent(config)
 
     return CreateAgentResponse(agent_id=agent_id)
 
@@ -53,11 +55,13 @@ async def chat_with_agent(
 ) -> AgentResponse:
     """Send a message to an AI agent."""
     from di.dependency_injection import injector
-    from repositories.llm_service.llm_factory import LLMFactory
+    from di.unit_of_work import AbstractAIAgentUnitOfWork
 
-    llm_factory = injector.get(LLMFactory)
+    uow: AbstractAIAgentUnitOfWork = injector.get(AbstractAIAgentUnitOfWork)
     message, thread_id, context = AgentRequestMapper.chat_request_to_params(body)
-    response = await ai_agent.chat_with_llm_agent(llm_factory, agent_id, message, context)
+
+    async with uow:
+        response = await uow.ai_agent_repo.chat(agent_id, message, thread_id, context)
 
     return AgentResponseMapper.entity_to_response(response)
 
@@ -69,24 +73,18 @@ async def update_agent_personality(
 ) -> GenericResponse:
     """Update an agent's personality."""
     from di.dependency_injection import injector
-    from repositories.llm_service.llm_factory import LLMFactory
+    from di.unit_of_work import AbstractAIAgentUnitOfWork
 
-    llm_factory = injector.get(LLMFactory)
+    uow: AbstractAIAgentUnitOfWork = injector.get(AbstractAIAgentUnitOfWork)
     update_data = AgentRequestMapper.update_request_to_entity(body)
 
-    if "personality" in update_data:
-        config = AgentConfiguration(
-            provider=AgentProvider.PYDANTIC_AI,  # Default provider
-            model_name="gpt-4",
-            personality=update_data["personality"],
-            system_prompt=update_data.get("system_prompt", ""),
-            temperature=update_data.get("temperature", 0.7),
-            max_tokens=update_data.get("max_tokens", 1000),
-            tools=update_data.get("tools", []),
-        )
-        await ai_agent.update_llm_agent(llm_factory, agent_id, config)
+    async with uow:
+        if "personality" in update_data:
+            success = await uow.ai_agent_repo.update_agent_personality(agent_id, update_data["personality"])
+            if success:
+                return GenericResponse(status="updated")
 
-    return GenericResponse(status="updated")
+    return GenericResponse(status="failed")
 
 
 @router.get("/agents/{agent_id}/config", response_model=AgentConfigurationResponse)
@@ -134,14 +132,12 @@ async def get_agent_status(
 async def list_providers() -> List[AgentProviderResponse]:
     """List available AI providers."""
     from di.dependency_injection import injector
-    from repositories.llm_service.llm_factory import LLMFactory
-    from models.ai_agent.ai_agent import AgentProvider
+    from di.unit_of_work import AbstractAIAgentUnitOfWork
 
-    llm_factory = injector.get(LLMFactory)
-    provider_strings = ai_agent.get_supported_llm_providers(llm_factory)
+    uow: AbstractAIAgentUnitOfWork = injector.get(AbstractAIAgentUnitOfWork)
 
-    # Convert string list to AgentProvider enum list
-    providers = [AgentProvider(provider_str) for provider_str in provider_strings]
+    async with uow:
+        providers = await uow.ai_agent_repo.list_available_providers()
 
     return AgentResponseMapper.providers_to_response(providers)
 
@@ -152,9 +148,13 @@ async def shutdown_agent(
 ) -> GenericResponse:
     """Shutdown an AI agent."""
     from di.dependency_injection import injector
-    from repositories.llm_service.llm_factory import LLMFactory
+    from di.unit_of_work import AbstractAIAgentUnitOfWork
 
-    llm_factory = injector.get(LLMFactory)
-    await ai_agent.remove_llm_agent(llm_factory, agent_id)
+    uow: AbstractAIAgentUnitOfWork = injector.get(AbstractAIAgentUnitOfWork)
 
-    return GenericResponse(status="shutdown")
+    async with uow:
+        success = await uow.ai_agent_repo.shutdown_agent(agent_id)
+        if success:
+            return GenericResponse(status="shutdown")
+
+    return GenericResponse(status="failed")

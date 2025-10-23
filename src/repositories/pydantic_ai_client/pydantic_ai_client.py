@@ -93,11 +93,8 @@ class PydanticAILLMClient(ILLMClient):
 
         return agent
 
-    async def create_agent(self, config: AgentConfiguration) -> str:
+    def create_agent(self, agent_id: str, config: AgentConfiguration) -> None:
         """Create an LLM agent and return its ID."""
-        import uuid
-        agent_id = str(uuid.uuid4())
-
         if config.provider not in [AgentProvider.PYDANTIC_AI, AgentProvider.OPENAI]:
             raise ValueError(f"Unsupported provider: {config.provider}")
 
@@ -109,7 +106,6 @@ class PydanticAILLMClient(ILLMClient):
 
             self._agents[agent_id] = agent
             self._agent_configs[agent_id] = config
-            return agent_id
         except Exception as e:
             raise RuntimeError(f"Failed to create agent: {str(e)}")
 
@@ -201,31 +197,16 @@ class PydanticAILLMClient(ILLMClient):
         except Exception as e:
             raise RuntimeError(f"LLM chat failed: {str(e)}")
 
-    async def update_agent(self, agent_id: str, config: AgentConfiguration) -> None:
+    def update_agent(self, agent_id: str, config: AgentConfiguration) -> None:
         """Update an existing agent's configuration."""
         if agent_id in self._agents:
             del self._agents[agent_id]
             del self._agent_configs[agent_id]
 
         # Create new agent with updated config
-        await self.create_agent_with_id(agent_id, config)
+        self.create_agent(agent_id, config)
 
-    async def create_agent_with_id(self, agent_id: str, config: AgentConfiguration) -> None:
-        """Create an agent with a specific ID (used internally for updates)."""
-        if config.provider not in [AgentProvider.PYDANTIC_AI, AgentProvider.OPENAI]:
-            raise ValueError(f"Unsupported provider: {config.provider}")
-
-        try:
-            if config.provider == AgentProvider.PYDANTIC_AI:
-                agent = self._create_pydantic_ai_agent(config)
-            else:  # OPENAI
-                agent = self._create_openai_agent(config)
-
-            self._agents[agent_id] = agent
-        except Exception as e:
-            raise RuntimeError(f"Failed to create agent: {str(e)}")
-
-    async def remove_agent(self, agent_id: str) -> None:
+    def remove_agent(self, agent_id: str) -> None:
         """Remove an agent."""
         if agent_id in self._agents:
             del self._agents[agent_id]

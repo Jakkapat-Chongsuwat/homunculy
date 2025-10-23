@@ -23,8 +23,8 @@ class AgentConfiguration(Base):
     temperature: Mapped[str] = mapped_column(String(10), default="0.7")
     max_tokens: Mapped[int] = mapped_column(nullable=False, default=2000)
     tools_json: Mapped[str] = mapped_column(Text, default="[]")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class AgentThread(Base):
@@ -33,8 +33,8 @@ class AgentThread(Base):
     id: Mapped[UUIDStr] = mapped_column(String(32), primary_key=True, default=build_uuid4_str)
     agent_id: Mapped[UUIDStr] = mapped_column(String(32), nullable=False)
     messages_json: Mapped[str] = mapped_column(Text, default="[]")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
@@ -47,5 +47,5 @@ class AgentPersonality(Base):
     traits_json: Mapped[str] = mapped_column(Text, default="{}")
     mood: Mapped[str] = mapped_column(String(50), default="neutral")
     memory_context: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

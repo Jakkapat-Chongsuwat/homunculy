@@ -1,11 +1,13 @@
--- Homunculy AI Agent Database Initialization
--- This script creates all necessary tables for the AI agent system
+--liquibase formatted sql
+
+--changeset homunculy:001-initial-schema
+--comment: Initial database schema for AI agent system
 
 -- Create extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create AI Agent Configurations table
-CREATE TABLE IF NOT EXISTS ai_agent_configurations (
+CREATE TABLE ai_agent_configurations (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     provider VARCHAR(50) NOT NULL,
     model_name VARCHAR(100) NOT NULL,
@@ -19,7 +21,7 @@ CREATE TABLE IF NOT EXISTS ai_agent_configurations (
 );
 
 -- Create AI Agent Threads table
-CREATE TABLE IF NOT EXISTS ai_agent_threads (
+CREATE TABLE ai_agent_threads (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     agent_id VARCHAR(36) NOT NULL,
     messages_json TEXT DEFAULT '[]',
@@ -29,7 +31,7 @@ CREATE TABLE IF NOT EXISTS ai_agent_threads (
 );
 
 -- Create AI Agent Personalities table
-CREATE TABLE IF NOT EXISTS ai_agent_personalities (
+CREATE TABLE ai_agent_personalities (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     name VARCHAR(100) NOT NULL,
     description TEXT DEFAULT '',
@@ -41,20 +43,20 @@ CREATE TABLE IF NOT EXISTS ai_agent_personalities (
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_ai_agent_configurations_provider ON ai_agent_configurations(provider);
-CREATE INDEX IF NOT EXISTS idx_ai_agent_configurations_model_name ON ai_agent_configurations(model_name);
-CREATE INDEX IF NOT EXISTS idx_ai_agent_threads_agent_id ON ai_agent_threads(agent_id);
-CREATE INDEX IF NOT EXISTS idx_ai_agent_threads_created_at ON ai_agent_threads(created_at);
-CREATE INDEX IF NOT EXISTS idx_ai_agent_personalities_name ON ai_agent_personalities(name);
+CREATE INDEX idx_ai_agent_configurations_provider ON ai_agent_configurations(provider);
+CREATE INDEX idx_ai_agent_configurations_model_name ON ai_agent_configurations(model_name);
+CREATE INDEX idx_ai_agent_threads_agent_id ON ai_agent_threads(agent_id);
+CREATE INDEX idx_ai_agent_threads_created_at ON ai_agent_threads(created_at);
+CREATE INDEX idx_ai_agent_personalities_name ON ai_agent_personalities(name);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS '
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+' LANGUAGE plpgsql;
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_ai_agent_configurations_updated_at

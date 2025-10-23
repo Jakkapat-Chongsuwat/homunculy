@@ -6,6 +6,7 @@ following the use case pattern established in the Pokemon system.
 Use cases work directly with repository layer (LLM providers).
 """
 
+import os
 from typing import Dict, List, Optional
 
 from repositories.llm_service.llm_factory import LLMFactory
@@ -30,8 +31,9 @@ async def create_llm_agent(
     provider_str = str(config.provider.value) if hasattr(config.provider, 'value') else str(config.provider)
     client = llm_factory.create_client(provider_str)
     
-    # Create the agent using the repository and return the agent_id
-    return await client.create_agent(config)
+    # Create the agent using the repository
+    client.create_agent(agent_id, config)
+    return agent_id
 
 
 async def chat_with_llm_agent(
@@ -45,9 +47,9 @@ async def chat_with_llm_agent(
     
     This use case orchestrates the chat functionality using the repository layer.
     """
-    # For now, we'll assume the agent was created with a known provider
-    # In a full implementation, we'd look up the provider from the repository
-    provider_str = "pydantic_ai"  # Default provider
+    # Check if we're in mock mode
+    use_mock = os.getenv("USE_MOCK_LLM", "false").lower() in ("true", "1", "yes")
+    provider_str = "mock" if use_mock else "pydantic_ai"  # Default provider
     
     client = llm_factory.create_client(provider_str)
     return await client.chat(agent_id, message, context)
@@ -65,7 +67,7 @@ async def update_llm_agent(
     """
     provider_str = str(config.provider.value) if hasattr(config.provider, 'value') else str(config.provider)
     client = llm_factory.create_client(provider_str)
-    await client.update_agent(agent_id, config)
+    client.update_agent(agent_id, config)
 
 
 async def remove_llm_agent(
@@ -82,7 +84,7 @@ async def remove_llm_agent(
     for provider in ["pydantic_ai", "openai"]:
         try:
             client = llm_factory.create_client(provider)
-            await client.remove_agent(agent_id)
+            client.remove_agent(agent_id)
             break  # Success, no need to try other providers
         except Exception:
             continue  # Try next provider

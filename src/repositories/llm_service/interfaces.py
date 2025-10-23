@@ -15,8 +15,8 @@ class ILLMClient(ABC):
     """Interface for LLM client implementations."""
 
     @abstractmethod
-    async def create_agent(self, config: AgentConfiguration) -> str:
-        """Create an LLM agent and return its ID."""
+    def create_agent(self, agent_id: str, config: AgentConfiguration) -> None:
+        """Create an LLM agent with the specified ID."""
         pass
 
     @abstractmethod
@@ -30,12 +30,12 @@ class ILLMClient(ABC):
         pass
 
     @abstractmethod
-    async def update_agent(self, agent_id: str, config: AgentConfiguration) -> None:
+    def update_agent(self, agent_id: str, config: AgentConfiguration) -> None:
         """Update an existing LLM agent's configuration."""
         pass
 
     @abstractmethod
-    async def remove_agent(self, agent_id: str) -> None:
+    def remove_agent(self, agent_id: str) -> None:
         """Remove an LLM agent."""
         pass
 
