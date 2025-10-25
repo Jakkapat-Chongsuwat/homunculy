@@ -9,6 +9,7 @@ from controllers.graphql.pokemon.router import router as pokemon_graphql_router
 from controllers.rest.extension import add_exception_handlers as add_rest_exception_handlers
 from controllers.rest.pokemon.router import router as pokemon_rest_router
 from controllers.rest.ai_agent.router import router as ai_agent_rest_router
+from controllers.websocket.router import router as websocket_router
 from settings import APP_NAME, APP_VERSION
 
 
@@ -33,6 +34,9 @@ app.add_middleware(
 app.include_router(pokemon_rest_router, tags=['REST'])
 app.include_router(ai_agent_rest_router, tags=['AI Agent'])
 add_rest_exception_handlers(app)
+
+# controllers/websocket
+app.include_router(websocket_router, prefix="/ws", tags=['WebSocket'])
 
 # controllers/graphql
 app.include_router(pokemon_graphql_router, prefix='/graphql', tags=['GraphQL'])
