@@ -26,33 +26,19 @@ refer to:
 
 from injector import Injector, Module, provider, singleton
 from motor.motor_asyncio import AsyncIOMotorCollection
-from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repositories.document_db import MongoDBPokemonRepository
 from repositories.document_db.ai_agent.repository import MongoDBAIAgentRepository
-from repositories.key_value_db import RedisPokemonRepository
-from repositories.key_value_db.ai_agent.repository import RedisAIAgentRepository
-from repositories.relational_db import RelationalDBPokemonRepository
 from repositories.relational_db.ai_agent.repository import RelationalDBAIAgentRepository
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
 from repositories.llm_service.llm_factory import LLMFactory
-from settings.db import IS_DOCUMENT_DB, IS_KEY_VALUE_DB, IS_RELATIONAL_DB
+from settings.db import IS_DOCUMENT_DB, IS_RELATIONAL_DB
 
 from .unit_of_work import (
-    AbstractUnitOfWork,
-    AsyncMotorUnitOfWork,
-    AsyncRedisUnitOfWork,
     AsyncSQLAlchemyUnitOfWork,
-    # New domain-specific UoW classes
-    AbstractPokemonUnitOfWork,
     AbstractAIAgentUnitOfWork,
-    RelationalPokemonUnitOfWork,
     RelationalAIAgentUnitOfWork,
-    MongoDBPokemonUnitOfWork,
     MongoDBAIAgentUnitOfWork,
-    RedisPokemonUnitOfWork,
-    RedisAIAgentUnitOfWork,
 )
 
 
@@ -105,20 +91,10 @@ class RelationalDBModule(Module):
         return get_async_session()
 
     @provider
-    def provide_pokemon_repository(self, session: AsyncSession) -> RelationalDBPokemonRepository:
-        return RelationalDBPokemonRepository(session)
-
-    @provider
     def provide_ai_agent_repository(self, session: AsyncSession, llm_factory: LLMFactory) -> AbstractAIAgentRepository:
         return RelationalDBAIAgentRepository(session, llm_factory)
 
-    @provider
-    def provide_pokemon_unit_of_work(
-        self, 
-        session: AsyncSession, 
-        pokemon_repo: RelationalDBPokemonRepository,
-    ) -> AbstractPokemonUnitOfWork:
-        return RelationalPokemonUnitOfWork(session, pokemon_repo)
+    # Pokemon-specific providers removed (pokemon feature has been removed)
 
     @provider
     def provide_ai_agent_unit_of_work(
@@ -132,10 +108,9 @@ class RelationalDBModule(Module):
     def provide_async_sqlalchemy_unit_of_work(
         self, 
         session: AsyncSession, 
-        pokemon_repo: RelationalDBPokemonRepository,
         ai_agent_repo: AbstractAIAgentRepository,
-    ) -> AbstractUnitOfWork:
-        return AsyncSQLAlchemyUnitOfWork(session, pokemon_repo, ai_agent_repo)
+    ) -> AbstractAIAgentUnitOfWork:
+        return AsyncSQLAlchemyUnitOfWork(session, ai_agent_repo)
 
 
 class DocumentDBModule(Module):
@@ -149,27 +124,12 @@ class DocumentDBModule(Module):
         return AsyncMongoDBEngine[DATABASE_NAME][COLLECTION_NAME]
 
     @provider
-    def provide_pokemon_repository(
-        self,
-        collection: AsyncIOMotorCollection,  # pyright: ignore[reportInvalidTypeForm]
-    ) -> MongoDBPokemonRepository:
-        return MongoDBPokemonRepository(collection, session=None)
-
-    @provider
     def provide_ai_agent_repository(
         self,
         collection: AsyncIOMotorCollection,  # pyright: ignore[reportInvalidTypeForm]
         llm_factory: LLMFactory,
     ) -> AbstractAIAgentRepository:
         return MongoDBAIAgentRepository(collection, llm_factory)
-
-    @provider
-    def provide_pokemon_unit_of_work(
-        self,
-        pokemon_repo: MongoDBPokemonRepository,
-    ) -> AbstractPokemonUnitOfWork:
-        from settings.db.mongodb import AsyncMongoDBEngine
-        return MongoDBPokemonUnitOfWork(AsyncMongoDBEngine, pokemon_repo)
 
     @provider
     def provide_ai_agent_unit_of_work(
@@ -181,38 +141,18 @@ class DocumentDBModule(Module):
 
     @provider
     def provide_async_motor_unit_of_work(
-        self, pokemon_repo: MongoDBPokemonRepository, ai_agent_repo: AbstractAIAgentRepository
-    ) -> AbstractUnitOfWork:
+        self, ai_agent_repo: AbstractAIAgentRepository
+    ) -> AbstractAIAgentUnitOfWork:
         from settings.db.mongodb import AsyncMongoDBEngine
+        # AsyncMotorUnitOfWork implementation was removed; return the
+        # MongoDB-backed UoW which provides equivalent per-message
+        # transactional semantics for now.
+        return MongoDBAIAgentUnitOfWork(AsyncMongoDBEngine, ai_agent_repo)
 
-        return AsyncMotorUnitOfWork(AsyncMongoDBEngine, pokemon_repo, ai_agent_repo)
 
-
-class KeyValueDBModule(Module):
-    @provider
-    def provide_async_redis_client(self) -> AsyncRedis:
-        from settings.db import get_async_client
-        return get_async_client()
-
-    @provider
-    def provide_pokemon_repository(self, client) -> RedisPokemonRepository:
-        return RedisPokemonRepository(client)
-
-    @provider
-    def provide_ai_agent_repository(self, client, llm_factory: LLMFactory) -> AbstractAIAgentRepository:
-        return RedisAIAgentRepository(client, llm_factory)
-
-    @provider
-    def provide_pokemon_unit_of_work(self, client, pokemon_repo: RedisPokemonRepository) -> AbstractPokemonUnitOfWork:
-        return RedisPokemonUnitOfWork(client, pokemon_repo)
-
-    @provider
-    def provide_ai_agent_unit_of_work(self, client, ai_agent_repo: AbstractAIAgentRepository) -> AbstractAIAgentUnitOfWork:
-        return RedisAIAgentUnitOfWork(client, ai_agent_repo)
-
-    @provider
-    def provide_async_redis_unit_of_work(self, client, pokemon_repo: RedisPokemonRepository, ai_agent_repo: AbstractAIAgentRepository) -> AbstractUnitOfWork:
-        return AsyncRedisUnitOfWork(client, pokemon_repo, ai_agent_repo)
+# Key-value / Redis support removed for now. If needed in the future,
+# reintroduce a KeyValueDBModule that provides a Redis client, repository
+# and UoW implementations. For now we intentionally avoid wiring Redis.
 
 
 class DatabaseModuleFactory:
@@ -221,11 +161,9 @@ class DatabaseModuleFactory:
             return RelationalDBModule()
         if IS_DOCUMENT_DB:
             return DocumentDBModule()
-        if IS_KEY_VALUE_DB:
-            return KeyValueDBModule()
-
+        # Key-value DB (Redis) is not supported in this configuration.
         raise RuntimeError(
-            'Invalid database type configuration. It\'s neither relational nor NoSQL'
+            "Invalid database type configuration: must set one of IS_RELATIONAL_DB or IS_DOCUMENT_DB"
         )
 
 
