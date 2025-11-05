@@ -16,8 +16,29 @@ from .exception import (
     PersonalityNotFound,
     ThreadNotFound,
 )
+from .langgraph_state import (
+    ConversationMessage,
+    ConversationState,
+    GraphExecutionMetadata,
+    GraphNodeResult,
+    PersonalityContext,
+    RelationshipContext,
+    WaifuState,
+)
+from .waifu import (
+    Interaction,
+    InteractionType,
+    Relationship,
+    RelationshipStage,
+    Waifu,
+    WaifuAppearance,
+    WaifuChatContext,
+    WaifuConfiguration,
+    WaifuPersonality,
+)
 
 __all__ = [
+    # Base agent models
     "AgentConfiguration",
     "AgentMessage",
     "AgentPersonality",
@@ -25,6 +46,7 @@ __all__ = [
     "AgentResponse",
     "AgentStatus",
     "AgentThread",
+    # Exceptions
     "AIAgentError",
     "AgentConfigurationError",
     "AgentExecutionError",
@@ -32,4 +54,22 @@ __all__ = [
     "AgentNotFound",
     "PersonalityNotFound",
     "ThreadNotFound",
+    # LangGraph state models
+    "ConversationMessage",
+    "ConversationState",
+    "GraphExecutionMetadata",
+    "GraphNodeResult",
+    "PersonalityContext",
+    "RelationshipContext",
+    "WaifuState",
+    # Waifu models
+    "Interaction",
+    "InteractionType",
+    "Relationship",
+    "RelationshipStage",
+    "Waifu",
+    "WaifuAppearance",
+    "WaifuChatContext",
+    "WaifuConfiguration",
+    "WaifuPersonality",
 ]

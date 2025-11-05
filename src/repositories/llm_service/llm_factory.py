@@ -6,8 +6,9 @@ decoupling the service layer from concrete implementations.
 """
 
 from typing import Dict
-from .interfaces import ILLMClient, ILLMFactory
+from repositories.abstraction.llm import ILLMClient, ILLMFactory
 from ..pydantic_ai_client.pydantic_ai_client import PydanticAILLMClient
+from ..langgraph_orchestrator.orchestrator import LangGraphOrchestratorClient
 
 
 class LLMFactory(ILLMFactory):
@@ -21,6 +22,8 @@ class LLMFactory(ILLMFactory):
         if provider not in self._clients:
             if provider in ["pydantic_ai", "openai"]:
                 self._clients[provider] = PydanticAILLMClient()
+            elif provider == "langgraph":
+                self._clients[provider] = LangGraphOrchestratorClient()
             else:
                 raise ValueError(f"Unsupported provider: {provider}")
 
@@ -28,4 +31,4 @@ class LLMFactory(ILLMFactory):
 
     def get_supported_providers(self) -> list[str]:
         """Get list of supported providers."""
-        return ["pydantic_ai", "openai"]
+        return ["pydantic_ai", "openai", "langgraph"]

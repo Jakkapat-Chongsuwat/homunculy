@@ -12,10 +12,8 @@ Note:
 from fastapi import FastAPI
 
 from .ai_agent.extension import add_ai_agent_exception_handlers
-from .pokemon.extension import add_pokemon_exception_handlers
 
 
 def add_exception_handlers(app: FastAPI):
-    """Add all exception handlers for the application."""
-    add_pokemon_exception_handlers(app)
+    """Add exception handlers for the application."""
     add_ai_agent_exception_handlers(app)

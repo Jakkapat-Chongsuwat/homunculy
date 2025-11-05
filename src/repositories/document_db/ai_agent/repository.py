@@ -14,13 +14,14 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 
 from models.ai_agent.ai_agent import AgentConfiguration, AgentMessage, AgentPersonality, AgentProvider, AgentResponse, AgentStatus, AgentThread
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
+from repositories.abstraction.llm import ILLMFactory
 from repositories.llm_service.llm_factory import LLMFactory
 
 
 class MongoDBAIAgentRepository(AbstractAIAgentRepository):
     """MongoDB repository for AI agents using Motor."""
 
-    def __init__(self, collection: AsyncIOMotorCollection, session=None, llm_factory: Optional[LLMFactory] = None):
+    def __init__(self, collection: AsyncIOMotorCollection, session=None, llm_factory: Optional[ILLMFactory] = None):
         self.collection = collection
         self.session = session
         self.llm_factory = llm_factory or LLMFactory()
@@ -298,7 +299,8 @@ class MongoDBAIAgentRepository(AbstractAIAgentRepository):
         try:
             # Create real LLM agent using the factory
             client = self.llm_factory.create_client(config.provider.value.lower())
-            await client.create_agent(config)
+            # create_agent is synchronous in the LLM client interface
+            client.create_agent(agent_id, config)
         except Exception as e:
             # If LLM service fails, still save config but mark as inactive
             from models.ai_agent.exception import AgentInitializationError
@@ -394,8 +396,22 @@ class MongoDBAIAgentRepository(AbstractAIAgentRepository):
         context: Optional[Dict] = None,
     ) -> AsyncIterator[AgentResponse]:
         """Send a message to an agent and get streaming response."""
-        # TODO: Implement actual streaming with PydanticAI
-        # For now, yield a single mock response
+        # If LLM factory is configured, delegate to the LLM client's streaming API
+        if self.llm_factory:
+            config = await self.get_agent_config(agent_id)
+            if config:
+                client = self.llm_factory.create_client(config.provider.value.lower())
+                last_resp: Optional[AgentResponse] = None
+                async for resp in client.chat_stream(agent_id, message, context):
+                    last_resp = resp
+                    yield resp
+
+                # store final response in thread if provided
+                if thread_id and last_resp:
+                    await self._store_message_in_thread(thread_id, agent_id, message, last_resp.message)
+                return
+
+        # Fallback mock if no factory or agent not found
         yield AgentResponse(
             message=f"MongoDB Mock streaming response to: {message}",
             confidence=0.8,

@@ -5,11 +5,14 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from controllers.graphql.extension import customize_graphql_openapi
-from controllers.graphql.pokemon.router import router as pokemon_graphql_router
-from controllers.rest.extension import add_exception_handlers as add_rest_exception_handlers
-from controllers.rest.pokemon.router import router as pokemon_rest_router
-from controllers.rest.ai_agent.router import router as ai_agent_rest_router
 from controllers.websocket.router import router as websocket_router
+
+try:
+    from controllers.rest.extension import add_exception_handlers as add_rest_exception_handlers
+except Exception:
+    add_rest_exception_handlers = None
+
+from controllers.rest.ai_agent.router import router as ai_agent_rest_router
 from settings import APP_NAME, APP_VERSION
 
 
@@ -31,15 +34,14 @@ app.add_middleware(
 )
 
 # controllers/rest
-app.include_router(pokemon_rest_router, tags=['REST'])
 app.include_router(ai_agent_rest_router, tags=['AI Agent'])
-add_rest_exception_handlers(app)
+if add_rest_exception_handlers is not None:
+    add_rest_exception_handlers(app)
 
 # controllers/websocket
 app.include_router(websocket_router, prefix="/ws", tags=['WebSocket'])
 
-# controllers/graphql
-app.include_router(pokemon_graphql_router, prefix='/graphql', tags=['GraphQL'])
+# controllers/graphql (optional)
 customize_graphql_openapi(app)
 
 

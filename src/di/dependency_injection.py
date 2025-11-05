@@ -30,7 +30,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repositories.document_db.ai_agent.repository import MongoDBAIAgentRepository
 from repositories.relational_db.ai_agent.repository import RelationalDBAIAgentRepository
+from repositories.relational_db.waifu.repository import RelationalDBWaifuRepository
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
+from repositories.abstraction.waifu import AbstractWaifuRepository
+from repositories.abstraction.llm import ILLMFactory
 from repositories.llm_service.llm_factory import LLMFactory
 from settings.db import IS_DOCUMENT_DB, IS_RELATIONAL_DB
 
@@ -47,8 +50,13 @@ class LLMModule(Module):
 
     @singleton
     @provider
-    def provide_llm_factory(self) -> LLMFactory:
-        """Provides the LLM factory for creating LLM clients."""
+    def provide_llm_factory(self) -> ILLMFactory:
+        """
+        Provides the LLM factory for creating LLM clients.
+        
+        Returns the interface (ILLMFactory) to follow Dependency Inversion Principle.
+        The concrete implementation (LLMFactory) is created here but returned as interface.
+        """
         return LLMFactory()
 
 
@@ -91,10 +99,13 @@ class RelationalDBModule(Module):
         return get_async_session()
 
     @provider
-    def provide_ai_agent_repository(self, session: AsyncSession, llm_factory: LLMFactory) -> AbstractAIAgentRepository:
+    def provide_ai_agent_repository(self, session: AsyncSession, llm_factory: ILLMFactory) -> AbstractAIAgentRepository:
         return RelationalDBAIAgentRepository(session, llm_factory)
 
-    # Pokemon-specific providers removed (pokemon feature has been removed)
+    @provider
+    def provide_waifu_repository(self, session: AsyncSession) -> AbstractWaifuRepository:
+        return RelationalDBWaifuRepository(session)
+
 
     @provider
     def provide_ai_agent_unit_of_work(
@@ -127,7 +138,7 @@ class DocumentDBModule(Module):
     def provide_ai_agent_repository(
         self,
         collection: AsyncIOMotorCollection,  # pyright: ignore[reportInvalidTypeForm]
-        llm_factory: LLMFactory,
+        llm_factory: ILLMFactory,
     ) -> AbstractAIAgentRepository:
         return MongoDBAIAgentRepository(collection, llm_factory)
 

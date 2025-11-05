@@ -2,11 +2,11 @@
 Repository interfaces for LLM operations.
 
 This module defines the interfaces for LLM clients and factories
-in the repository layer, following Clean Architecture principles.
+in the repository abstraction layer, following Clean Architecture principles.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, AsyncIterator
 
 from models.ai_agent.ai_agent import AgentConfiguration, AgentResponse
 
@@ -27,6 +27,20 @@ class ILLMClient(ABC):
         context: Optional[Dict[str, str]] = None
     ) -> AgentResponse:
         """Send a message to an LLM agent and get response."""
+        pass
+
+    @abstractmethod
+    def chat_stream(
+        self,
+        agent_id: str,
+        message: str,
+        context: Optional[Dict[str, str]] = None,
+    ) -> AsyncIterator[AgentResponse]:
+        """Send a message to an LLM agent and get streaming responses.
+
+        Implementations should return an async iterator (async generator) yielding
+        AgentResponse objects as the model streams responses.
+        """
         pass
 
     @abstractmethod

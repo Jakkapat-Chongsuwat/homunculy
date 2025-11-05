@@ -6,7 +6,8 @@ from .. import DATABASE_URI
 from .base import has_reinitialize, normalize_uri
 
 DATABASE_NAME = urlparse(DATABASE_URI).path.lstrip('/')
-COLLECTION_NAME = 'pokemon'
+# Collection used for AI agent threads and messages
+COLLECTION_NAME = 'ai_agent'
 
 AsyncMongoDBEngine = AsyncIOMotorClient(normalize_uri(DATABASE_URI))
 

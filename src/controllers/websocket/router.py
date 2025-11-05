@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-from usecases.ai_agent_ws import process_ws_message
+from usecases.ai_agent_ws import process_ws_message, process_ws_stream
 
 router = APIRouter()
 
@@ -66,6 +66,76 @@ async def websocket_agent_chat(
                 await websocket.send_json({
                     "type": "error",
                     "message": f"Chat failed: {str(exc)}",
+                    "timestamp": "now",
+                })
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Connection error",
+                "timestamp": "now",
+            })
+        except Exception:
+            pass
+
+
+@router.websocket("/agents/{agent_id}/stream")
+async def websocket_agent_stream(
+    websocket: WebSocket,
+    agent_id: str,
+):
+    await websocket.accept()
+
+    try:
+        await websocket.send_json({
+            "type": "system",
+            "message": f"Connected to AI Agent {agent_id} (stream)",
+            "timestamp": "now",
+        })
+
+        while True:
+            data = await websocket.receive_json()
+            message = data.get("message", "")
+            context = data.get("context", {})
+            thread_id = websocket.query_params.get("thread_id") or None
+
+            if not message:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Message cannot be empty",
+                    "timestamp": "now",
+                })
+                continue
+
+            try:
+                async for chunk in process_ws_stream(
+                    agent_id=agent_id,
+                    message=message,
+                    thread_id=thread_id,
+                    context=context,
+                ):
+                    await websocket.send_json({
+                        "type": "stream",
+                        "message": chunk.message,
+                        "confidence": chunk.confidence,
+                        "reasoning": chunk.reasoning,
+                        "metadata": chunk.metadata,
+                        "timestamp": "now",
+                    })
+
+                await websocket.send_json({
+                    "type": "stream_end",
+                    "message": "stream_complete",
+                    "timestamp": "now",
+                })
+
+            except Exception as exc:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Streaming failed: {str(exc)}",
                     "timestamp": "now",
                 })
 

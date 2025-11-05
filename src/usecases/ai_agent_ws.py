@@ -7,7 +7,7 @@ the agent repository to perform the chat operation, and returns
 the domain response. Keeping this logic in the use case layer
 keeps adapters (controllers) thin and improves testability.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, AsyncIterator
 
 from di.dependency_injection import injector
 from di.unit_of_work import AbstractAIAgentUnitOfWork
@@ -42,3 +42,22 @@ async def process_ws_message(
         )
 
     return response
+
+
+async def process_ws_stream(
+  agent_id: str,
+  message: str,
+  thread_id: Optional[str] = None,
+  context: Optional[Dict[str, Any]] = None,
+) -> AsyncIterator[AgentResponse]:
+  uow: AbstractAIAgentUnitOfWork = injector.get(AbstractAIAgentUnitOfWork)
+  context = context or {}
+
+  async with uow:
+    async for resp in uow.ai_agent_repo.chat_stream(
+      agent_id=agent_id,
+      message=message,
+      thread_id=thread_id,
+      context=context,
+    ):
+      yield resp

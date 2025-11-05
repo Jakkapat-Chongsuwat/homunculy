@@ -17,8 +17,8 @@ class UUIDStr(str):
         return instance
 
 
-class PokemonNumberStr(str):
-    """Pokemon Number represented as a string in the range "0001" to "9999"."""
+class NumberStr(str):
+    """Number represented as a zero-padded 4-digit string in the range "0001" to "9999"."""
 
     # regular expression to match numbers from 0001 to 9999
     NUMBER_PATTERN = re.compile(r'^\d{4}$')
@@ -28,7 +28,7 @@ class PokemonNumberStr(str):
 
         if not cls.NUMBER_PATTERN.match(instance) or instance == '0000':
             raise ValueError(
-                f'\'{instance}\' is not a valid number string in the range "0001" to "9999"'
+                f"'{instance}' is not a valid number string in the range '0001' to '9999'"
             )
 
         return instance

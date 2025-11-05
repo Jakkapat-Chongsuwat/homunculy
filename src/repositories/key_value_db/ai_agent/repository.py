@@ -349,7 +349,8 @@ class RedisAIAgentRepository(AbstractAIAgentRepository):
         try:
             # Create real LLM agent using the factory
             client = self.llm_factory.create_client(config.provider.value.lower())
-            await client.create_agent(config)
+            # create_agent is synchronous in the LLM client interface
+            client.create_agent(agent_id, config)
         except Exception as e:
             # If LLM service fails, still save config but mark as inactive
             from models.ai_agent.exception import AgentInitializationError
@@ -445,8 +446,21 @@ class RedisAIAgentRepository(AbstractAIAgentRepository):
         context: Optional[Dict] = None,
     ) -> AsyncIterator[AgentResponse]:
         """Send a message to an agent and get streaming response."""
-        # TODO: Implement actual streaming with PydanticAI
-        # For now, yield a single mock response
+        # If an LLM client is available, delegate streaming to it
+        if self.llm_factory:
+            config = await self.get_agent_config(agent_id)
+            if config:
+                client = self.llm_factory.create_client(config.provider.value.lower())
+                last_resp: Optional[AgentResponse] = None
+                async for resp in client.chat_stream(agent_id, message, context):
+                    last_resp = resp
+                    yield resp
+
+                if thread_id and last_resp:
+                    await self._store_message_in_thread(thread_id, agent_id, message, last_resp.message)
+                return
+
+        # Fallback mock if no factory or agent not found
         yield AgentResponse(
             message=f"Redis Mock streaming response to: {message}",
             confidence=0.8,

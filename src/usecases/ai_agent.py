@@ -1,15 +1,15 @@
-"""
-AI Agent Use Cases.
+"""AI Agent Use Cases.
 
-This module implements the business logic use cases for AI agents,
-following the use case pattern established in the Pokemon system.
-Use cases work directly with repository layer (LLM providers).
-"""
+WebSocket-specific use cases for AI agent chat.
 
+This module provides a thin application-layer function that creates a Unit
+of Work per incoming WebSocket message, calls the agent repository to perform
+the chat operation, and returns the domain response. Keeping this logic in the
+use case layer keeps controllers thin and improves testability.
+"""
 import os
-from typing import Dict, List, Optional
-
-from repositories.llm_service.llm_factory import LLMFactory
+from typing import Optional, Dict, List
+from repositories.abstraction.llm import ILLMFactory
 from models.ai_agent.ai_agent import (
     AgentConfiguration,
     AgentResponse,
@@ -17,7 +17,7 @@ from models.ai_agent.ai_agent import (
 
 
 async def create_llm_agent(
-    llm_factory: LLMFactory,
+    llm_factory: ILLMFactory,
     agent_id: str,
     config: AgentConfiguration
 ) -> str:
@@ -37,7 +37,7 @@ async def create_llm_agent(
 
 
 async def chat_with_llm_agent(
-    llm_factory: LLMFactory,
+    llm_factory: ILLMFactory,
     agent_id: str,
     message: str,
     context: Optional[Dict[str, str]] = None
@@ -56,7 +56,7 @@ async def chat_with_llm_agent(
 
 
 async def update_llm_agent(
-    llm_factory: LLMFactory,
+    llm_factory: ILLMFactory,
     agent_id: str,
     config: AgentConfiguration
 ) -> None:
@@ -71,7 +71,7 @@ async def update_llm_agent(
 
 
 async def remove_llm_agent(
-    llm_factory: LLMFactory,
+    llm_factory: ILLMFactory,
     agent_id: str
 ) -> None:
     """
@@ -91,7 +91,7 @@ async def remove_llm_agent(
 
 
 def get_supported_llm_providers(
-    llm_factory: LLMFactory
+    llm_factory: ILLMFactory
 ) -> List[str]:
     """
     Get list of supported LLM providers.

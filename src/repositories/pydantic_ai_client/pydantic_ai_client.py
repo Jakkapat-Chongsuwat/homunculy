@@ -5,12 +5,12 @@ This module contains the concrete implementations of LLM operations
 using PydanticAI, following the Dependency Inversion principle.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, AsyncIterator
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from models.ai_agent.ai_agent import AgentConfiguration, AgentProvider, AgentResponse
-from ..llm_service.interfaces import ILLMClient
+from repositories.abstraction.llm import ILLMClient
 from settings import OPENAI_API_KEY
 
 
@@ -210,6 +210,62 @@ class PydanticAILLMClient(ILLMClient):
         """Remove an agent."""
         if agent_id in self._agents:
             del self._agents[agent_id]
+
+    async def chat_stream(
+        self,
+        agent_id: str,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> AsyncIterator[AgentResponse]:
+        """Stream text responses from the PydanticAI agent as deltas suitable for chat (waifu style).
+
+        This yields partial AgentResponse objects for each delta chunk. After the stream
+        completes a final AgentResponse with reasoning 'final' is yielded.
+        """
+        if agent_id not in self._agents:
+            raise ValueError(f"Agent {agent_id} not found")
+
+        agent = self._agents[agent_id]
+
+        full_message = message
+        if context:
+            context_str = "\n".join(f"{k}: {v}" for k, v in context.items())
+            full_message = f"{message}\n\nContext:\n{context_str}"
+
+        last_text = ""
+        try:
+            async with agent.run_stream(full_message) as result:
+                # Stream deltas (short partial updates) for chat UX
+                async for delta in result.stream_text(delta=True):
+                    # delta may be a string delta
+                    last_text += delta
+                    yield AgentResponse(
+                        message=delta,
+                        confidence=0.0,
+                        reasoning="partial",
+                        metadata={
+                            "agent_id": agent_id,
+                            "provider": "pydantic_ai",
+                            "streaming": True,
+                        },
+                    )
+
+            # After stream completes, yield a final message containing the full text
+            if last_text:
+                yield AgentResponse(
+                    message=last_text,
+                    confidence=0.9,
+                    reasoning="final",
+                    metadata={
+                        "agent_id": agent_id,
+                        "provider": "pydantic_ai",
+                        "streaming": False,
+                    },
+                )
+
+        except Exception as e:
+            # Surface streaming errors
+            raise RuntimeError(f"LLM streaming failed: {str(e)}")
 
     def is_provider_supported(self, provider: str) -> bool:
         """Check if a provider is supported."""

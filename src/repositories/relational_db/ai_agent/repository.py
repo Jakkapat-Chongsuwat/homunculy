@@ -30,7 +30,7 @@ from models.ai_agent.exception import (
     ThreadNotFound,
 )
 from repositories.abstraction.ai_agent import AbstractAIAgentRepository
-from repositories.llm_service.llm_factory import LLMFactory
+from repositories.abstraction.llm import ILLMFactory
 
 from .mapper import AgentConfigurationOrmMapper, AgentPersonalityOrmMapper, AgentThreadOrmMapper
 from .orm import AgentConfiguration as AgentConfigurationOrm, AgentPersonality as AgentPersonalityOrm, AgentThread as AgentThreadOrm
@@ -39,7 +39,7 @@ from .orm import AgentConfiguration as AgentConfigurationOrm, AgentPersonality a
 class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
     """Relational database repository for AI agents using SQLAlchemy."""
 
-    def __init__(self, session: AsyncSession, llm_factory: Optional[LLMFactory] = None):
+    def __init__(self, session: AsyncSession, llm_factory: Optional[ILLMFactory] = None):
         self.session = session
         self.llm_factory = llm_factory
 
@@ -349,7 +349,22 @@ class RelationalDBAIAgentRepository(AbstractAIAgentRepository):
         context: Optional[Dict] = None,
     ) -> AsyncIterator[AgentResponse]:
         """Send a message to an agent and get streaming response."""
-        # This is a placeholder - in a real implementation, this would stream from the actual AI service
+        # If LLM factory is configured, delegate to the LLM client's streaming API
+        if self.llm_factory:
+            config = await self.get_agent_config(agent_id)
+            if config:
+                client = self.llm_factory.create_client(config.provider.value.lower())
+                last_resp: Optional[AgentResponse] = None
+                async for resp in client.chat_stream(agent_id, message, context):
+                    last_resp = resp
+                    yield resp
+
+                # store final response in thread if available
+                if thread_id and last_resp:
+                    await self._store_message_in_thread(thread_id, agent_id, message, last_resp.message)
+                return
+
+        # Fallback mock if no factory or agent not found
         response = AgentResponse(
             message=f"Mock streaming response to: {message}",
             confidence=0.8,

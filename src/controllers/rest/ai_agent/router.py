@@ -2,7 +2,7 @@
 AI Agent REST API Routes.
 
 This module provides REST API endpoints for AI agent operations,
-following the Clean Architecture pattern established in the Pokemon system.
+following the Clean Architecture pattern used in this project.
 """
 
 from typing import List
