@@ -32,6 +32,24 @@ class RelationalDBWaifuRepository(AbstractWaifuRepository):
         self.session = session
 
     # Waifu CRUD operations
+    async def initialize_agent(self, llm_factory, waifu_id: str, config) -> None:
+        """Initialize the LLM agent for a waifu (repository responsibility)."""
+        # Repository handles infrastructure - creating agents in LLM service
+        # Extract provider from configuration
+        from models.ai_agent.ai_agent import AgentProvider
+        
+        provider = config.provider
+        # Ensure we get the string value from enum
+        if isinstance(provider, AgentProvider):
+            provider_str = provider.value
+        elif isinstance(provider, str):
+            provider_str = provider
+        else:
+            raise ValueError(f"Invalid provider type: {type(provider)}, value: {provider}")
+        
+        client = llm_factory.create_client(provider_str)
+        client.create_agent(waifu_id, config)
+
     async def save_waifu(self, waifu: Waifu) -> str:
         """Save a waifu entity."""
         orm_waifu = WaifuOrmMapper.entity_to_orm(waifu)
@@ -263,3 +281,58 @@ class RelationalDBWaifuRepository(AbstractWaifuRepository):
             InteractionOrmMapper.orm_to_entity(orm_interaction)
             for orm_interaction in orm_interactions
         ]
+
+    # Agent interaction operations (infrastructure layer)
+    async def chat_with_agent(self, llm_factory, agent_id: str, message: str, context: dict):
+        """
+        Chat with agent through appropriate LLM provider.
+        
+        Repository responsibility: Handle infrastructure concerns.
+        The provider is determined from the waifu's configuration.
+        """
+        # Get waifu to determine provider
+        waifu = await self.get_waifu(agent_id)
+        if not waifu:
+            raise ValueError(f"Waifu {agent_id} not found")
+        
+        # Extract provider from configuration
+        provider = waifu.configuration.provider
+        provider_str = provider.value if hasattr(provider, 'value') else str(provider).lower()
+        
+        # Create client and delegate
+        client = llm_factory.create_client(provider_str)
+        return await client.chat(agent_id=agent_id, message=message, context=context)
+
+    async def chat_stream_with_agent(self, llm_factory, agent_id: str, message: str, context: dict):
+        """
+        Stream chat with agent through appropriate LLM provider.
+        
+        Repository responsibility: Handle infrastructure concerns.
+        """
+        # Get waifu to determine provider
+        waifu = await self.get_waifu(agent_id)
+        if not waifu:
+            raise ValueError(f"Waifu {agent_id} not found")
+        
+        # Extract provider from configuration
+        provider = waifu.configuration.provider
+        provider_str = provider.value if hasattr(provider, 'value') else str(provider).lower()
+        
+        # Create client and stream responses
+        client = llm_factory.create_client(provider_str)
+        async for response in client.chat_stream(agent_id=agent_id, message=message, context=context):
+            yield response
+
+    async def update_agent_configuration(self, llm_factory, agent_id: str, config) -> None:
+        """
+        Update agent configuration through appropriate LLM provider.
+        
+        Repository responsibility: Handle infrastructure concerns.
+        """
+        # Extract provider from configuration
+        provider = config.provider
+        provider_str = provider.value if hasattr(provider, 'value') else str(provider).lower()
+        
+        # Create client and delegate
+        client = llm_factory.create_client(provider_str)
+        client.update_agent(agent_id, config)

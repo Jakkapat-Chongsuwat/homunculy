@@ -139,7 +139,12 @@ class LangGraphOrchestratorClient(ILLMClient):
         self._agent_configs[agent_id] = config
         
         # Create the main Pydantic AI agent
-        self._pydantic_client.create_agent(agent_id, config)
+        # Override provider to PYDANTIC_AI since LangGraph delegates to Pydantic AI for execution
+        from models.ai_agent.ai_agent import AgentProvider
+        from copy import copy
+        pydantic_config = copy(config)
+        pydantic_config.provider = AgentProvider.PYDANTIC_AI
+        self._pydantic_client.create_agent(agent_id, pydantic_config)
         
         # Determine if this is a waifu agent based on personality or config
         is_waifu = (

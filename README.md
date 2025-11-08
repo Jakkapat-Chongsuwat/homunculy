@@ -53,6 +53,11 @@ This Python project showcases the implementation of a Pokémon API following the
 
 - ✏️ **v4**: **Under development on the `master` branch.** <br>
   - [ ] Adding HTTP/2-based gRPC support to expand API protocols beyond HTTP-based REST and GraphQL
+  - [x] **Mem0 Integration**: Added intelligent memory layer for AI agents using [Mem0](https://github.com/mem0ai/mem0)
+    - Short-term conversational memory with vector-based semantic search
+    - Personalized AI responses using past conversation context
+    - Clean Architecture implementation with repository pattern
+    - See [Mem0 Integration Guide](./docs/mem0-integration.md) for details
 
 ## Description
 
@@ -139,6 +144,7 @@ Apart from following Uncle Bob's Clean Architecture, this project also incorpora
 - **Unit of Work Pattern**:<br>This pattern ensures that all operations within a single transaction are completed successfully, or none are completed at all. [^2]
 - **Dependency Injection Pattern**:<br>Helps in reducing direct dependencies between codes, increasing the testability and flexibility of modules. [^3]
 - **Asynchronous SQLalchemy**:<br>By utilizing the asynchronous capabilities of SQLAlchemy 2.0, database operations are optimized for performance and efficiently handle multitasking. [^4]
+- **Mem0 Memory Integration**:<br>Intelligent memory layer powered by [Mem0](https://github.com/mem0ai/mem0) that provides short-term conversational memory using vector-based semantic search. Enables personalized AI agent interactions by retrieving and storing relevant conversation context. See [Mem0 Integration Guide](./docs/mem0-integration.md) for details.
 
 ## Getting Started
 

@@ -13,7 +13,13 @@ from fastapi.responses import HTMLResponse
 
 from usecases.ai_agent_ws import process_ws_message, process_ws_stream
 
+# Import waifu router
+from controllers.websocket import waifu_router
+
 router = APIRouter()
+
+# Include waifu routes
+router.include_router(waifu_router.router)
 
 
 @router.websocket("/agents/{agent_id}/chat")

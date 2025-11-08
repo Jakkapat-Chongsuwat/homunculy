@@ -22,7 +22,7 @@ class LLMFactory(ILLMFactory):
         if provider not in self._clients:
             if provider in ["pydantic_ai", "openai"]:
                 self._clients[provider] = PydanticAILLMClient()
-            elif provider == "langgraph":
+            elif provider == "langraph":  # Fixed: was "langgraph" (typo)
                 self._clients[provider] = LangGraphOrchestratorClient()
             else:
                 raise ValueError(f"Unsupported provider: {provider}")
@@ -31,4 +31,4 @@ class LLMFactory(ILLMFactory):
 
     def get_supported_providers(self) -> list[str]:
         """Get list of supported providers."""
-        return ["pydantic_ai", "openai", "langgraph"]
+        return ["pydantic_ai", "openai", "langraph"]  # Fixed: was "langgraph" (typo)

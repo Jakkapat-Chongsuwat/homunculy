@@ -6,9 +6,12 @@ following Clean Architecture principles. Use cases orchestrate domain
 entities and repository operations without depending on external frameworks.
 """
 
-from typing import Optional, Dict, Any, AsyncIterator, List
+from typing import Optional, Dict, Any, AsyncIterator, List, TYPE_CHECKING
 from uuid import uuid4
 from datetime import datetime, timezone
+
+if TYPE_CHECKING:
+    from repositories.abstraction.memory import IMemoryRepository
 
 from models.ai_agent.waifu import (
     Waifu,
@@ -51,8 +54,16 @@ async def create_waifu(
     Returns:
         Created Waifu entity
     """
-    # Create waifu configuration with LangGraph orchestration
+    # Create waifu configuration
+    from models.ai_agent.ai_agent import AgentProvider
+    
+    # Default to LANGRAPH provider, but allow override
+    provider = AgentProvider.LANGRAPH
+    if config_overrides and "provider" in config_overrides:
+        provider = config_overrides["provider"]
+    
     config = WaifuConfiguration(
+        provider=provider,
         model_name=config_overrides.get("model_name", "gpt-4") if config_overrides else "gpt-4",
         personality=personality,
         appearance=appearance or WaifuAppearance(),
@@ -77,10 +88,6 @@ and show genuine interest in the user's life.
             if hasattr(config, key):
                 setattr(config, key, value)
     
-    # Create the LangGraph-orchestrated agent
-    client = llm_factory.create_client("langgraph")
-    client.create_agent(waifu_id, config)
-    
     # Create waifu entity
     waifu = Waifu(
         id=waifu_id,
@@ -92,8 +99,11 @@ and show genuine interest in the user's life.
         created_at=datetime.now(timezone.utc),
     )
     
-    # Persist to database
+    # Persist to database - repository handles agent creation
     await waifu_repository.save_waifu(waifu)
+    
+    # Initialize the agent through the repository
+    await waifu_repository.initialize_agent(llm_factory, waifu_id, config)
     
     return waifu
 
@@ -106,22 +116,27 @@ async def chat_with_waifu(
     message: str,
     relationship: Optional[Relationship] = None,
     additional_context: Optional[Dict[str, Any]] = None,
+    memory_repository: Optional['IMemoryRepository'] = None,
 ) -> tuple[AgentResponse, Optional[Relationship]]:
     """
     Chat with a waifu and update relationship.
     
     This use case orchestrates the chat interaction, including:
+    - Retrieving relevant short-term memories (via Mem0)
     - Sending message through LangGraph workflow
+    - Storing conversation in memory
     - Tracking relationship progression
     - Recording interaction history
     
     Args:
         llm_factory: Factory interface for creating LLM clients
+        waifu_repository: Repository for waifu operations
         waifu_id: Waifu identifier
         user_id: User identifier
         message: User's message
         relationship: Current relationship state (optional)
         additional_context: Additional context for the chat
+        memory_repository: Optional memory repository for short-term memory
         
     Returns:
         Tuple of (AgentResponse, updated Relationship)
@@ -140,6 +155,24 @@ async def chat_with_waifu(
             )
             await waifu_repository.save_relationship(relationship)
     
+    # Retrieve relevant short-term memories if memory repository is available
+    relevant_memories = []
+    if memory_repository:
+        try:
+            memory_result = await memory_repository.search_memories(
+                query=message,
+                user_id=user_id,
+                agent_id=waifu_id,
+                limit=5,
+            )
+            relevant_memories = [
+                f"- {mem.memory}" for mem in memory_result.results
+            ]
+        except Exception as e:
+            # Memory retrieval is optional, log but don't fail
+            import logging
+            logging.warning(f"Failed to retrieve memories: {e}")
+    
     # Build chat context
     context = WaifuChatContext(
         waifu_id=waifu_id,
@@ -155,13 +188,14 @@ async def chat_with_waifu(
         "affection_level": relationship.affection_level,
         "relationship_stage": relationship.relationship_stage.value,
         "interaction_count": relationship.interaction_count,
+        "relevant_memories": "\n".join(relevant_memories) if relevant_memories else "",
         **context.model_dump(),
         **(additional_context or {}),
     }
     
-    # Get LangGraph client and chat
-    client = llm_factory.create_client("langgraph")
-    response = await client.chat(
+    # Chat through repository (provider-agnostic)
+    response = await waifu_repository.chat_with_agent(
+        llm_factory=llm_factory,
         agent_id=waifu_id,
         message=message,
         context=llm_context,
@@ -195,6 +229,28 @@ async def chat_with_waifu(
     await waifu_repository.update_relationship(relationship)
     await waifu_repository.save_interaction(user_id, waifu_id, interaction)
     
+    # Store conversation in short-term memory if memory repository is available
+    if memory_repository:
+        try:
+            conversation_messages = [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": response.message},
+            ]
+            await memory_repository.add_memory(
+                messages=conversation_messages,
+                user_id=user_id,
+                agent_id=waifu_id,
+                metadata={
+                    "affection_level": relationship.affection_level,
+                    "relationship_stage": relationship.relationship_stage.value,
+                    "interaction_type": "chat",
+                },
+            )
+        except Exception as e:
+            # Memory storage is optional, log but don't fail
+            import logging
+            logging.warning(f"Failed to store memory: {e}")
+    
     return response, relationship
 
 
@@ -206,20 +262,24 @@ async def chat_with_waifu_stream(
     message: str,
     relationship: Optional[Relationship] = None,
     additional_context: Optional[Dict[str, Any]] = None,
+    memory_repository: Optional['IMemoryRepository'] = None,
 ) -> AsyncIterator[tuple[AgentResponse, Optional[Relationship]]]:
     """
     Stream chat with a waifu with real-time updates.
     
     This use case streams responses through the LangGraph workflow,
-    providing real-time feedback to the user.
+    providing real-time feedback to the user. Also integrates short-term
+    memory retrieval and storage via Mem0.
     
     Args:
         llm_factory: Factory interface for creating LLM clients
+        waifu_repository: Repository for waifu operations
         waifu_id: Waifu identifier
         user_id: User identifier
         message: User's message
         relationship: Current relationship state (optional)
         additional_context: Additional context for the chat
+        memory_repository: Optional memory repository for short-term memory
         
     Yields:
         Tuples of (AgentResponse, updated Relationship)
@@ -238,6 +298,23 @@ async def chat_with_waifu_stream(
             )
             await waifu_repository.save_relationship(relationship)
     
+    # Retrieve relevant short-term memories if memory repository is available
+    relevant_memories = []
+    if memory_repository:
+        try:
+            memory_result = await memory_repository.search_memories(
+                query=message,
+                user_id=user_id,
+                agent_id=waifu_id,
+                limit=5,
+            )
+            relevant_memories = [
+                f"- {mem.memory}" for mem in memory_result.results
+            ]
+        except Exception as e:
+            import logging
+            logging.warning(f"Failed to retrieve memories: {e}")
+    
     # Build context
     context = WaifuChatContext(
         waifu_id=waifu_id,
@@ -250,15 +327,16 @@ async def chat_with_waifu_stream(
         "affection_level": relationship.affection_level,
         "relationship_stage": relationship.relationship_stage.value,
         "interaction_count": relationship.interaction_count,
+        "relevant_memories": "\n".join(relevant_memories) if relevant_memories else "",
         **context.model_dump(),
         **(additional_context or {}),
     }
     
-    # Stream responses
-    client = llm_factory.create_client("langgraph")
+    # Stream responses through repository (provider-agnostic)
     final_response = None
     
-    async for response in client.chat_stream(
+    async for response in waifu_repository.chat_stream_with_agent(
+        llm_factory=llm_factory,
         agent_id=waifu_id,
         message=message,
         context=llm_context,
@@ -287,6 +365,27 @@ async def chat_with_waifu_stream(
         # Persist updated relationship and interaction
         await waifu_repository.update_relationship(relationship)
         await waifu_repository.save_interaction(user_id, waifu_id, interaction)
+        
+        # Store conversation in short-term memory
+        if memory_repository:
+            try:
+                conversation_messages = [
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": final_response.message},
+                ]
+                await memory_repository.add_memory(
+                    messages=conversation_messages,
+                    user_id=user_id,
+                    agent_id=waifu_id,
+                    metadata={
+                        "affection_level": relationship.affection_level,
+                        "relationship_stage": relationship.relationship_stage.value,
+                        "interaction_type": "chat",
+                    },
+                )
+            except Exception as e:
+                import logging
+                logging.warning(f"Failed to store memory: {e}")
 
 
 async def give_gift_to_waifu(
@@ -353,6 +452,7 @@ async def give_gift_to_waifu(
 
 async def update_waifu_configuration(
     llm_factory: ILLMFactory,
+    waifu_repository: AbstractWaifuRepository,
     waifu_id: str,
     updated_config: WaifuConfiguration,
 ) -> None:
@@ -364,11 +464,16 @@ async def update_waifu_configuration(
     
     Args:
         llm_factory: Factory interface for creating LLM clients
+        waifu_repository: Repository for waifu operations
         waifu_id: Waifu identifier
         updated_config: New configuration
     """
-    client = llm_factory.create_client("langgraph")
-    client.update_agent(waifu_id, updated_config)
+    # Delegate to repository (provider-agnostic)
+    await waifu_repository.update_agent_configuration(
+        llm_factory=llm_factory,
+        agent_id=waifu_id,
+        config=updated_config,
+    )
 
 
 async def get_relationship_summary(

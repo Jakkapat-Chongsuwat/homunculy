@@ -17,6 +17,21 @@ class AbstractWaifuRepository(ABC):
 
     # Waifu CRUD operations
     @abstractmethod
+    async def initialize_agent(self, llm_factory, waifu_id: str, config) -> None:
+        """
+        Initialize the LLM agent for a waifu.
+        
+        This is a repository responsibility as it deals with infrastructure
+        (LLM service initialization), not business logic.
+        
+        Args:
+            llm_factory: Factory for creating LLM clients
+            waifu_id: Waifu identifier
+            config: Agent configuration
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def save_waifu(self, waifu: Waifu) -> str:
         """
         Save a waifu entity.
@@ -206,5 +221,53 @@ class AbstractWaifuRepository(ABC):
             
         Returns:
             List of Interaction entities
+        """
+        raise NotImplementedError
+
+    # Agent interaction operations (infrastructure concerns)
+    @abstractmethod
+    async def chat_with_agent(self, llm_factory, agent_id: str, message: str, context: dict):
+        """
+        Chat with a waifu agent.
+        
+        This is infrastructure responsibility - delegates to the appropriate
+        LLM provider without exposing implementation details to use cases.
+        
+        Args:
+            llm_factory: Factory for creating LLM clients
+            agent_id: Agent identifier
+            message: User message
+            context: Conversation context
+            
+        Returns:
+            AgentResponse from the LLM
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def chat_stream_with_agent(self, llm_factory, agent_id: str, message: str, context: dict):
+        """
+        Stream chat responses from a waifu agent.
+        
+        Args:
+            llm_factory: Factory for creating LLM clients
+            agent_id: Agent identifier
+            message: User message
+            context: Conversation context
+            
+        Yields:
+            AgentResponse chunks from the LLM
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def update_agent_configuration(self, llm_factory, agent_id: str, config) -> None:
+        """
+        Update agent configuration.
+        
+        Args:
+            llm_factory: Factory for creating LLM clients
+            agent_id: Agent identifier
+            config: New configuration
         """
         raise NotImplementedError

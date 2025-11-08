@@ -12,14 +12,73 @@ from datetime import datetime
 from di.dependency_injection import injector
 from repositories.abstraction.llm import ILLMFactory
 from repositories.abstraction.waifu import AbstractWaifuRepository
-from models.ai_agent.waifu import Relationship
+from models.ai_agent.waifu import Relationship, WaifuPersonality, WaifuAppearance
 from usecases.waifu import (
     chat_with_waifu_stream,
     get_relationship_summary,
+    create_waifu,
 )
 
 
 router = APIRouter(prefix="/waifu", tags=["waifu"])
+
+
+async def ensure_waifu_exists(
+    llm_factory: ILLMFactory,
+    waifu_repository: AbstractWaifuRepository,
+    waifu_id: str,
+) -> tuple[bool, str]:
+    """
+    Ensure waifu exists with both DB record and LangGraph agent.
+    
+    Returns (success: bool, message: str).
+    """
+    try:
+        waifu = await waifu_repository.get_waifu(waifu_id)
+        
+        if waifu is None:
+            # Create default waifu with friendly personality
+            waifu_name = waifu_id.replace("_", " ").title()
+            personality = WaifuPersonality(
+                name=waifu_name,
+                description="A cheerful and friendly AI companion",
+                archetype="deredere",
+                traits={
+                    "cheerful": 0.8,
+                    "friendly": 0.9,
+                    "helpful": 0.85,
+                },
+                interests=["chatting", "helping", "learning about you"],
+                background_story=f"{waifu_name} is a friendly AI companion ready to chat!",
+            )
+            appearance = WaifuAppearance(
+                hair_color="brown",
+                hair_style="long",
+                eye_color="blue",
+            )
+            await create_waifu(
+                llm_factory=llm_factory,
+                waifu_repository=waifu_repository,
+                waifu_id=waifu_id,
+                name=waifu_name,
+                personality=personality,
+                appearance=appearance,
+            )
+            return True, f"✨ Created new waifu: {waifu_name}"
+        else:
+            # Waifu exists in DB, ensure agent is created (provider-agnostic)
+            try:
+                await waifu_repository.initialize_agent(
+                    llm_factory=llm_factory,
+                    waifu_id=waifu_id,
+                    config=waifu.configuration
+                )
+                return True, "Waifu agent initialized"
+            except Exception as e:
+                return False, f"Failed to initialize agent: {str(e)}"
+            
+    except Exception as e:
+        return False, f"Failed to initialize: {str(e)}"
 
 
 @router.websocket("/agents/{waifu_id}/chat")
@@ -61,6 +120,33 @@ async def websocket_waifu_chat(
     # Get dependencies from DI
     llm_factory: ILLMFactory = injector.get(ILLMFactory)
     waifu_repository: AbstractWaifuRepository = injector.get(AbstractWaifuRepository)
+    
+    # Get memory repository (optional, may not be configured)
+    memory_repository = None
+    try:
+        from repositories.abstraction.memory import IMemoryRepository
+        memory_repository = injector.get(IMemoryRepository)
+    except Exception:
+        pass  # Memory service not available, will use without it
+    
+    # Ensure waifu exists (auto-create if needed)
+    success, message = await ensure_waifu_exists(llm_factory, waifu_repository, waifu_id)
+    if not success:
+        await websocket.send_json({
+            "type": "error",
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+        })
+        await websocket.close()
+        return
+    
+    # Send initialization message if waifu was created
+    if "Created" in message:
+        await websocket.send_json({
+            "type": "system",
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+        })
     
     # Load or initialize relationship from database
     relationship = await waifu_repository.get_relationship(user_id, waifu_id)
@@ -108,6 +194,7 @@ async def websocket_waifu_chat(
                     message=message,
                     relationship=relationship,
                     additional_context=context,
+                    memory_repository=memory_repository,
                 ):
                     # Send streamed response
                     await websocket.send_json({

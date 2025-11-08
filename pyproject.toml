@@ -22,6 +22,7 @@ strawberry-graphql = "^0.204.0"
 uvicorn = "^0.23.2"
 pydantic-ai = "^1.0.5"
 langgraph = "^0.6.7"
+mem0ai = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 autoflake = "^2.3.1"
