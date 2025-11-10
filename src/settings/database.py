@@ -1,9 +1,4 @@
-"""
-Database configuration settings.
-
-This module contains all database-related configuration including
-connection strings, engine settings, and database-specific options.
-"""
+"""Database configuration settings - simplified for Clean Architecture."""
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -26,8 +21,8 @@ class DatabaseSettings(BaseSettings):
     )
 
     class Config:
+        """Pydantic config."""
         env_prefix = "DATABASE_"
 
 
-# Global instance
 database_settings = DatabaseSettings()

@@ -1,30 +1,41 @@
+﻿"""
+Homunculy - AI Agent Management System.
+
+Main application entry point for the FastAPI server.
+Following Clean Architecture principles with clear separation of concerns.
+"""
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from controllers.graphql.extension import customize_graphql_openapi
-from controllers.websocket.router import router as websocket_router
-
-try:
-    from controllers.rest.extension import add_exception_handlers as add_rest_exception_handlers
-except Exception:
-    add_rest_exception_handlers = None
-
-from controllers.rest.ai_agent.router import router as ai_agent_rest_router
+from internal.adapters.http import agent_handler
+from internal.infrastructure.persistence.sqlalchemy import init_db, close_db
 from settings import APP_NAME, APP_VERSION
 
 
-# https://fastapi.tiangolo.com/advanced/events/#lifespan
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # pylint: disable=redefined-outer-name
-    # Database schema is managed by Liquibase migrations
-    # No initialization needed here as migrations run during container startup
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    print(f"Starting {APP_NAME} v{APP_VERSION}")
+    # Initialize database
+    await init_db()
+    print("Database initialized")
     yield
+    # Cleanup
+    await close_db()
+    print(f"Shutting down {APP_NAME}")
 
 
-app = FastAPI(title=APP_NAME, version=APP_VERSION, lifespan=lifespan)
+app = FastAPI(
+    title=APP_NAME,
+    version=APP_VERSION,
+    lifespan=lifespan,
+    description="AI Agent Management System following Clean Architecture"
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
@@ -33,23 +44,30 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-# controllers/rest
-app.include_router(ai_agent_rest_router, tags=['AI Agent'])
-if add_rest_exception_handlers is not None:
-    add_rest_exception_handlers(app)
-
-# controllers/websocket
-app.include_router(websocket_router, prefix="/ws", tags=['WebSocket'])
-
-# controllers/graphql (optional)
-customize_graphql_openapi(app)
+app.include_router(agent_handler.router)
 
 
 @app.exception_handler(Exception)
 async def universal_exception_handler(_, exc):
-    return JSONResponse(content={'error': f'{type(exc).__name__}: {exc}'}, status_code=500)
+    return JSONResponse(
+        content={'error': f'{type(exc).__name__}: {exc}'},
+        status_code=500
+    )
 
 
 @app.get('/', include_in_schema=False)
 async def root():
-    return JSONResponse({'service': APP_NAME, 'version': APP_VERSION})
+    return JSONResponse({
+        'service': APP_NAME,
+        'version': APP_VERSION,
+        'status': 'running'
+    })
+
+
+@app.get('/health', include_in_schema=False)
+async def health_check():
+    return JSONResponse({
+        'status': 'healthy',
+        'service': APP_NAME,
+        'version': APP_VERSION
+    })

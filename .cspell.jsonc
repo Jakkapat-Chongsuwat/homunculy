@@ -69,21 +69,11 @@
         "HGETALL",
         "HSET",
         "HMSET",
-        // Pokémon names
-        "Bulbasaur",
-        "Ivysaur",
-        "Venusaur",
-        "Charizard",
-        "Charmander",
-        "Charmeleon",
         // Customized words
         "NoSQL",
-        "Pokédex",
         "Statefulness",
         "Usecase",
         "auow",
-        "evos",
-        "pokemons",
         "ucase",
         "usecases"
     ]
