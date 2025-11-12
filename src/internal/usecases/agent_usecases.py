@@ -152,14 +152,16 @@ class DeleteAgentUseCaseImpl:
 class ChatWithAgentUseCaseImpl:
     """Use case for chatting with an agent."""
     
-    def __init__(self, agent_repository: AgentRepository):
+    def __init__(self, agent_repository: AgentRepository, llm_service):
         """
         Initialize the use case.
         
         Args:
             agent_repository: Repository for agent operations
+            llm_service: LLM service for AI interactions (domain.services.LLMService)
         """
         self.agent_repository = agent_repository
+        self.llm_service = llm_service
     
     async def execute(
         self, 
@@ -178,13 +180,28 @@ class ChatWithAgentUseCaseImpl:
         Returns:
             Agent response
         """
-        # This is a simplified version - in a real implementation,
-        # you would interact with an LLM service through the repository
-        # or a separate service layer
+        # Get the agent
+        agent = await self.agent_repository.get_by_id(agent_id)
+        if not agent:
+            return AgentResponse(
+                message=f"Agent {agent_id} not found",
+                confidence=0.0,
+                reasoning="Agent does not exist"
+            )
         
-        # For now, return a placeholder response
-        return AgentResponse(
-            message="Response from agent",
-            confidence=0.9,
-            reasoning="Processed through use case layer"
-        )
+        # Use the injected LLM service (follows Dependency Inversion Principle)
+        try:
+            response = await self.llm_service.chat(
+                configuration=agent.configuration,
+                message=message,
+                context=context
+            )
+            
+            return response
+            
+        except Exception as e:
+            return AgentResponse(
+                message=f"Error: {str(e)}",
+                confidence=0.0,
+                reasoning="Failed to communicate with LLM"
+            )

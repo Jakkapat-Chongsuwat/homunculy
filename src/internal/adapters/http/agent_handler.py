@@ -26,7 +26,8 @@ from internal.usecases import (
 )
 from internal.domain.entities import AgentProvider, AgentPersonality, AgentConfiguration
 from internal.domain.repositories import UnitOfWork
-from internal.infrastructure.di import get_uow
+from internal.domain.services import LLMService
+from internal.infrastructure.di import get_uow, get_llm_service
 
 
 # Request/Response Models
@@ -103,8 +104,15 @@ async def create_agent(
             mood=request.configuration.personality.mood,
         )
         
+        # Parse provider from request string to enum
+        try:
+            provider = AgentProvider(request.configuration.provider)
+        except ValueError:
+            # Default to PydanticAI if invalid provider
+            provider = AgentProvider.PYDANTIC_AI
+        
         configuration = AgentConfiguration(
-            provider=AgentProvider.PYDANTIC_AI,
+            provider=provider,
             model_name=request.configuration.model_name,
             personality=personality,
             system_prompt=request.configuration.system_prompt,
@@ -208,8 +216,24 @@ async def chat_with_agent(
     request: ChatRequest,
     uow: UnitOfWork = Depends(get_uow)
 ) -> ChatResponse:
-    """Chat with an agent."""
-    use_case: ChatWithAgentUseCase = ChatWithAgentUseCaseImpl(uow.agents)
+    """
+    Chat with an agent.
+    
+    Dynamically selects the appropriate LLM service based on the agent's provider configuration.
+    """
+    # First, retrieve the agent to determine its provider
+    agent = await uow.agents.get_by_id(agent_id)
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent {agent_id} not found"
+        )
+    
+    # Get the appropriate LLM service for the agent's provider
+    llm_service = get_llm_service(agent.configuration.provider)
+    
+    # Execute the chat use case
+    use_case: ChatWithAgentUseCase = ChatWithAgentUseCaseImpl(uow.agents, llm_service)
     response = await use_case.execute(agent_id, request.message, request.context)
     
     return ChatResponse(

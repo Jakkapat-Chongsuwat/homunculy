@@ -35,30 +35,6 @@ test:
 	@coverage report --show-missing --skip-covered --fail-under 90
 	@coverage html
 
-test-legacy:
-	@echo "Running legacy multi-database tests only..."
-	@coverage erase
-	@bats --timing ./tests/api_db_test.bats
-	@coverage report --show-missing --skip-covered --fail-under 90
-
-test-ai-agent:
-	@echo "Running AI Agent tests with test containers..."
-	@coverage erase
-	@pytest tests/unit/ai_agent/ tests/integration/test_ai_agent_*.py tests/e2e/test_ai_agent_*.py -v --cov=src --cov-report=html --cov-report=term
-	@coverage report --show-missing --skip-covered --fail-under 85
-
-test-ai-agent-unit:
-	@echo "Running AI Agent unit tests..."
-	@pytest tests/unit/ai_agent/ -v
-
-test-ai-agent-integration:
-	@echo "Running AI Agent integration tests with containers..."
-	@pytest tests/integration/test_ai_agent_*.py -v --cov=src --cov-report=term
-
-test-ai-agent-e2e:
-	@echo "Running AI Agent e2e tests with containers..."
-	@pytest tests/e2e/test_ai_agent_*.py -v --cov=src --cov-report=term
-
 up:
 	uvicorn main:app \
 		--port $(PORT) \
@@ -68,3 +44,46 @@ up:
 db:
 	docker compose down --remove-orphans -v
 	docker compose up dockerize
+
+# Docker commands
+docker-build:
+	@echo "Building Docker image..."
+	docker build -t homunculy:latest .
+
+docker-up:
+	@echo "Starting services with Docker Compose..."
+	docker compose up -d
+
+docker-down:
+	@echo "Stopping services..."
+	docker compose down
+
+docker-logs:
+	@echo "Showing logs..."
+	docker compose logs -f homunculy-app
+
+docker-restart:
+	@echo "Restarting application..."
+	docker compose restart homunculy-app
+
+docker-clean:
+	@echo "Cleaning up Docker resources..."
+	docker compose down -v --remove-orphans
+	docker system prune -f
+
+docker-shell:
+	@echo "Opening shell in application container..."
+	docker compose exec homunculy-app /bin/bash
+
+# Root docker-compose commands (all services)
+docker-up-all:
+	@echo "Starting all services from root..."
+	cd .. && docker compose up -d
+
+docker-down-all:
+	@echo "Stopping all services from root..."
+	cd .. && docker compose down
+
+docker-logs-all:
+	@echo "Showing all service logs..."
+	cd .. && docker compose logs -f
