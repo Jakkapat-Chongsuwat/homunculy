@@ -6,7 +6,7 @@ Each provider implementation follows Clean Architecture by implementing
 the domain LLMService interface.
 """
 
-from .pydantic_ai import PydanticAILLMService
-from .langgraph import LangGraphLLMService
+from .services.pydantic_ai_service import PydanticAILLMService
+from .services.langgraph_service import LangGraphLLMService
 
 __all__ = ["PydanticAILLMService", "LangGraphLLMService"]

@@ -1,8 +1,6 @@
-"""
-Database session management.
+"""Database session management utilities."""
 
-Provides async SQLAlchemy engine and session factory.
-"""
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -17,17 +15,14 @@ from settings.database import database_settings
 
 class Base(DeclarativeBase):
     """Base class for all database models."""
-    pass
 
 
-# Create async engine
 engine: AsyncEngine = create_async_engine(
     database_settings.uri,
     echo=database_settings.echo,
     future=True,
 )
 
-# Create async session factory
 async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -35,22 +30,21 @@ async_session_factory = async_sessionmaker(
 )
 
 
-async def get_db_session() -> AsyncSession:
-    """
-    Get database session.
-    
-    Used for dependency injection in FastAPI.
-    """
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield a database session for DI."""
+
     async with async_session_factory() as session:
         yield session
 
 
-async def init_db():
+async def init_db() -> None:
     """Initialize database tables."""
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
-async def close_db():
+async def close_db() -> None:
     """Close database connections."""
+
     await engine.dispose()
