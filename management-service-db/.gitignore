@@ -1,0 +1,16 @@
+# Liquibase
+liquibase.*.log
+liquibase-*.jar
+.liquibase/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak

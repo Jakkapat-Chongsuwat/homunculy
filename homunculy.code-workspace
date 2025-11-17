@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "homunculy"
+		},
+		{
+			"path": "management-service"
+		},
+		{
+			"path": "homunculy-db"
+		},
+		{
+			"path": "management-service-db"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}

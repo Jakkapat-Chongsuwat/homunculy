@@ -78,6 +78,18 @@ class ChatRequest(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
+class ExecuteChatRequest(BaseModel):
+    """
+    Request model for executing chat with full agent configuration.
+    
+    Used by Management Service to execute agent without storing config in Homunculy.
+    """
+    user_id: str = Field(description="User ID for conversation isolation")
+    message: str
+    configuration: AgentConfigurationRequest
+    context: dict = Field(default_factory=dict)
+
+
 class ChatResponse(BaseModel):
     """Response model for chat."""
     message: str
@@ -94,7 +106,12 @@ async def create_agent(
     request: CreateAgentRequest,
     uow: UnitOfWork = Depends(get_uow)
 ) -> CreateAgentResponse:
-    """Create a new agent."""
+    """
+    Create a new agent (DEPRECATED - will move to Management Service).
+    
+    Agent CRUD operations should be handled by Management Service.
+    This endpoint is kept for backward compatibility during migration.
+    """
     try:
         # Map request to domain entities
         personality = AgentPersonality(
@@ -217,7 +234,10 @@ async def chat_with_agent(
     uow: UnitOfWork = Depends(get_uow)
 ) -> ChatResponse:
     """
-    Chat with an agent.
+    Chat with an agent (DEPRECATED - for backward compatibility).
+    
+    This endpoint retrieves agent config from database.
+    Management Service should use /execute endpoint instead.
     
     Dynamically selects the appropriate LLM service based on the agent's provider configuration.
     """
@@ -241,3 +261,61 @@ async def chat_with_agent(
         confidence=response.confidence,
         reasoning=response.reasoning or "",
     )
+
+
+@router.post("/execute", response_model=ChatResponse)
+async def execute_chat(
+    request: ExecuteChatRequest
+) -> ChatResponse:
+    """
+    Execute chat with provided agent configuration (stateless).
+    
+    This is the PRIMARY endpoint for Management Service.
+    Agent configuration is passed in the request, not retrieved from database.
+    Conversations are still stored with user_id for history.
+    """
+    try:
+        # Map request to domain entities
+        personality = AgentPersonality(
+            name=request.configuration.personality.name,
+            description=request.configuration.personality.description,
+            traits=request.configuration.personality.traits,
+            mood=request.configuration.personality.mood,
+        )
+        
+        # Parse provider from request
+        try:
+            provider = AgentProvider(request.configuration.provider)
+        except ValueError:
+            provider = AgentProvider.PYDANTIC_AI
+        
+        configuration = AgentConfiguration(
+            provider=provider,
+            model_name=request.configuration.model_name,
+            personality=personality,
+            system_prompt=request.configuration.system_prompt,
+            temperature=request.configuration.temperature,
+            max_tokens=request.configuration.max_tokens,
+        )
+        
+        # Get appropriate LLM service for provider
+        llm_service = get_llm_service(configuration.provider)
+        
+        # Add user_id to context for conversation isolation
+        context = request.context.copy()
+        context["user_id"] = request.user_id
+        
+        # Execute chat directly (no database lookup)
+        response = await llm_service.chat(configuration, request.message, context)
+        
+        return ChatResponse(
+            message=response.message,
+            confidence=response.confidence,
+            reasoning=response.reasoning or "",
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat execution failed: {str(e)}"
+        )

@@ -1,14 +1,20 @@
+# Docker Compose Configuration for Homunculy Multi-Service Architecture
+# This orchestrates all services in the Homunculy ecosystem
+
 services:
-  postgres:
+  # ===========================================
+  # HOMUNCULY PYTHON SERVICE & DATABASE
+  # ===========================================
+  
+  homunculy-postgres:
     image: postgres:18
     container_name: homunculy_postgres
     environment:
       POSTGRES_USER: homunculy_user
       POSTGRES_PASSWORD: homunculy_password
       POSTGRES_DB: homunculy
-      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - homunculy_postgres_data:/var/lib/postgresql
     ports:
       - "5433:5432"
     healthcheck:
@@ -18,26 +24,27 @@ services:
       retries: 5
     networks:
       - homunculy_network
+    restart: unless-stopped
 
-  migrations:
+  homunculy-migrations:
     image: liquibase/liquibase:4.33.0
     container_name: homunculy_migrations
     environment:
-      - LIQUIBASE_COMMAND_URL=jdbc:postgresql://postgres:5432/homunculy
+      - LIQUIBASE_COMMAND_URL=jdbc:postgresql://homunculy-postgres:5432/homunculy
       - LIQUIBASE_COMMAND_USERNAME=homunculy_user
       - LIQUIBASE_COMMAND_PASSWORD=homunculy_password
-      - LIQUIBASE_COMMAND_CHANGELOG_FILE=db/changelog/db.changelog-master.xml
+      - LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog/db.changelog-master.xml
     volumes:
-      - .:/liquibase/changelog
+      - ./homunculy-db:/liquibase/changelog
     working_dir: /liquibase/changelog
     depends_on:
-      postgres:
+      homunculy-postgres:
         condition: service_healthy
-    command: ["liquibase", "update"]
+    command: ["update"]
     networks:
       - homunculy_network
 
-  pgadmin:
+  homunculy-pgadmin:
     image: dpage/pgadmin4:latest
     container_name: homunculy_pgadmin
     environment:
@@ -45,37 +52,137 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin123
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - homunculy_pgadmin_data:/var/lib/pgadmin
     ports:
       - "5050:80"
     depends_on:
-      migrations:
+      homunculy-migrations:
         condition: service_completed_successfully
     networks:
       - homunculy_network
+    restart: unless-stopped
 
-  app:
-    build: .
+  homunculy-app:
+    build:
+      context: ./homunculy
+      dockerfile: Dockerfile
     container_name: homunculy_app
     env_file:
-      - .env
+      - ./homunculy/.env
     environment:
-      - DATABASE_URI=postgresql+asyncpg://homunculy_user:homunculy_password@postgres:5432/homunculy
+      - DATABASE_URI=postgresql+asyncpg://homunculy_user:homunculy_password@homunculy-postgres:5432/homunculy
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
+      - APP_DEBUG=false
     ports:
       - "8000:8000"
+    volumes:
+      - ./homunculy/logs:/app/logs
     depends_on:
-      migrations:
+      homunculy-migrations:
         condition: service_completed_successfully
     networks:
       - homunculy_network
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # ===========================================
+  # MANAGEMENT SERVICE (Go) & DATABASE
+  # ===========================================
+  
+  management-postgres:
+    image: postgres:18
+    container_name: management_postgres
+    environment:
+      POSTGRES_USER: management_user
+      POSTGRES_PASSWORD: management_password
+      POSTGRES_DB: management
+    volumes:
+      - management_postgres_data:/var/lib/postgresql
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U management_user -d management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - homunculy_network
+    restart: unless-stopped
+
+  management-migrations:
+    image: liquibase/liquibase:4.33.0
+    container_name: management_migrations
+    environment:
+      - LIQUIBASE_COMMAND_URL=jdbc:postgresql://management-postgres:5432/management
+      - LIQUIBASE_COMMAND_USERNAME=management_user
+      - LIQUIBASE_COMMAND_PASSWORD=management_password
+      - LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog/db.changelog-master.xml
+    volumes:
+      - ./management-service-db:/liquibase/changelog
+    working_dir: /liquibase/changelog
+    depends_on:
+      management-postgres:
+        condition: service_healthy
+    command: ["update"]
+    networks:
+      - homunculy_network
+
+  management-app:
+    build:
+      context: ./management-service
+      dockerfile: Dockerfile
+    container_name: management_app
+    environment:
+      - DB_HOST=management-postgres
+      - DB_PORT=5432
+      - DB_NAME=management
+      - DB_USER=management_user
+      - DB_PASSWORD=management_password
+      - DB_SSL_MODE=disable
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - HOMUNCULY_BASE_URL=http://homunculy-app:8000
+      - HOMUNCULY_API_KEY=dev_api_key_123
+    ports:
+      - "8080:8080"
+    depends_on:
+      management-migrations:
+        condition: service_completed_successfully
+      homunculy-app:
+        condition: service_healthy
+    networks:
+      - homunculy_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# ===========================================
+# VOLUMES
+# ===========================================
 volumes:
-  postgres_data:
-  pgadmin_data:
+  homunculy_postgres_data:
+    driver: local
+  homunculy_pgadmin_data:
+    driver: local
+  management_postgres_data:
+    driver: local
 
+# ===========================================
+# NETWORKS
+# ===========================================
 networks:
   homunculy_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
