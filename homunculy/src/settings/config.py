@@ -14,7 +14,7 @@ except ImportError:
 
 from .app import app_settings, ApplicationSettings
 from .database import database_settings, DatabaseSettings
-from .pydantic import llm_settings, PydanticSettings
+from .llm import llm_settings, LLMSettings
 from .security import security_settings, SecuritySettings
 from .logging import logging_settings, LoggingSettings
 
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     app: ApplicationSettings = app_settings
     database: DatabaseSettings = database_settings
-    llm: PydanticSettings = llm_settings
+    llm: LLMSettings = llm_settings
     security: SecuritySettings = security_settings
     logging: LoggingSettings = logging_settings
 

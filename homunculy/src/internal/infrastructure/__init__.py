@@ -11,7 +11,6 @@ This layer contains all external concerns and implementations:
 from .persistence import (
     SQLAlchemyAgentRepository,
     SQLAlchemyUnitOfWork,
-    MemoryAgentRepository,
     init_db,
     close_db,
 )
@@ -23,8 +22,6 @@ __all__ = [
     "SQLAlchemyUnitOfWork",
     "init_db",
     "close_db",
-    # Persistence - Memory
-    "MemoryAgentRepository",
     # Dependency Injection
     "get_session",
     "get_uow",

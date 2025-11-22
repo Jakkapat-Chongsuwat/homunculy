@@ -26,14 +26,14 @@ services:
       - LIQUIBASE_COMMAND_URL=jdbc:postgresql://postgres:5432/homunculy
       - LIQUIBASE_COMMAND_USERNAME=homunculy_user
       - LIQUIBASE_COMMAND_PASSWORD=homunculy_password
-      - LIQUIBASE_COMMAND_CHANGELOG_FILE=db/changelog/db.changelog-master.xml
+      - LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog/db.changelog-master.xml
     volumes:
-      - .:/liquibase/changelog
+      - ../homunculy-db:/liquibase/changelog
     working_dir: /liquibase/changelog
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["liquibase", "update"]
+    command: ["update"]
     networks:
       - homunculy_network
 

@@ -16,8 +16,10 @@ from internal.infrastructure.persistence.sqlalchemy import (
     SQLAlchemyUnitOfWork,
 )
 from internal.domain.entities.agent import AgentProvider
-from internal.infrastructure.llm import PydanticAILLMService, LangGraphLLMService
+from internal.infrastructure.agents import LangGraphAgentService
 
+# Singleton instance to persist memory across requests
+_llm_service_instance = None
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
@@ -46,24 +48,25 @@ async def get_uow(
         yield uow
 
 
-def get_llm_service(provider: AgentProvider = AgentProvider.PYDANTIC_AI) -> LLMService:
+def get_llm_service(provider: AgentProvider = AgentProvider.LANGRAPH) -> LLMService:
     """
-    Get LLM Service dependency.
+    Get LLM Service dependency (Singleton).
     
-    Factory function that returns the appropriate LLM service based on provider.
+    CRITICAL: Returns a singleton instance to ensure the MemorySaver checkpointer
+    persists across HTTP requests within the same container lifecycle.
     
     Args:
-        provider: The AI provider to use (defaults to PydanticAI)
+        provider: The AI provider to use (only LangGraph supported now)
         
     Returns:
-        LLMService instance for AI interactions
+        LLMService singleton instance with persistent memory
         
     Raises:
         ValueError: If provider is not supported
     """
-    if provider == AgentProvider.LANGRAPH:
-        return LangGraphLLMService()
-    elif provider in (AgentProvider.PYDANTIC_AI, AgentProvider.OPENAI):
-        return PydanticAILLMService()
-    else:
-        raise ValueError(f"Unsupported agent provider: {provider}")
+    global _llm_service_instance
+    if _llm_service_instance is None:
+        # Initialize singleton agent service
+        _llm_service_instance = LangGraphAgentService()
+    
+    return _llm_service_instance

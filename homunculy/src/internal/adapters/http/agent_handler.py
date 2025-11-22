@@ -41,7 +41,7 @@ class AgentPersonalityRequest(BaseModel):
 
 class AgentConfigurationRequest(BaseModel):
     """Request model for agent configuration."""
-    provider: str = "pydantic_ai"
+    provider: str = "langraph"
     model_name: str = "gpt-4"
     personality: AgentPersonalityRequest
     system_prompt: str = ""
@@ -125,8 +125,8 @@ async def create_agent(
         try:
             provider = AgentProvider(request.configuration.provider)
         except ValueError:
-            # Default to PydanticAI if invalid provider
-            provider = AgentProvider.PYDANTIC_AI
+            # Default to LangGraph if invalid provider
+            provider = AgentProvider.LANGRAPH
         
         configuration = AgentConfiguration(
             provider=provider,
@@ -287,7 +287,7 @@ async def execute_chat(
         try:
             provider = AgentProvider(request.configuration.provider)
         except ValueError:
-            provider = AgentProvider.PYDANTIC_AI
+            provider = AgentProvider.LANGRAPH
         
         configuration = AgentConfiguration(
             provider=provider,

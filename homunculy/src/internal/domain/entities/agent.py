@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 class AgentProvider(Enum):
     """Supported AI agent providers."""
     
-    PYDANTIC_AI = "pydantic_ai"
     OPENAI = "openai"
     LANGRAPH = "langraph"
 

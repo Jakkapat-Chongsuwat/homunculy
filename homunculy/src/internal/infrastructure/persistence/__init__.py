@@ -2,7 +2,7 @@
 Persistence Layer.
 
 This package contains all database and storage implementations,
-organized by persistence technology (SQLAlchemy, MongoDB, Memory, etc.).
+organized by persistence technology (SQLAlchemy, MongoDB, etc.).
 """
 
 from .sqlalchemy import (
@@ -13,7 +13,6 @@ from .sqlalchemy import (
     init_db,
     close_db,
 )
-from .memory import MemoryAgentRepository
 
 __all__ = [
     # SQLAlchemy
@@ -23,6 +22,4 @@ __all__ = [
     "get_db_session",
     "init_db",
     "close_db",
-    # Memory
-    "MemoryAgentRepository",
 ]

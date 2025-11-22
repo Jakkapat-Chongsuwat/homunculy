@@ -9,13 +9,13 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-class PydanticSettings(BaseSettings):
+class LLMSettings(BaseSettings):
     """LLM (Large Language Model) configuration settings."""
 
-    # API Keys - PydanticAI uses OpenAI's API, so we only need OpenAI key
+    # API Keys
     openai_api_key: str = Field(
         default="sk-test-openai-dummy-key",
-        description="OpenAI API key (used by both OpenAI and PydanticAI providers)"
+        description="OpenAI API key"
     )
 
     # Default Model Configuration
@@ -59,4 +59,4 @@ class PydanticSettings(BaseSettings):
 
 
 # Global instance
-llm_settings = PydanticSettings()
+llm_settings = LLMSettings()
