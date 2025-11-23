@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, JSON, String
 
-from ..services.session import Base
+from ..database.session_manager import Base
 
 
 class AgentModel(Base):

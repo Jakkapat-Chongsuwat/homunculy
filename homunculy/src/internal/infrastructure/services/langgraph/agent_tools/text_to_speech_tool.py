@@ -1,11 +1,10 @@
 """
-LangGraph Tools for Agent Capabilities.
+Text-to-Speech Tool for LangGraph Agents.
 
-Tools that can be registered with LangGraph agents to extend their functionality.
-Following Clean Architecture, tools depend on domain service interfaces.
+Provides TTS capability to agents through tool calling interface.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated
 from langchain_core.tools import tool
 
 from common.logger import get_logger
@@ -15,7 +14,7 @@ from internal.domain.services import TTSService
 logger = get_logger(__name__)
 
 
-def create_tts_tool(tts_service: TTSService):
+def create_text_to_speech_tool(tts_service: TTSService):
     """
     Create a text-to-speech tool for LangGraph agents.
     
@@ -63,44 +62,3 @@ def create_tts_tool(tts_service: TTSService):
             return f"Failed to generate speech: {str(e)}"
     
     return text_to_speech
-
-
-def create_list_voices_tool(tts_service: TTSService):
-    """
-    Create a tool to list available TTS voices.
-    
-    Args:
-        tts_service: TTS service implementation (injected via DI)
-        
-    Returns:
-        LangChain tool that can be registered with agents
-    """
-    
-    @tool
-    async def list_voices() -> str:
-        """
-        List available text-to-speech voices.
-        
-        Use this tool to discover which voices are available for speech synthesis.
-        Returns a formatted list of voice names and IDs.
-        """
-        try:
-            logger.info("Agent invoking list voices tool")
-            
-            voices = await tts_service.get_voices()
-            
-            if not voices:
-                return "No voices available"
-            
-            voice_list = "\n".join([
-                f"- {voice['name']} (ID: {voice['voice_id']})"
-                for voice in voices[:10]  # Limit to first 10 voices
-            ])
-            
-            return f"Available voices:\n{voice_list}"
-            
-        except Exception as e:
-            logger.error("List voices tool failed", error=str(e), exc_info=True)
-            return f"Failed to list voices: {str(e)}"
-    
-    return list_voices

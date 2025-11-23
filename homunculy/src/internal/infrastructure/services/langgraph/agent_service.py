@@ -28,12 +28,13 @@ except ImportError:
 from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
 from internal.domain.services import LLMService, TTSService
 from internal.domain.exceptions import AgentExecutionException
-from internal.infrastructure.llm.exceptions import LLMAuthenticationException
-from internal.infrastructure.agents.exceptions import (
+from internal.infrastructure.services.langgraph.exceptions import (
     CheckpointerConnectionException,
     CheckpointerSetupException,
+    LLMAuthenticationException,
+    GraphStateException,
 )
-from internal.infrastructure.llm.langgraph.factories import (
+from internal.infrastructure.services.langgraph.graph_building import (
     build_conversation_graph_with_summarization,
     create_langchain_model,
     build_system_prompt,
@@ -225,12 +226,12 @@ class LangGraphAgentService(LLMService):
         
         # Register TTS tools if TTS service is available
         if self.tts_service:
-            from internal.infrastructure.llm.langgraph.tools import (
-                create_tts_tool,
+            from internal.infrastructure.services.langgraph.agent_tools import (
+                create_text_to_speech_tool,
                 create_list_voices_tool,
             )
             
-            tts_tool = create_tts_tool(self.tts_service)
+            tts_tool = create_text_to_speech_tool(self.tts_service)
             list_voices_tool = create_list_voices_tool(self.tts_service)
             
             # Bind tools to the model
@@ -261,6 +262,8 @@ class LangGraphAgentService(LLMService):
         
         Conversation state is loaded from and persisted to Postgres automatically.
         Service remains stateless and can restart without data loss.
+        
+        If TTS service is available, automatically generates audio for the response.
         """
         try:
             self._validate_api_key()
@@ -280,8 +283,13 @@ class LangGraphAgentService(LLMService):
             
             response_text, summary_used = await self._execute_graph(graph, thread_id, messages_to_add)
             
+            # Auto-generate TTS audio only if requested via context flag
+            audio_response = None
+            if self.tts_service and context and context.get("include_audio", False):
+                audio_response = await self._generate_response_audio(response_text)
+            
             return self._build_success_response(
-                configuration, thread_id, response_text, summary_used
+                configuration, thread_id, response_text, summary_used, audio_response
             )
 
         except Exception as exc:
@@ -315,13 +323,19 @@ class LangGraphAgentService(LLMService):
             self._log_conversation_state(thread_id, is_first, existing_messages)
             return is_first
             
+        except GraphStateException:
+            raise
         except Exception as e:
             logger.warning(
                 "Could not get existing state",
                 thread_id=thread_id,
                 error=str(e)
             )
-            return True
+            # Wrap in domain exception
+            raise GraphStateException(
+                f"Failed to retrieve conversation state: {str(e)}",
+                thread_id=thread_id
+            ) from e
     
     def _log_conversation_state(
         self, 
@@ -452,31 +466,99 @@ class LangGraphAgentService(LLMService):
             return 'postgres'
         return 'memory'
     
+    async def _generate_response_audio(self, text: str) -> Optional[dict]:
+        """
+        Generate TTS audio for response text.
+        
+        Returns:
+            Dictionary with AudioResponse structure or None if generation fails
+        """
+        if not self.tts_service:
+            return None
+            
+        try:
+            import base64
+            
+            # Clean text for TTS (remove tool call messages)
+            clean_text = text.replace("Called tool:", "").replace("text_to_speech", "").strip()
+            
+            if not clean_text or len(clean_text) < 3:
+                logger.debug("Skipping TTS - text too short or empty")
+                return None
+            
+            logger.info("Generating TTS audio for response", text_length=len(clean_text))
+            
+            # Use default voice (Sarah)
+            voice_id = "EXAVITQu4vr4xnSDxMaL"
+            audio_bytes = await self.tts_service.synthesize(
+                text=clean_text,
+                voice_id=voice_id,
+                stability=0.5,
+                similarity_boost=0.75
+            )
+            
+            # Encode to base64 for JSON transport
+            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+            
+            logger.info(
+                "TTS audio generated",
+                audio_size_kb=len(audio_bytes) / 1024,
+                base64_size_kb=len(audio_base64) / 1024
+            )
+            
+            # Return strongly-typed audio response structure
+            return {
+                "data": audio_base64,
+                "format": "mp3",
+                "encoding": "base64",
+                "size_bytes": len(audio_bytes),
+                "voice_id": voice_id,
+                "duration_ms": None  # Could calculate from audio if needed
+            }
+            
+        except Exception as e:
+            logger.error("Failed to generate response audio", error=str(e), exc_info=True)
+            return None
+    
     def _build_success_response(
         self,
         configuration: AgentConfiguration,
         thread_id: str,
         response_text: str,
-        summary_used: bool
+        summary_used: bool,
+        audio_response: Optional[dict] = None
     ) -> AgentResponse:
-        """Build successful response."""
+        """Build successful response with strongly-typed metadata and optional audio."""
         storage_type = self._get_storage_type()
+        
+        metadata = {
+            "model_used": configuration.model_name,
+            "tokens_used": None,  # Could track if LangChain provides callback
+            "execution_time_ms": None,  # Could track with timer
+            "tools_called": [],  # Could extract from graph state
+            "checkpointer_state": None,
+            "thread_id": thread_id,
+            "storage_type": storage_type,
+            # Legacy fields for backward compatibility
+            "model": configuration.model_name,
+            "temperature": configuration.temperature,
+            "max_tokens": configuration.max_tokens,
+            "orchestrator": "langgraph",
+            "memory": "langmem",
+            "summary_used": summary_used,
+            "checkpointer": type(self._checkpointer).__name__,
+            "storage": storage_type,
+        }
+        
+        # Include strongly-typed audio if generated
+        if audio_response:
+            metadata["audio"] = audio_response
         
         return AgentResponse(
             message=response_text,
             confidence=0.95,
             reasoning=f"Generated by {configuration.model_name} via LangGraph",
-            metadata={
-                "model": configuration.model_name,
-                "temperature": configuration.temperature,
-                "max_tokens": configuration.max_tokens,
-                "orchestrator": "langgraph",
-                "memory": "langmem",
-                "summary_used": summary_used,
-                "thread_id": thread_id,
-                "checkpointer": type(self._checkpointer).__name__,
-                "storage": storage_type,
-            },
+            metadata=metadata,
             status=AgentStatus.COMPLETED,
         )
     

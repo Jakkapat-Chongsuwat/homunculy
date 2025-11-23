@@ -10,11 +10,17 @@ ARCHITECTURE:
 - This handler only provides chat execution capability
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from common.logger import get_logger
-from internal.adapters.http.models import ExecuteChatRequest, ChatResponse
+from internal.adapters.http.models import (
+    ExecuteChatRequest,
+    ChatResponse,
+    AgentExecutionMetadata,
+    AudioResponse,
+)
 from internal.domain.entities import AgentProvider, AgentPersonality, AgentConfiguration
-from internal.infrastructure.di import get_llm_service
+from internal.domain.services import LLMService
+from internal.infrastructure.container import get_llm_service
 
 
 logger = get_logger(__name__)
@@ -25,7 +31,8 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
 @router.post("/execute", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def execute_chat(
-    request: ExecuteChatRequest
+    request: ExecuteChatRequest,
+    llm_service: LLMService = Depends(get_llm_service)
 ) -> ChatResponse:
     """
     Execute chat with provided agent configuration (STATELESS).
@@ -71,21 +78,47 @@ async def execute_chat(
             max_tokens=request.configuration.max_tokens,
         )
         
-        # Get LLM service (singleton with persistent checkpointer)
-        llm_service = get_llm_service(configuration.provider)
+        # LLM service injected via Depends() - proper Clean Architecture DI
+        # Note: Service is injected by FastAPI, not called directly
         
         # Add user_id to context for conversation isolation
         context = request.context.copy()
         context["user_id"] = request.user_id
+        context["include_audio"] = request.include_audio  # Pass audio flag to service
         
         # Execute chat (stateless - config not stored)
         response = await llm_service.chat(configuration, request.message, context)
+        
+        # Convert metadata dict to strongly-typed AgentExecutionMetadata
+        metadata_dict = response.metadata or {}
+        metadata = AgentExecutionMetadata(
+            model_used=metadata_dict.get("model_used"),
+            tokens_used=metadata_dict.get("tokens_used"),
+            execution_time_ms=metadata_dict.get("execution_time_ms"),
+            tools_called=metadata_dict.get("tools_called", []),
+            checkpointer_state=metadata_dict.get("checkpointer_state"),
+            thread_id=metadata_dict.get("thread_id"),
+            storage_type=metadata_dict.get("storage_type"),
+        )
+        
+        # Build strongly-typed AudioResponse (always present, might be empty)
+        audio_data = metadata_dict.get("audio", {})
+        audio = AudioResponse(
+            data=audio_data.get("data", ""),
+            format=audio_data.get("format", "mp3"),
+            encoding=audio_data.get("encoding", "base64"),
+            size_bytes=audio_data.get("size_bytes", 0),
+            voice_id=audio_data.get("voice_id", ""),
+            duration_ms=audio_data.get("duration_ms"),
+            generated=bool(audio_data.get("data"))  # True if audio data exists
+        )
         
         return ChatResponse(
             message=response.message,
             confidence=response.confidence,
             reasoning=response.reasoning or "",
-            metadata=response.metadata or {}
+            audio=audio,
+            metadata=metadata
         )
         
     except Exception as e:

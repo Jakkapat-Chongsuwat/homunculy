@@ -2,10 +2,10 @@
 Infrastructure Layer.
 
 This layer contains all external concerns and implementations:
-- Persistence (databases, file storage)
-- External services (APIs, message queues)
-- Dependency injection
-- Framework integrations
+- Service implementations (LLM, TTS)
+- Persistence (databases, repositories)
+- Dependency injection container
+- Framework integrations (LangGraph)
 """
 
 from .persistence import (
@@ -14,7 +14,16 @@ from .persistence import (
     init_db,
     close_db,
 )
-from .di import get_session, get_uow
+from .services import (
+    LangGraphAgentService,
+    ElevenLabsTTSService,
+)
+from .container import (
+    get_session,
+    get_uow,
+    get_llm_service,
+    get_tts_service,
+)
 
 __all__ = [
     # Persistence - SQLAlchemy
@@ -22,7 +31,12 @@ __all__ = [
     "SQLAlchemyUnitOfWork",
     "init_db",
     "close_db",
+    # Services
+    "LangGraphAgentService",
+    "ElevenLabsTTSService",
     # Dependency Injection
     "get_session",
     "get_uow",
+    "get_llm_service",
+    "get_tts_service",
 ]

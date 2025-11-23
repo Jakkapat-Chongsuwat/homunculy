@@ -11,18 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from internal.domain.repositories import UnitOfWork
 from internal.domain.services import LLMService, TTSService
-from internal.infrastructure.persistence.sqlalchemy import (
-    async_session_factory,
-    SQLAlchemyUnitOfWork,
-)
+from internal.infrastructure.persistence.sqlalchemy.database import async_session_factory
+from internal.infrastructure.persistence.sqlalchemy.repositories import SQLAlchemyUnitOfWork
 from internal.domain.entities.agent import AgentProvider
-from internal.infrastructure.agents import LangGraphAgentService
-from internal.infrastructure.tts import ElevenLabsTTSService
+from internal.infrastructure.services.langgraph import LangGraphAgentService
+from internal.infrastructure.services.tts import ElevenLabsTTSService
 from settings import settings
 
-# Singleton instances to persist across requests
-_llm_service_instance = None
-_tts_service_instance = None
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
@@ -53,10 +48,11 @@ async def get_uow(
 
 def get_llm_service(provider: AgentProvider = AgentProvider.LANGRAPH) -> LLMService:
     """
-    Get LLM Service dependency (Singleton).
+    Get LLM Service dependency (Factory Pattern).
     
-    CRITICAL: Returns a singleton instance to ensure the MemorySaver checkpointer
-    persists across HTTP requests within the same container lifecycle.
+    Creates service instance with AsyncPostgresSaver checkpointer that persists
+    conversation state across requests. Each request gets the same checkpointer
+    instance via shared database connection.
     
     Automatically injects TTS service if available, enabling TTS tools for agents.
     
@@ -64,43 +60,34 @@ def get_llm_service(provider: AgentProvider = AgentProvider.LANGRAPH) -> LLMServ
         provider: The AI provider to use (only LangGraph supported now)
         
     Returns:
-        LLMService singleton instance with persistent memory and optional TTS tools
+        LLMService instance with persistent PostgreSQL memory and optional TTS tools
         
     Raises:
         ValueError: If provider is not supported
     """
-    global _llm_service_instance
-    if _llm_service_instance is None:
-        # Get TTS service (may be None if not configured)
-        tts_service = get_tts_service()
-        
-        # Initialize singleton agent service with optional TTS tools
-        _llm_service_instance = LangGraphAgentService(tts_service=tts_service)
+    # Get TTS service (may be None if not configured)
+    tts_service = get_tts_service()
     
-    return _llm_service_instance
+    # Return new service instance (stateless - checkpointer handles persistence)
+    return LangGraphAgentService(tts_service=tts_service)
 
 
 def get_tts_service() -> Optional[TTSService]:
     """
-    Get TTS Service dependency (Singleton).
+    Get TTS Service dependency (Factory Pattern).
     
-    Returns a singleton instance if TTS API key is configured.
+    Creates service instance if TTS API key is configured.
     If no API key is available, returns None (TTS tools won't be available).
     
     Returns:
-        TTSService singleton instance or None if not configured
+        TTSService instance or None if not configured
     """
-    global _tts_service_instance
+    # Try to get ElevenLabs API key from .env
+    import os
+    elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
     
-    if _tts_service_instance is None:
-        # Try to get ElevenLabs API key from .env
-        import os
-        elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
-        
-        if elevenlabs_api_key:
-            _tts_service_instance = ElevenLabsTTSService(api_key=elevenlabs_api_key)
-        else:
-            # TTS not configured - tools won't be available
-            _tts_service_instance = None
-    
-    return _tts_service_instance
+    if elevenlabs_api_key:
+        return ElevenLabsTTSService(api_key=elevenlabs_api_key)
+    else:
+        # TTS not configured - tools won't be available
+        return None
