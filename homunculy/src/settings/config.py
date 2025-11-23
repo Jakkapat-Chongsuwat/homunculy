@@ -17,6 +17,7 @@ from .database import database_settings, DatabaseSettings
 from .llm import llm_settings, LLMSettings
 from .security import security_settings, SecuritySettings
 from .logging import logging_settings, LoggingSettings
+from .tts import tts_settings, TTSSettings
 
 from pydantic_settings import BaseSettings
 
@@ -29,11 +30,13 @@ class Settings(BaseSettings):
     llm: LLMSettings = llm_settings
     security: SecuritySettings = security_settings
     logging: LoggingSettings = logging_settings
+    tts: TTSSettings = tts_settings
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra env vars not defined in any settings module
 
 
 # Global settings instance

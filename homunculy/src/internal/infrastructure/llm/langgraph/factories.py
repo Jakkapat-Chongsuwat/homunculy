@@ -1,9 +1,10 @@
 """Reusable LangGraph helpers for building conversation flows."""
 
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, AIMessage
+from langchain_core.runnables import Runnable
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import SecretStr
@@ -46,8 +47,8 @@ def build_system_prompt(configuration: AgentConfiguration) -> str:
     return f"{base_prompt}\n\n{personality_context}".strip()
 
 
-def create_llm_node(llm: ChatOpenAI):
-    """Create LangGraph node using ChatOpenAI directly."""
+def create_llm_node(llm: Union[ChatOpenAI, Runnable]):
+    """Create LangGraph node using ChatOpenAI or tool-bound Runnable."""
 
     async def call_llm(state: ConversationState) -> Dict[str, Any]:
         if not state.get("messages"):
@@ -58,8 +59,9 @@ def create_llm_node(llm: ChatOpenAI):
             messages = state.get("messages", [])
             
             # Call LLM with full conversation history
+            # Supports both base ChatOpenAI and tool-bound Runnable
             result = await llm.ainvoke(messages)
-            response_text = result.content
+            response_text = result.content if hasattr(result, 'content') else str(result)
             
             # Return AIMessage so MessagesState.add_messages appends correctly
             return {
@@ -74,14 +76,17 @@ def create_llm_node(llm: ChatOpenAI):
 
 
 def build_conversation_graph_with_summarization(
-    llm: ChatOpenAI,
+    llm: Union[ChatOpenAI, Runnable],
     system_prompt: str,
     max_tokens: int = 256,
     max_tokens_before_summary: int = 1024,
     max_summary_tokens: int = 128,
     checkpointer=None,
 ):
-    """Compile conversation graph with LangMem SummarizationNode integrated."""
+    """Compile conversation graph with LangMem SummarizationNode integrated.
+    
+    Supports both base ChatOpenAI models and tool-bound Runnable instances.
+    """
     from langchain_core.messages import BaseMessage
     from langmem.short_term import SummarizationNode
 
@@ -99,9 +104,20 @@ def build_conversation_graph_with_summarization(
                     converted.append(AIMessage(content=content))
                 else:
                     converted.append(HumanMessage(content=content))
-        return llm.get_num_tokens_from_messages(converted) if converted else 0
+        
+        # Try to get token count from the model
+        # For tool-bound Runnables, we need to access the underlying ChatOpenAI
+        if isinstance(llm, ChatOpenAI):
+            return llm.get_num_tokens_from_messages(converted) if converted else 0
+        else:
+            # Rough token estimate for tool-bound models (4 chars ≈ 1 token)
+            return len(str(converted)) // 4
 
-    summarization_model = llm.bind(max_tokens=max_summary_tokens)
+    # Create summarization model
+    if isinstance(llm, ChatOpenAI):
+        summarization_model = llm.bind(max_tokens=max_summary_tokens)
+    else:
+        summarization_model = llm  # Already bound, use as-is
     summarization_node = SummarizationNode(
         token_counter=count_tokens,
         model=summarization_model,

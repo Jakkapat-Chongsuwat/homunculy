@@ -1,5 +1,6 @@
 """Domain Services Package."""
 
 from .llm_service import LLMService
+from .tts_service import TTSService
 
-__all__ = ["LLMService"]
+__all__ = ["LLMService", "TTSService"]

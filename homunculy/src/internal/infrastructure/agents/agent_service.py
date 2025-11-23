@@ -26,7 +26,7 @@ except ImportError:
     AsyncConnectionPool = type('AsyncConnectionPool', (), {})
 
 from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
-from internal.domain.services import LLMService
+from internal.domain.services import LLMService, TTSService
 from internal.domain.exceptions import AgentExecutionException
 from internal.infrastructure.llm.exceptions import LLMAuthenticationException
 from internal.infrastructure.agents.exceptions import (
@@ -59,6 +59,7 @@ class LangGraphAgentService(LLMService):
         max_tokens_before_summary: int = 1024,
         max_summary_tokens: int = 128,
         checkpointer = None,
+        tts_service: Optional[TTSService] = None,
     ) -> None:
         """
         Initialize agent service with checkpoint configuration.
@@ -69,6 +70,7 @@ class LangGraphAgentService(LLMService):
             max_tokens_before_summary: Token threshold for summarization
             max_summary_tokens: Max tokens in summary
             checkpointer: Optional checkpointer for testing
+            tts_service: Optional TTS service for voice capabilities
         """
         self.api_key = api_key or os.getenv("LLM_OPENAI_API_KEY")
         if not self.api_key:
@@ -80,6 +82,7 @@ class LangGraphAgentService(LLMService):
         self.max_tokens = max_tokens
         self.max_tokens_before_summary = max_tokens_before_summary
         self.max_summary_tokens = max_summary_tokens
+        self.tts_service = tts_service
         
         self._checkpointer = checkpointer
         self._checkpointer_initialized = checkpointer is not None
@@ -89,7 +92,8 @@ class LangGraphAgentService(LLMService):
         logger.info(
             "LangGraphAgentService initialized",
             checkpointer="provided" if checkpointer else "will_initialize",
-            postgres_available=HAS_POSTGRES_CHECKPOINT
+            postgres_available=HAS_POSTGRES_CHECKPOINT,
+            tts_enabled=tts_service is not None
         )
     
     async def _ensure_checkpointer(self) -> None:
@@ -195,9 +199,10 @@ class LangGraphAgentService(LLMService):
         system_prompt: str,
     ):
         """
-        Retrieve cached graph or build new one with checkpointer.
+        Retrieve cached graph or build new one with checkpointer and optional TTS tools.
         
         All graphs share the same checkpointer instance for state persistence.
+        If TTS service is available, TTS tools are automatically registered.
         """
         await self._ensure_checkpointer()
         
@@ -207,19 +212,33 @@ class LangGraphAgentService(LLMService):
             logger.debug("Using cached graph", config_sig=config_sig)
             return self._graph_cache[config_sig]
         
-        logger.info("Building graph", config_sig=config_sig)
+        logger.info("Building graph", config_sig=config_sig, tts_enabled=self.tts_service is not None)
         
         assert self.api_key is not None, "API key must be set"
         
-        llm = create_langchain_model(
+        base_llm = create_langchain_model(
             self.api_key, 
             configuration.model_name,
             configuration.temperature,
             configuration.max_tokens,
         )
         
+        # Register TTS tools if TTS service is available
+        if self.tts_service:
+            from internal.infrastructure.llm.langgraph.tools import (
+                create_tts_tool,
+                create_list_voices_tool,
+            )
+            
+            tts_tool = create_tts_tool(self.tts_service)
+            list_voices_tool = create_list_voices_tool(self.tts_service)
+            
+            # Bind tools to the model
+            base_llm = base_llm.bind_tools([tts_tool, list_voices_tool])
+            logger.info("TTS tools bound to agent", tools=["text_to_speech", "list_voices"])
+        
         graph = build_conversation_graph_with_summarization(
-            llm,
+            base_llm,
             system_prompt,
             self.max_tokens,
             self.max_tokens_before_summary,
@@ -366,7 +385,29 @@ class LangGraphAgentService(LLMService):
         await self._log_post_invocation_state(graph, thread_id, config)
         self._check_graph_errors(result, thread_id)
         
-        response_text = result.get("response", "No response generated")
+        # Extract response from result or messages
+        response_text = result.get("response", "")
+        
+        # If response is empty, check if there are tool calls in messages
+        if not response_text:
+            messages = result.get("messages", [])
+            if messages:
+                last_message = messages[-1]
+                if hasattr(last_message, 'content'):
+                    response_text = last_message.content or ""
+                    
+                # Check for tool calls
+                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                    tool_info = []
+                    for tool_call in last_message.tool_calls:
+                        tool_name = tool_call.get('name', 'unknown')
+                        tool_info.append(f"Called tool: {tool_name}")
+                    if tool_info:
+                        response_text = response_text + " " + " ".join(tool_info) if response_text else " ".join(tool_info)
+        
+        if not response_text:
+            response_text = "No response generated"
+        
         summary_used = bool(result.get("context", {}).get("running_summary"))
         
         logger.info(
