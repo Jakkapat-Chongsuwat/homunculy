@@ -175,3 +175,8 @@ logs/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# audio file
+*.mp3
+*.wav
+*.flac
