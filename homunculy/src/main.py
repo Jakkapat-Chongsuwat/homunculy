@@ -11,22 +11,28 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
+from common.logger import configure_logging, get_logger
 from internal.adapters.http import agent_handler
 from internal.infrastructure.persistence.sqlalchemy import init_db, close_db
 from settings import APP_NAME, APP_VERSION
 
 
+# Configure structured logging on startup
+configure_logging()
+logger = get_logger(__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    print(f"Starting {APP_NAME} v{APP_VERSION}")
+    logger.info("Application starting", app=APP_NAME, version=APP_VERSION)
     # Initialize database
     await init_db()
-    print("Database initialized")
+    logger.info("Database initialized")
     yield
     # Cleanup
     await close_db()
-    print(f"Shutting down {APP_NAME}")
+    logger.info("Application shutting down", app=APP_NAME)
 
 
 app = FastAPI(

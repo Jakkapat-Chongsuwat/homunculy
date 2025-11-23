@@ -8,7 +8,7 @@ Uses Dependency Injection for infrastructure and instantiates use cases per requ
 
 from typing import List
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, ConfigDict
 
 from internal.usecases import (
     CreateAgentUseCase,
@@ -56,14 +56,18 @@ class CreateAgentRequest(BaseModel):
 
 
 class CreateAgentResponse(BaseModel):
-    """Response model for creating an agent."""
+    """HTTP response model for creating an agent (not domain entity)."""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     name: str
     status: str = "created"
 
 
 class AgentResponse(BaseModel):
-    """Response model for agent."""
+    """HTTP response model for agent details (not domain entity)."""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     name: str
     status: str
@@ -91,10 +95,13 @@ class ExecuteChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Response model for chat."""
+    """HTTP response model for chat (not domain entity)."""
+    model_config = ConfigDict(from_attributes=True)
+    
     message: str
     confidence: float
     reasoning: str = ""
+    metadata: dict = Field(default_factory=dict, description="Additional response metadata")
 
 
 # Router setup
@@ -260,6 +267,7 @@ async def chat_with_agent(
         message=response.message,
         confidence=response.confidence,
         reasoning=response.reasoning or "",
+        metadata=response.metadata or {}
     )
 
 
@@ -312,6 +320,7 @@ async def execute_chat(
             message=response.message,
             confidence=response.confidence,
             reasoning=response.reasoning or "",
+            metadata=response.metadata or {}
         )
         
     except Exception as e:

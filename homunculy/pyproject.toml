@@ -26,6 +26,7 @@ langmem = "^0.0.29"
 langchain-openai = "^0.3.0"
 langgraph-checkpoint-postgres = "^2.0.0"
 psycopg = "^3.2.0"
+structlog = "^25.5.0"
 
 [tool.poetry.group.dev.dependencies]
 autoflake = "^2.3.1"

@@ -1,9 +1,10 @@
 """LangGraph Agent Service with Postgres-backed persistence."""
 
 import asyncio
-import logging
 import os
 from typing import Any, Dict, Optional, TYPE_CHECKING
+
+from common.logger import get_logger
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -16,11 +17,13 @@ try:
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     from psycopg import AsyncConnection
     from psycopg.rows import dict_row
+    from psycopg_pool import AsyncConnectionPool
     HAS_POSTGRES_CHECKPOINT = True
 except ImportError:
     HAS_POSTGRES_CHECKPOINT = False
     AsyncPostgresSaver = type('AsyncPostgresSaver', (), {})
     AsyncConnection = type('AsyncConnection', (), {})
+    AsyncConnectionPool = type('AsyncConnectionPool', (), {})
 
 from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
 from internal.domain.services import LLMService
@@ -38,7 +41,7 @@ from internal.infrastructure.llm.langgraph.factories import (
 from settings import DATABASE_URI
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LangGraphAgentService(LLMService):
@@ -80,13 +83,13 @@ class LangGraphAgentService(LLMService):
         
         self._checkpointer = checkpointer
         self._checkpointer_initialized = checkpointer is not None
-        self._postgres_connection: Optional[Any] = None
+        self._postgres_pool: Optional[Any] = None
         self._graph_cache: Dict[str, Any] = {}
         
         logger.info(
-            f"LangGraphAgentService initialized | "
-            f"checkpointer={'provided' if checkpointer else 'will_initialize'} | "
-            f"postgres_available={HAS_POSTGRES_CHECKPOINT}"
+            "LangGraphAgentService initialized",
+            checkpointer="provided" if checkpointer else "will_initialize",
+            postgres_available=HAS_POSTGRES_CHECKPOINT
         )
     
     async def _ensure_checkpointer(self) -> None:
@@ -108,19 +111,22 @@ class LangGraphAgentService(LLMService):
         if HAS_POSTGRES_CHECKPOINT and DATABASE_URI:
             try:
                 db_uri = DATABASE_URI.replace('+asyncpg', '')
-                logger.info(f"Connecting to Postgres: {db_uri.split('@')[1]}")
+                db_host = db_uri.split('@')[1] if '@' in db_uri else 'unknown'
+                logger.info("Connecting to Postgres", db_host=db_host)
                 
-                self._postgres_connection = await asyncio.wait_for(
-                    AsyncConnection.connect(  # type: ignore[attr-defined]
-                        db_uri,
-                        autocommit=True,
-                        prepare_threshold=0,
-                        row_factory=dict_row  # type: ignore[arg-type]
-                    ),
-                    timeout=30.0
+                # Production-grade connection pooling
+                self._postgres_pool = AsyncConnectionPool(  # type: ignore[attr-defined]
+                    db_uri,
+                    min_size=2,
+                    max_size=10,
+                    kwargs={
+                        "autocommit": True,
+                        "prepare_threshold": 0,
+                        "row_factory": dict_row
+                    }
                 )
                 
-                self._checkpointer = AsyncPostgresSaver(self._postgres_connection)  # type: ignore[arg-type]
+                self._checkpointer = AsyncPostgresSaver(self._postgres_pool)  # type: ignore[arg-type]
                 
                 logger.info("Setting up checkpoint tables")
                 await asyncio.wait_for(
@@ -128,28 +134,32 @@ class LangGraphAgentService(LLMService):
                     timeout=30.0
                 )
                 
-                logger.info("AsyncPostgresSaver initialized successfully")
+                logger.info(
+                    "AsyncPostgresSaver initialized successfully",
+                    pool_min_size=2,
+                    pool_max_size=10
+                )
                 
             except asyncio.TimeoutError as e:
-                logger.error(f"Checkpoint connection timeout: {e}")
+                logger.error("Checkpoint connection timeout", error=str(e))
                 raise CheckpointerConnectionException(
                     "Connection to PostgreSQL timed out",
                     storage_type="postgres"
                 ) from e
                 
             except Exception as e:
-                logger.error(f"Failed to initialize checkpointer: {e}")
+                logger.error("Failed to initialize checkpointer", error=str(e), exc_info=True)
                 raise CheckpointerSetupException(
                     f"Failed to setup PostgreSQL checkpointer: {e}",
                     storage_type="postgres"
                 ) from e
         else:
             reason = "package not installed" if not HAS_POSTGRES_CHECKPOINT else "no DATABASE_URI"
-            logger.warning(f"Postgres unavailable ({reason}), using MemorySaver")
+            logger.warning("Postgres unavailable, using MemorySaver", reason=reason)
             self._checkpointer = MemorySaver()
         
         self._checkpointer_initialized = True
-        logger.info(f"Checkpointer ready: {type(self._checkpointer).__name__}")
+        logger.info("Checkpointer ready", checkpointer_type=type(self._checkpointer).__name__)
 
     def _get_config_signature(self, configuration: AgentConfiguration) -> str:
         """Generate unique signature for graph caching."""
@@ -194,10 +204,10 @@ class LangGraphAgentService(LLMService):
         config_sig = self._get_config_signature(configuration)
         
         if config_sig in self._graph_cache:
-            logger.debug(f"Using cached graph: {config_sig}")
+            logger.debug("Using cached graph", config_sig=config_sig)
             return self._graph_cache[config_sig]
         
-        logger.info(f"Building graph: {config_sig}")
+        logger.info("Building graph", config_sig=config_sig)
         
         assert self.api_key is not None, "API key must be set"
         
@@ -218,7 +228,7 @@ class LangGraphAgentService(LLMService):
         )
         
         self._graph_cache[config_sig] = graph
-        logger.info(f"Graph compiled and cached: {config_sig}")
+        logger.info("Graph compiled and cached", config_sig=config_sig)
         return graph
 
     async def chat(
@@ -237,7 +247,11 @@ class LangGraphAgentService(LLMService):
             self._validate_api_key()
             
             thread_id = self._resolve_thread_id(configuration, context)
-            logger.info(f"Chat request | thread={thread_id} | message={message[:50]}...")
+            logger.info(
+                "Chat request",
+                thread_id=thread_id,
+                message_preview=message[:50]
+            )
             
             system_prompt = build_system_prompt(configuration)
             graph = await self._get_or_build_graph(configuration, system_prompt)
@@ -252,7 +266,12 @@ class LangGraphAgentService(LLMService):
             )
 
         except Exception as exc:
-            logger.exception(f"Chat error for thread '{thread_id}': {exc}")
+            logger.error(
+                "Chat error",
+                thread_id=thread_id if 'thread_id' in locals() else "unknown",
+                error=str(exc),
+                exc_info=True
+            )
             return self._build_error_response(str(exc))
     
     def _validate_api_key(self) -> None:
@@ -278,7 +297,11 @@ class LangGraphAgentService(LLMService):
             return is_first
             
         except Exception as e:
-            logger.warning(f"Could not get existing state for thread '{thread_id}': {e}")
+            logger.warning(
+                "Could not get existing state",
+                thread_id=thread_id,
+                error=str(e)
+            )
             return True
     
     def _log_conversation_state(
@@ -290,16 +313,17 @@ class LangGraphAgentService(LLMService):
         """Log conversation state for debugging."""
         storage_type = self._get_storage_type()
         logger.info(
-            f"Thread '{thread_id}' state | "
-            f"first_message={is_first_message} | "
-            f"existing_messages={len(existing_messages)} | "
-            f"checkpointer={type(self._checkpointer).__name__} | "
-            f"storage={storage_type}"
+            "Thread state",
+            thread_id=thread_id,
+            first_message=is_first_message,
+            existing_messages_count=len(existing_messages),
+            checkpointer=type(self._checkpointer).__name__,
+            storage=storage_type
         )
         
         if existing_messages:
             msg_ids = [getattr(msg, 'id', 'no-id') for msg in existing_messages[:3]]
-            logger.debug(f"Existing message IDs (first 3): {msg_ids}")
+            logger.debug("Existing message IDs", message_ids=msg_ids, count=len(existing_messages))
     
     def _build_message_list(
         self, 
@@ -314,11 +338,11 @@ class LangGraphAgentService(LLMService):
         messages_to_add = []
         
         if is_first_message:
-            logger.info(f"First message in thread '{thread_id}', adding system prompt")
+            logger.info("First message in thread, adding system prompt", thread_id=thread_id)
             messages_to_add.append(SystemMessage(content=system_prompt))
         
         messages_to_add.append(HumanMessage(content=message))
-        logger.debug(f"Adding {len(messages_to_add)} messages to graph input")
+        logger.debug("Adding messages to graph", message_count=len(messages_to_add))
         
         return messages_to_add
     
@@ -335,9 +359,9 @@ class LangGraphAgentService(LLMService):
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         input_update = cast(Any, {"messages": messages_to_add})
 
-        logger.info(f"Invoking graph | thread={thread_id}")
+        logger.info("Invoking graph", thread_id=thread_id)
         result = await graph.ainvoke(input_update, config)
-        logger.info(f"Graph invocation complete | thread={thread_id}")
+        logger.info("Graph invocation complete", thread_id=thread_id)
 
         await self._log_post_invocation_state(graph, thread_id, config)
         self._check_graph_errors(result, thread_id)
@@ -346,8 +370,10 @@ class LangGraphAgentService(LLMService):
         summary_used = bool(result.get("context", {}).get("running_summary"))
         
         logger.info(
-            f"Response generated | thread={thread_id} | "
-            f"length={len(response_text)} | summary={summary_used}"
+            "Response generated",
+            thread_id=thread_id,
+            response_length=len(response_text),
+            summary_used=summary_used
         )
         
         return response_text, summary_used
@@ -357,15 +383,23 @@ class LangGraphAgentService(LLMService):
         try:
             post_state = await graph.aget_state(config)
             post_messages = post_state.values.get("messages", [])
-            logger.info(f"Thread '{thread_id}' post-invocation | messages={len(post_messages)}")
+            logger.info(
+                "Thread post-invocation state",
+                thread_id=thread_id,
+                messages_count=len(post_messages)
+            )
         except Exception as e:
-            logger.warning(f"Could not get post-invocation state: {e}")
+            logger.warning("Could not get post-invocation state", error=str(e))
     
     def _check_graph_errors(self, result: dict, thread_id: str) -> None:
         """Check for graph execution errors."""
         if result.get("error"):
             error_msg = result["error"]
-            logger.error(f"Graph execution error | thread={thread_id} | error={error_msg}")
+            logger.error(
+                "Graph execution error",
+                thread_id=thread_id,
+                error=error_msg
+            )
             raise AgentExecutionException(
                 f"LangGraph execution error: {error_msg}",
                 thread_id=thread_id
@@ -416,10 +450,10 @@ class LangGraphAgentService(LLMService):
         )
     
     async def cleanup(self) -> None:
-        """Cleanup resources including Postgres connection."""
-        if self._postgres_connection:
+        """Cleanup resources including Postgres connection pool."""
+        if self._postgres_pool:
             try:
-                await self._postgres_connection.close()  # type: ignore[attr-defined]
-                logger.info("AsyncPostgresSaver connection closed")
+                await self._postgres_pool.close()  # type: ignore[attr-defined]
+                logger.info("AsyncPostgresSaver connection pool closed")
             except Exception as e:
-                logger.error(f"Error closing connection: {e}")
+                logger.error("Error closing connection pool", error=str(e))

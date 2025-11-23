@@ -3,10 +3,18 @@ Logging configuration settings.
 
 This module contains all logging-related configuration including
 log levels, formatters, handlers, and output destinations.
+Supports both standard and structured (JSON) logging for production.
 """
 
+from enum import Enum
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+
+class LogFormat(str, Enum):
+    """Supported log formats."""
+    TEXT = "text"
+    JSON = "json"
 
 
 class LoggingSettings(BaseSettings):
@@ -18,10 +26,16 @@ class LoggingSettings(BaseSettings):
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
     )
 
-    # Log Format
+    # Log Format Type
+    log_format: LogFormat = Field(
+        default=LogFormat.JSON,
+        description="Log format: text for development, json for production"
+    )
+    
+    # Log Format (for text mode)
     format: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        description="Log message format"
+        description="Log message format (used when log_format=text)"
     )
 
     # Date Format
@@ -54,10 +68,10 @@ class LoggingSettings(BaseSettings):
         description="Enable console logging"
     )
 
-    # Structured Logging (JSON)
+    # Structured Logging (JSON) - DEPRECATED
     structured_enabled: bool = Field(
-        default=False,
-        description="Enable structured JSON logging"
+        default=True,
+        description="Enable structured JSON logging (DEPRECATED: use log_format instead)"
     )
 
     class Config:
