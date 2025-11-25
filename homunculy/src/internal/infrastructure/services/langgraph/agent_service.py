@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from common.logger import get_logger
+from settings.tts import tts_settings
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -488,13 +489,16 @@ class LangGraphAgentService(LLMService):
             
             logger.info("Generating TTS audio for response", text_length=len(clean_text))
             
-            # Use default voice (Sarah)
-            voice_id = "EXAVITQu4vr4xnSDxMaL"
+            # Use default voice from settings
+            voice_id = tts_settings.default_voice_id
             audio_bytes = await self.tts_service.synthesize(
                 text=clean_text,
                 voice_id=voice_id,
-                stability=0.5,
-                similarity_boost=0.75
+                model_id=tts_settings.elevenlabs_model_id,
+                stability=tts_settings.default_stability,
+                similarity_boost=tts_settings.default_similarity_boost,
+                style=tts_settings.default_style,
+                use_speaker_boost=tts_settings.default_use_speaker_boost
             )
             
             # Encode to base64 for JSON transport

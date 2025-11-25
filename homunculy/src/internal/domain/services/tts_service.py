@@ -7,7 +7,9 @@ infrastructure implementations must follow.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import AsyncIterator, Optional
+
+from settings.tts import tts_settings
 
 
 class TTSService(ABC):
@@ -23,11 +25,11 @@ class TTSService(ABC):
         self,
         text: str,
         voice_id: str,
-        model_id: str = "eleven_multilingual_v2",
-        stability: float = 0.5,
-        similarity_boost: float = 0.75,
-        style: float = 0.0,
-        use_speaker_boost: bool = True,
+        model_id: Optional[str] = None,
+        stability: Optional[float] = None,
+        similarity_boost: Optional[float] = None,
+        style: Optional[float] = None,
+        use_speaker_boost: Optional[bool] = None,
     ) -> bytes:
         """
         Synthesize text to speech audio.
@@ -35,17 +37,48 @@ class TTSService(ABC):
         Args:
             text: Text to convert to speech
             voice_id: Voice ID from TTS provider
-            model_id: TTS model to use
-            stability: Voice stability (0.0-1.0)
-            similarity_boost: Voice similarity (0.0-1.0)
-            style: Voice style exaggeration (0.0-1.0)
-            use_speaker_boost: Enable speaker boost
+            model_id: TTS model to use (defaults to settings)
+            stability: Voice stability (0.0-1.0, defaults to settings)
+            similarity_boost: Voice similarity (0.0-1.0, defaults to settings)
+            style: Voice style exaggeration (0.0-1.0, defaults to settings)
+            use_speaker_boost: Enable speaker boost (defaults to settings)
             
         Returns:
             Audio data as bytes (MP3 format)
             
         Raises:
             TTSServiceError: If synthesis fails
+        """
+        pass
+    
+    @abstractmethod
+    def stream(
+        self,
+        text: str,
+        voice_id: str,
+        model_id: Optional[str] = None,
+        stability: Optional[float] = None,
+        similarity_boost: Optional[float] = None,
+        style: Optional[float] = None,
+        use_speaker_boost: Optional[bool] = None,
+    ) -> AsyncIterator[bytes]:
+        """
+        Stream text to speech audio chunks.
+        
+        Args:
+            text: Text to convert to speech
+            voice_id: Voice ID from TTS provider
+            model_id: TTS model to use (defaults to settings)
+            stability: Voice stability (0.0-1.0, defaults to settings)
+            similarity_boost: Voice similarity (0.0-1.0, defaults to settings)
+            style: Voice style exaggeration (0.0-1.0, defaults to settings)
+            use_speaker_boost: Enable speaker boost (defaults to settings)
+            
+        Yields:
+            Audio chunks as bytes (MP3 format)
+            
+        Raises:
+            TTSServiceError: If streaming fails
         """
         pass
     

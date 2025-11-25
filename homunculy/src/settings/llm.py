@@ -5,22 +5,62 @@ This module contains all LLM-related configuration including
 API keys, model settings, and provider-specific options.
 """
 
+from typing import Optional, Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+
+LLMProvider = Literal["openai", "anthropic", "azure", "google"]
 
 
 class LLMSettings(BaseSettings):
     """LLM (Large Language Model) configuration settings."""
 
-    # API Keys
+    # Provider Selection
+    provider: LLMProvider = Field(
+        default="openai",
+        description="LLM provider to use"
+    )
+
+    # OpenAI Configuration
     openai_api_key: str = Field(
         default="sk-test-openai-dummy-key",
         description="OpenAI API key"
     )
+    openai_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="OpenAI API base URL"
+    )
 
-    # Default Model Configuration
+    # Anthropic Configuration (future)
+    anthropic_api_key: Optional[str] = Field(
+        default=None,
+        description="Anthropic API key"
+    )
+
+    # Azure OpenAI Configuration (future)
+    azure_api_key: Optional[str] = Field(
+        default=None,
+        description="Azure OpenAI API key"
+    )
+    azure_endpoint: Optional[str] = Field(
+        default=None,
+        description="Azure OpenAI endpoint"
+    )
+
+    # Google Vertex AI Configuration (future)
+    google_project_id: Optional[str] = Field(
+        default=None,
+        description="Google Cloud project ID"
+    )
+    google_credentials_path: Optional[str] = Field(
+        default=None,
+        description="Path to Google Cloud credentials JSON"
+    )
+
+    # Default Model Configuration (provider-agnostic)
     default_model: str = Field(
-        default="gpt-4",
+        default="gpt-4o-mini",
         description="Default LLM model to use"
     )
     default_temperature: float = Field(
@@ -30,15 +70,9 @@ class LLMSettings(BaseSettings):
         description="Default temperature for LLM responses"
     )
     default_max_tokens: int = Field(
-        default=1000,
+        default=2000,
         gt=0,
         description="Default maximum tokens for LLM responses"
-    )
-
-    # Provider-specific settings
-    openai_base_url: str = Field(
-        default="https://api.openai.com/v1",
-        description="OpenAI API base URL"
     )
 
     # Rate limiting and timeouts
@@ -55,7 +89,10 @@ class LLMSettings(BaseSettings):
 
     class Config:
         env_prefix = "LLM_"
-        validate_by_name = True
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+        extra = "ignore"
 
 
 # Global instance

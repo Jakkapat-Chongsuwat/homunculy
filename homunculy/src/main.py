@@ -13,6 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from common.logger import configure_logging, get_logger
 from internal.adapters.http import agent_handler
+from internal.adapters.websocket import chat_handler as ws_chat_handler
 from internal.infrastructure.persistence.sqlalchemy import init_db, close_db
 from internal.infrastructure.container import get_llm_service, get_tts_service
 from settings import APP_NAME, APP_VERSION
@@ -50,7 +51,7 @@ async def lifespan(app: FastAPI):
     
     # Validate LLM service can be constructed
     try:
-        llm_service = get_llm_service()
+        _ = get_llm_service()
         logger.info("LLM service initialized", provider="LangGraph")
     except Exception as e:
         logger.error("Failed to initialize LLM service", error=str(e))
@@ -78,7 +79,11 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+# Register HTTP routes
 app.include_router(agent_handler.router)
+
+# Register WebSocket routes
+app.include_router(ws_chat_handler.router)
 
 
 @app.exception_handler(Exception)

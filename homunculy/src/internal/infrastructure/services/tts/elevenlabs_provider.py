@@ -4,11 +4,12 @@ ElevenLabs TTS Service Implementation.
 Concrete implementation of TTSService using ElevenLabs API.
 """
 
-from typing import Optional
+from typing import AsyncIterator, Optional
 from elevenlabs.client import AsyncElevenLabs
 from elevenlabs import VoiceSettings
 
 from common.logger import get_logger
+from settings.tts import tts_settings
 from internal.domain.services.tts_service import TTSService
 from .exceptions import TTSServiceError, TTSSynthesisError, TTSVoiceNotFoundError
 
@@ -33,11 +34,11 @@ class ElevenLabsTTSService(TTSService):
         self,
         text: str,
         voice_id: str,
-        model_id: str = "eleven_multilingual_v2",
-        stability: float = 0.5,
-        similarity_boost: float = 0.75,
-        style: float = 0.0,
-        use_speaker_boost: bool = True,
+        model_id: Optional[str] = None,
+        stability: Optional[float] = None,
+        similarity_boost: Optional[float] = None,
+        style: Optional[float] = None,
+        use_speaker_boost: Optional[bool] = None,
     ) -> bytes:
         """
         Synthesize text to speech using ElevenLabs.
@@ -45,11 +46,11 @@ class ElevenLabsTTSService(TTSService):
         Args:
             text: Text to convert to speech
             voice_id: ElevenLabs voice ID
-            model_id: TTS model to use
-            stability: Voice stability (0.0-1.0)
-            similarity_boost: Voice similarity (0.0-1.0)
-            style: Voice style exaggeration (0.0-1.0)
-            use_speaker_boost: Enable speaker boost
+            model_id: TTS model to use (defaults to settings)
+            stability: Voice stability (0.0-1.0, defaults to settings)
+            similarity_boost: Voice similarity (0.0-1.0, defaults to settings)
+            style: Voice style exaggeration (0.0-1.0, defaults to settings)
+            use_speaker_boost: Enable speaker boost (defaults to settings)
             
         Returns:
             Audio data as bytes (MP3 format)
@@ -57,6 +58,13 @@ class ElevenLabsTTSService(TTSService):
         Raises:
             TTSSynthesisError: If synthesis fails
         """
+        # Apply defaults from settings
+        model_id = model_id or tts_settings.elevenlabs_model_id
+        stability = stability if stability is not None else tts_settings.default_stability
+        similarity_boost = similarity_boost if similarity_boost is not None else tts_settings.default_similarity_boost
+        style = style if style is not None else tts_settings.default_style
+        use_speaker_boost = use_speaker_boost if use_speaker_boost is not None else tts_settings.default_use_speaker_boost
+        
         try:
             logger.info(
                 "Synthesizing speech",
@@ -102,6 +110,64 @@ class ElevenLabsTTSService(TTSService):
                 exc_info=True
             )
             raise TTSSynthesisError(f"Failed to synthesize speech: {str(e)}") from e
+    
+    def stream(
+        self,
+        text: str,
+        voice_id: str,
+        model_id: Optional[str] = None,
+        stability: Optional[float] = None,
+        similarity_boost: Optional[float] = None,
+        style: Optional[float] = None,
+        use_speaker_boost: Optional[bool] = None,
+    ) -> AsyncIterator[bytes]:
+        """
+        Stream text to speech audio chunks using ElevenLabs.
+        
+        Args:
+            text: Text to convert to speech
+            voice_id: ElevenLabs voice ID
+            model_id: TTS model to use (defaults to settings)
+            stability: Voice stability (0.0-1.0, defaults to settings)
+            similarity_boost: Voice similarity (0.0-1.0, defaults to settings)
+            style: Voice style exaggeration (0.0-1.0, defaults to settings)
+            use_speaker_boost: Enable speaker boost (defaults to settings)
+            
+        Yields:
+            Audio chunks as bytes (MP3 format)
+            
+        Raises:
+            TTSSynthesisError: If streaming fails
+        """
+        # Apply defaults from settings
+        model_id = model_id or tts_settings.elevenlabs_streaming_model_id
+        stability = stability if stability is not None else tts_settings.default_stability
+        similarity_boost = similarity_boost if similarity_boost is not None else tts_settings.default_similarity_boost
+        style = style if style is not None else tts_settings.default_style
+        use_speaker_boost = use_speaker_boost if use_speaker_boost is not None else tts_settings.default_use_speaker_boost
+        
+        logger.info(
+            "Starting TTS streaming",
+            voice_id=voice_id,
+            model=model_id,
+            text_length=len(text)
+        )
+        
+        # Create voice settings
+        voice_settings = VoiceSettings(
+            stability=stability,
+            similarity_boost=similarity_boost,
+            style=style,
+            use_speaker_boost=use_speaker_boost,
+        )
+        
+        # Return the async iterator directly from ElevenLabs
+        return self.client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id=model_id,
+            voice_settings=voice_settings,
+        )
     
     async def get_voices(self) -> list[dict]:
         """

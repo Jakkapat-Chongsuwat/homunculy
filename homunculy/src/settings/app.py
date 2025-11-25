@@ -13,11 +13,11 @@ class ApplicationSettings(BaseSettings):
     """Main application settings."""
 
     name: str = Field(
-        default="Pokédex API",
+        default="Homunculy",
         description="Application name"
     )
     version: str = Field(
-        default="3",
+        default="3.0.0",
         description="Application version"
     )
     debug: bool = Field(
@@ -37,6 +37,8 @@ class ApplicationSettings(BaseSettings):
 
     class Config:
         env_prefix = "APP_"
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
 # Global instance
