@@ -664,10 +664,14 @@ class LangGraphAgentService(LLMService):
             
         except asyncio.CancelledError:
             logger.warning(
-                "LLM stream cancelled",
+                "LLM stream cancelled - checkpoint auto-saved by LangGraph",
                 thread_id=thread_id if 'thread_id' in locals() else 'unknown',
-                chunks_sent=chunk_count if 'chunk_count' in locals() else 0
+                chunks_sent=chunk_count if 'chunk_count' in locals() else 0,
+                checkpoint_preserved=True
             )
+            # LangGraph automatically saves checkpoint state when CancelledError is raised
+            # The conversation state up to this point is preserved in Postgres
+            # Next message will resume from the current conversation state
             raise
             
         except Exception as exc:

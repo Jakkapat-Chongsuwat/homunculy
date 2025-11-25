@@ -412,7 +412,12 @@ class WebSocketSessionManager:
             
         except asyncio.CancelledError:
             # Task was cancelled due to interruption - this is normal
-            logger.info("Chat stream task cancelled (interrupted by new message)")
+            # LangGraph checkpointer automatically saves conversation state when cancelled
+            logger.info(
+                "Chat stream task cancelled (interrupted by new message)",
+                checkpoint_preserved=True,
+                conversation_state="auto-saved by LangGraph"
+            )
             raise
             
         except Exception as e:

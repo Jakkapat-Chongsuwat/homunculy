@@ -12,8 +12,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from common.logger import configure_logging, get_logger
-from internal.adapters.http import agent_handler
-from internal.adapters.websocket import chat_handler as ws_chat_handler
+from internal.adapters.http import agent_router
+from internal.adapters.websocket.handlers import websocket_router
 from internal.infrastructure.persistence.sqlalchemy import init_db, close_db
 from internal.infrastructure.container import get_llm_service, get_tts_service
 from settings import APP_NAME, APP_VERSION
@@ -80,10 +80,10 @@ app.add_middleware(
 )
 
 # Register HTTP routes
-app.include_router(agent_handler.router)
+app.include_router(agent_router)
 
 # Register WebSocket routes
-app.include_router(ws_chat_handler.router)
+app.include_router(websocket_router)
 
 
 @app.exception_handler(Exception)

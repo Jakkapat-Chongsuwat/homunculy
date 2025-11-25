@@ -12,8 +12,8 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from common.logger import get_logger
-from internal.adapters.websocket.session_manager import WebSocketSessionManager
-from internal.adapters.websocket.models.messages import ConnectionStatus
+from internal.adapters.websocket.managers import WebSocketSessionManager
+from internal.adapters.websocket.models import ConnectionStatus
 from internal.domain.services import LLMService, TTSService
 from internal.infrastructure.container import get_llm_service, get_tts_service
 
