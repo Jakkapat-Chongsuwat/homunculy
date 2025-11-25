@@ -5,8 +5,11 @@ from .messages import (
     ChatStreamRequest,
     ChatStreamResponse,
     AudioChunk,
-    ConnectionStatus,
+    StreamMetadata,
+    CompleteMessage,
     ErrorMessage,
+    InterruptedMessage,
+    ConnectionStatus,
 )
 
 __all__ = [
@@ -14,6 +17,9 @@ __all__ = [
     "ChatStreamRequest",
     "ChatStreamResponse",
     "AudioChunk",
-    "ConnectionStatus",
+    "StreamMetadata",
+    "CompleteMessage",
     "ErrorMessage",
+    "InterruptedMessage",
+    "ConnectionStatus",
 ]

@@ -21,6 +21,7 @@ class MessageType(str, Enum):
     METADATA = "metadata"
     COMPLETE = "complete"
     ERROR = "error"
+    INTERRUPTED = "interrupted"
     PONG = "pong"
     CONNECTION_STATUS = "connection_status"
 
@@ -129,6 +130,20 @@ class ErrorMessage(BaseModel):
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Error timestamp (UTC)"
+    )
+
+
+class InterruptedMessage(BaseModel):
+    """Stream interruption notification."""
+    
+    type: MessageType = Field(default=MessageType.INTERRUPTED, description="Message type")
+    reason: str = Field(default="new_message", description="Interruption reason")
+    message: str = Field(default="Stream interrupted due to new incoming message", description="Human-readable message")
+    interrupted_at_text_chunk: int = Field(default=0, description="Text chunk index where interruption occurred")
+    interrupted_at_audio_chunk: int = Field(default=0, description="Audio chunk index where interruption occurred")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Interruption timestamp (UTC)"
     )
 
 
