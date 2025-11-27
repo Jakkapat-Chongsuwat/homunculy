@@ -75,6 +75,24 @@ class LLMSettings(BaseSettings):
         description="Default maximum tokens for LLM responses"
     )
 
+    # Summarization Settings (LangMem)
+    # Controls when and how conversation history is summarized for long sessions
+    summarization_max_tokens: int = Field(
+        default=256,
+        gt=0,
+        description="Max tokens to return to LLM after summarization (context window for LLM)"
+    )
+    summarization_trigger_tokens: int = Field(
+        default=1024,
+        gt=0,
+        description="Token threshold that triggers summarization (conversation length before summary)"
+    )
+    summarization_summary_tokens: int = Field(
+        default=128,
+        gt=0,
+        description="Max tokens for the summary itself"
+    )
+
     # Rate limiting and timeouts
     request_timeout: int = Field(
         default=30,

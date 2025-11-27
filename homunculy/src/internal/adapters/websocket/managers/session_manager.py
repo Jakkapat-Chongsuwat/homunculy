@@ -231,10 +231,11 @@ class WebSocketSessionManager:
     
     async def _handle_chat_stream(self, request: ChatStreamRequest):
         """
-        Handle streaming chat request with optional TTS.
+        Handle streaming chat request with real-time LLM → TTS pipeline.
         
-        This method is run as an asyncio task and can be cancelled
-        by _interrupt_active_stream() when new messages arrive.
+        Streams text from LLM and immediately sends complete sentences to TTS
+        for real-time audio generation. Audio starts playing while LLM is still
+        generating text.
         
         Args:
             request: Chat stream request with configuration
@@ -279,140 +280,168 @@ class WebSocketSessionManager:
                 user_id=request.user_id,
                 stream_audio=request.stream_audio,
                 voice_id=request.voice_id,
-                use_llm_streaming=True
+                use_llm_streaming=True,
+                realtime_tts=request.stream_audio and self.tts_service is not None
             )
             
-            # Stream LLM response chunks in real-time (supports interruption)
-            full_text = ""
-            
-            async for text_chunk in self.llm_service.stream_chat(configuration, request.message, context):
-                self.current_text_chunk_index += 1
-                full_text += text_chunk
-                
-                chunk_msg = ChatStreamResponse(
-                    chunk=text_chunk,
-                    chunk_index=self.current_text_chunk_index,
-                    is_final=False
-                )
-                
-                logger.debug(
-                    "Sent LLM text chunk",
-                    chunk_index=self.current_text_chunk_index,
-                    chunk_length=len(text_chunk)
-                )
-                
-                await self.websocket.send_json(chunk_msg.model_dump(mode="json"))
-                
-                # Small delay to allow interruption checks
-                await asyncio.sleep(0.01)
-            
-            # Send final text chunk marker
-            final_text_msg = ChatStreamResponse(
-                chunk="",
-                chunk_index=self.current_text_chunk_index + 1,
-                is_final=True
-            )
-            await self.websocket.send_json(final_text_msg.model_dump(mode="json"))
-            
-            logger.info(
-                "LLM text streaming completed",
-                user_id=request.user_id,
-                total_chunks=self.current_text_chunk_index,
-                total_length=len(full_text)
-            )
-            
-            # Stream audio if enabled
+            # Queue for sentences ready for TTS
+            sentence_queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
             audio_chunks_sent = 0
+            
+            async def tts_worker():
+                """Worker that converts sentences to audio in real-time."""
+                nonlocal audio_chunks_sent
+                
+                if not self.tts_service or not request.stream_audio:
+                    return
+                
+                while True:
+                    sentence = await sentence_queue.get()
+                    if sentence is None:  # End signal
+                        break
+                    
+                    if not sentence.strip():
+                        continue
+                    
+                    try:
+                        logger.debug("TTS processing sentence", text=sentence[:50])
+                        
+                        async for audio_chunk in self.tts_service.stream(
+                            text=sentence,
+                            voice_id=request.voice_id,
+                            model_id=tts_settings.elevenlabs_streaming_model_id,
+                        ):
+                            self.current_audio_chunk_index += 1
+                            
+                            audio_b64 = base64.b64encode(audio_chunk).decode("utf-8")
+                            audio_msg = AudioChunk(
+                                data=audio_b64,
+                                chunk_index=self.current_audio_chunk_index,
+                                is_final=False,
+                                size_bytes=len(audio_chunk)
+                            )
+                            await self.websocket.send_json(audio_msg.model_dump(mode="json"))
+                            audio_chunks_sent += 1
+                            
+                            await asyncio.sleep(0.001)  # Yield for interruption
+                            
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        logger.error("TTS error for sentence", error=str(e))
+            
+            # Start TTS worker if audio streaming is enabled
+            tts_task = None
             if request.stream_audio and self.tts_service:
+                tts_task = asyncio.create_task(tts_worker())
+            
+            try:
+                # Stream LLM and accumulate sentences for TTS
+                full_text = ""
+                sentence_buffer = ""
+                sentence_delimiters = {'.', '!', '?', '。', '！', '？', '\n'}
+                
+                async for text_chunk in self.llm_service.stream_chat(configuration, request.message, context):
+                    self.current_text_chunk_index += 1
+                    full_text += text_chunk
+                    sentence_buffer += text_chunk
+                    
+                    # Send text chunk to client immediately
+                    chunk_msg = ChatStreamResponse(
+                        chunk=text_chunk,
+                        chunk_index=self.current_text_chunk_index,
+                        is_final=False
+                    )
+                    await self.websocket.send_json(chunk_msg.model_dump(mode="json"))
+                    
+                    # Check if we have complete sentences to send to TTS
+                    if request.stream_audio and self.tts_service:
+                        while True:
+                            # Find the last sentence delimiter
+                            last_delimiter_pos = -1
+                            for delim in sentence_delimiters:
+                                pos = sentence_buffer.rfind(delim)
+                                if pos > last_delimiter_pos:
+                                    last_delimiter_pos = pos
+                            
+                            if last_delimiter_pos >= 0:
+                                # Extract complete sentence(s)
+                                complete_text = sentence_buffer[:last_delimiter_pos + 1].strip()
+                                sentence_buffer = sentence_buffer[last_delimiter_pos + 1:]
+                                
+                                if complete_text:
+                                    await sentence_queue.put(complete_text)
+                                    logger.debug("Queued for TTS", text=complete_text[:50])
+                            else:
+                                break
+                    
+                    await asyncio.sleep(0.001)  # Yield for interruption
+                
+                # Send any remaining text to TTS
+                if request.stream_audio and self.tts_service and sentence_buffer.strip():
+                    await sentence_queue.put(sentence_buffer.strip())
+                
+                # Signal TTS worker to finish
+                if tts_task:
+                    await sentence_queue.put(None)
+                    await tts_task
+                
+                # Send final text chunk marker
+                final_text_msg = ChatStreamResponse(
+                    chunk="",
+                    chunk_index=self.current_text_chunk_index + 1,
+                    is_final=True
+                )
+                await self.websocket.send_json(final_text_msg.model_dump(mode="json"))
+                
+                # Send final audio marker if audio was streamed
+                if audio_chunks_sent > 0:
+                    final_audio_msg = AudioChunk(
+                        data="",
+                        chunk_index=self.current_audio_chunk_index + 1,
+                        is_final=True,
+                        size_bytes=0
+                    )
+                    await self.websocket.send_json(final_audio_msg.model_dump(mode="json"))
+                
                 logger.info(
-                    "Starting TTS audio streaming",
-                    voice_id=request.voice_id,
-                    text_length=len(full_text)
+                    "Streaming completed",
+                    user_id=request.user_id,
+                    text_chunks=self.current_text_chunk_index,
+                    audio_chunks=audio_chunks_sent,
+                    total_text_length=len(full_text)
                 )
                 
-                try:
-                    audio_chunk_index = 0
-                    async for audio_chunk in self.tts_service.stream(
-                        text=full_text,
-                        voice_id=request.voice_id,
-                        model_id=tts_settings.elevenlabs_streaming_model_id,
-                    ):
-                        self.current_audio_chunk_index = audio_chunk_index
-                        
-                        # Encode audio chunk
-                        audio_b64 = base64.b64encode(audio_chunk).decode("utf-8")
-                        
-                        audio_msg = AudioChunk(
-                            data=audio_b64,
-                            chunk_index=audio_chunk_index,
-                            is_final=False,
-                            size_bytes=len(audio_chunk)
-                        )
-                        await self.websocket.send_json(audio_msg.model_dump(mode="json"))
-                        audio_chunk_index += 1
-                        audio_chunks_sent += 1
-                        
-                        # Small delay for interruption checks
-                        await asyncio.sleep(0.01)
-                    
-                    # Send final audio marker
-                    if audio_chunks_sent > 0:
-                        final_audio_msg = AudioChunk(
-                            data="",
-                            chunk_index=audio_chunk_index,
-                            is_final=True,
-                            size_bytes=0
-                        )
-                        await self.websocket.send_json(final_audio_msg.model_dump(mode="json"))
-                    
-                    logger.info(
-                        "Audio streaming completed",
-                        chunks=audio_chunks_sent,
-                        voice_id=request.voice_id
-                    )
-                    
-                except asyncio.CancelledError:
-                    logger.info("Audio streaming cancelled")
-                    raise
-                except Exception as e:
-                    logger.error("Audio streaming failed", error=str(e), exc_info=True)
-                    error_msg = ErrorMessage(
-                        code="AUDIO_STREAMING_ERROR",
-                        message=f"Failed to stream audio: {str(e)}",
-                    )
-                    await self.websocket.send_json(error_msg.model_dump(mode="json"))
-            
-            # Send metadata
-            metadata = StreamMetadata(
-                model_used=configuration.model_name,
-                tokens_used=None,  # Could track if LangChain provides callback
-                execution_time_ms=None,  # Could add timer
-                tools_called=[],
-                thread_id=context.get("thread_id"),
-                voice_id=request.voice_id if request.stream_audio else None,
-                total_text_chunks=self.current_text_chunk_index,
-                total_audio_chunks=audio_chunks_sent,
-            )
-            await self.websocket.send_json(metadata.model_dump(mode="json"))
-            
-            # Send completion
-            complete_msg = CompleteMessage(
-                message="Stream completed successfully",
-                metadata=metadata
-            )
-            await self.websocket.send_json(complete_msg.model_dump(mode="json"))
-            
-            logger.info(
-                "Streaming session completed",
-                user_id=request.user_id,
-                text_chunks=self.current_text_chunk_index,
-                audio_chunks=audio_chunks_sent,
-                total_text_length=len(full_text)
-            )
+                # Send metadata
+                metadata = StreamMetadata(
+                    model_used=configuration.model_name,
+                    tokens_used=None,
+                    execution_time_ms=None,
+                    tools_called=[],
+                    thread_id=context.get("thread_id"),
+                    voice_id=request.voice_id if request.stream_audio else None,
+                    total_text_chunks=self.current_text_chunk_index,
+                    total_audio_chunks=audio_chunks_sent,
+                )
+                await self.websocket.send_json(metadata.model_dump(mode="json"))
+                
+                # Send completion
+                complete_msg = CompleteMessage(
+                    message="Stream completed successfully",
+                    metadata=metadata
+                )
+                await self.websocket.send_json(complete_msg.model_dump(mode="json"))
+                
+            finally:
+                # Ensure TTS task is cancelled on any error
+                if tts_task and not tts_task.done():
+                    tts_task.cancel()
+                    try:
+                        await tts_task
+                    except asyncio.CancelledError:
+                        pass
             
         except asyncio.CancelledError:
-            # Task was cancelled due to interruption - this is normal
-            # LangGraph checkpointer automatically saves conversation state when cancelled
             logger.info(
                 "Chat stream task cancelled (interrupted by new message)",
                 checkpoint_preserved=True,

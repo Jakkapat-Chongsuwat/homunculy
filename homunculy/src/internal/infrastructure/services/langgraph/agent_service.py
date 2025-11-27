@@ -40,7 +40,12 @@ from internal.infrastructure.services.langgraph.graph_building import (
     create_langchain_model,
     build_system_prompt,
 )
-from settings import DATABASE_URI
+from settings import (
+    DATABASE_URI,
+    LLM_SUMMARIZATION_MAX_TOKENS,
+    LLM_SUMMARIZATION_TRIGGER_TOKENS,
+    LLM_SUMMARIZATION_SUMMARY_TOKENS,
+)
 
 
 logger = get_logger(__name__)
@@ -57,9 +62,9 @@ class LangGraphAgentService(LLMService):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        max_tokens: int = 256,
-        max_tokens_before_summary: int = 1024,
-        max_summary_tokens: int = 128,
+        max_tokens: int = LLM_SUMMARIZATION_MAX_TOKENS,
+        max_tokens_before_summary: int = LLM_SUMMARIZATION_TRIGGER_TOKENS,
+        max_summary_tokens: int = LLM_SUMMARIZATION_SUMMARY_TOKENS,
         checkpointer = None,
         tts_service: Optional[TTSService] = None,
     ) -> None:
@@ -68,9 +73,9 @@ class LangGraphAgentService(LLMService):
         
         Args:
             api_key: OpenAI API key (defaults to env var)
-            max_tokens: Max tokens in LLM response
-            max_tokens_before_summary: Token threshold for summarization
-            max_summary_tokens: Max tokens in summary
+            max_tokens: Max tokens to return to LLM after summarization (from settings)
+            max_tokens_before_summary: Token threshold for summarization (from settings)
+            max_summary_tokens: Max tokens in summary (from settings)
             checkpointer: Optional checkpointer for testing
             tts_service: Optional TTS service for voice capabilities
         """

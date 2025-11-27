@@ -22,6 +22,11 @@ LLM_DEFAULT_MODEL = settings.llm.default_model
 LLM_DEFAULT_TEMPERATURE = settings.llm.default_temperature
 LLM_DEFAULT_MAX_TOKENS = settings.llm.default_max_tokens
 
+# Summarization settings (LangMem)
+LLM_SUMMARIZATION_MAX_TOKENS = settings.llm.summarization_max_tokens
+LLM_SUMMARIZATION_TRIGGER_TOKENS = settings.llm.summarization_trigger_tokens
+LLM_SUMMARIZATION_SUMMARY_TOKENS = settings.llm.summarization_summary_tokens
+
 # Security settings
 JWT_SECRET_KEY = settings.security.jwt_secret_key
 JWT_ALGORITHM = settings.security.jwt_algorithm
@@ -47,6 +52,10 @@ __all__ = [
     "LLM_DEFAULT_MODEL",
     "LLM_DEFAULT_TEMPERATURE",
     "LLM_DEFAULT_MAX_TOKENS",
+    # Summarization
+    "LLM_SUMMARIZATION_MAX_TOKENS",
+    "LLM_SUMMARIZATION_TRIGGER_TOKENS",
+    "LLM_SUMMARIZATION_SUMMARY_TOKENS",
     # Security
     "JWT_SECRET_KEY",
     "JWT_ALGORITHM",
