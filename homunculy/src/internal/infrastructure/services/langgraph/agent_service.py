@@ -635,11 +635,31 @@ class LangGraphAgentService(LLMService):
             total_text = ""
             
             # Stream messages from LangGraph
+            # Filter to only stream AIMessage chunks from the 'llm' node
+            # This excludes summary messages from llm_input_messages (internal context)
             async for message_chunk, metadata in graph.astream(
                 input_update, 
                 config, 
                 stream_mode="messages"
             ):
+                # Only stream AI responses from the 'llm' node, not internal summaries
+                # metadata contains langgraph_node, langgraph_triggers, etc.
+                node_name = metadata.get("langgraph_node", "") if metadata else ""
+                
+                # Skip messages from summarize node (internal summary context)
+                if node_name == "summarize":
+                    logger.debug(
+                        "Skipping summary message (internal context)",
+                        thread_id=thread_id,
+                        node=node_name
+                    )
+                    continue
+                
+                # Only stream content from AIMessage responses
+                from langchain_core.messages import AIMessageChunk
+                if not isinstance(message_chunk, AIMessageChunk):
+                    continue
+                
                 # Extract text content from message chunk
                 content = getattr(message_chunk, 'content', '')
                 
@@ -653,6 +673,7 @@ class LangGraphAgentService(LLMService):
                         chunk_index=chunk_count,
                         chunk_length=len(content),
                         chunk_preview=content[:30],
+                        node=node_name,
                         metadata=str(metadata) if metadata else None
                     )
                     

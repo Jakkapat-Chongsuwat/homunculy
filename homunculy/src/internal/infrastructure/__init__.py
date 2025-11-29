@@ -23,6 +23,7 @@ from .container import (
     get_uow,
     get_llm_service,
     get_tts_service,
+    get_stream_chat_usecase,
 )
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     "get_uow",
     "get_llm_service",
     "get_tts_service",
+    "get_stream_chat_usecase",
 ]
