@@ -34,6 +34,17 @@ variable "log_analytics_workspace_id" {
   description = "ID of the Log Analytics workspace"
 }
 
+# Key Vault
+variable "keyvault_id" {
+  type        = string
+  description = "ID of the Azure Key Vault"
+}
+
+variable "keyvault_uri" {
+  type        = string
+  description = "URI of the Azure Key Vault (e.g., https://kv-xxx.vault.azure.net/)"
+}
+
 # Container Registry
 variable "container_registry_login_server" {
   type        = string
@@ -128,25 +139,6 @@ variable "database_name" {
 variable "database_username" {
   type        = string
   description = "PostgreSQL username"
-  sensitive   = true
-}
-
-variable "database_password" {
-  type        = string
-  description = "PostgreSQL password"
-  sensitive   = true
-}
-
-# Secrets
-variable "openai_api_key" {
-  type        = string
-  description = "OpenAI API key"
-  sensitive   = true
-}
-
-variable "elevenlabs_api_key" {
-  type        = string
-  description = "ElevenLabs API key"
   sensitive   = true
 }
 

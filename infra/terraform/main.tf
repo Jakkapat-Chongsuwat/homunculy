@@ -134,6 +134,10 @@ module "container_apps" {
   tags                       = local.common_tags
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
 
+  # Key Vault (for secrets)
+  keyvault_id  = module.keyvault.vault_id
+  keyvault_uri = module.keyvault.vault_uri
+
   # Container Registry
   container_registry_login_server   = module.container_registry.login_server
   container_registry_admin_username = module.container_registry.admin_username
@@ -153,11 +157,6 @@ module "container_apps" {
   database_host     = module.database.server_fqdn
   database_name     = module.database.database_name
   database_username = module.database.admin_username
-  database_password = random_password.db_password.result
-
-  # Secrets
-  openai_api_key     = var.openai_api_key
-  elevenlabs_api_key = var.elevenlabs_api_key
 
   # Monitoring
   application_insights_connection_string = module.monitoring.application_insights_connection_string

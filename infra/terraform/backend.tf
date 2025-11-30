@@ -1,16 +1,19 @@
 # =============================================================================
 # Terraform Backend Configuration
 # =============================================================================
-# Purpose: Configure remote state storage in Azure Blob Storage
-# Note: Values are provided via backend.tfvars per environment
+# Using Terraform Cloud for remote state management
 # =============================================================================
 
 terraform {
-  backend "azurerm" {
-    # These values are provided via -backend-config flag
-    # resource_group_name  = "rg-homunculy-tfstate"
-    # storage_account_name = "sthomunculytfstate"
-    # container_name       = "tfstate"
-    # key                  = "dev.terraform.tfstate"
+  cloud {
+    organization = "Homunculy"
+
+    workspaces {
+      name = "homunculy-dev"
+    }
   }
 }
+
+# Note: Set execution mode to "Local" in Terraform Cloud workspace settings
+# This allows using local var files while storing state remotely
+# Go to: app.terraform.io > Homunculy > homunculy-dev > Settings > General > Execution Mode > Local

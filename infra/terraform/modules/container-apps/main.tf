@@ -3,6 +3,7 @@
 # =============================================================================
 # Purpose: Provision Azure Container Apps Environment and applications
 # Following: Clean Architecture - Infrastructure layer
+# Secrets: Retrieved from Azure Key Vault via managed identity
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -21,6 +22,25 @@ resource "azurerm_container_app_environment" "main" {
 }
 
 # -----------------------------------------------------------------------------
+# User Assigned Managed Identity for Key Vault Access
+# -----------------------------------------------------------------------------
+
+resource "azurerm_user_assigned_identity" "container_apps" {
+  name                = "id-${var.project_name}-containerapp-${var.environment}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  tags = var.tags
+}
+
+# Grant Key Vault Secrets User role to the managed identity
+resource "azurerm_role_assignment" "keyvault_secrets_user" {
+  scope                = var.keyvault_id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.container_apps.principal_id
+}
+
+# -----------------------------------------------------------------------------
 # Homunculy App (Python FastAPI)
 # -----------------------------------------------------------------------------
 
@@ -35,6 +55,12 @@ resource "azurerm_container_app" "homunculy" {
     runtime   = "python"
   })
 
+  # Managed Identity for Key Vault access
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.container_apps.id]
+  }
+
   # Registry authentication
   registry {
     server               = var.container_registry_login_server
@@ -42,25 +68,28 @@ resource "azurerm_container_app" "homunculy" {
     password_secret_name = "registry-password"
   }
 
-  # Secrets
+  # Secrets - Key Vault references
   secret {
     name  = "registry-password"
     value = var.container_registry_admin_password
   }
 
   secret {
-    name  = "db-password"
-    value = var.database_password
+    name                = "db-password"
+    key_vault_secret_id = "${var.keyvault_uri}secrets/db-password"
+    identity            = azurerm_user_assigned_identity.container_apps.id
   }
 
   secret {
-    name  = "openai-api-key"
-    value = var.openai_api_key
+    name                = "openai-api-key"
+    key_vault_secret_id = "${var.keyvault_uri}secrets/openai-api-key"
+    identity            = azurerm_user_assigned_identity.container_apps.id
   }
 
   secret {
-    name  = "elevenlabs-api-key"
-    value = var.elevenlabs_api_key
+    name                = "elevenlabs-api-key"
+    key_vault_secret_id = "${var.keyvault_uri}secrets/elevenlabs-api-key"
+    identity            = azurerm_user_assigned_identity.container_apps.id
   }
 
   # Ingress configuration
