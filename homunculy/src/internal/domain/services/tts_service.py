@@ -75,7 +75,7 @@ class TTSService(ABC):
             use_speaker_boost: Enable speaker boost (defaults to settings)
             
         Yields:
-            Audio chunks as bytes (MP3 format)
+            Audio chunks as bytes (format depends on settings)
             
         Raises:
             TTSServiceError: If streaming fails

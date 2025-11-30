@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/*.ts --bundle --outdir=dist --format=iife --minify",
-    "build:local": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --minify",
-    "watch": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --watch",
+    "build": "esbuild src/*.ts --bundle --outdir=dist --format=iife --minify --out-extension:.js=.bundle.js",
+    "build:local": "esbuild src/*.ts --bundle --outdir=../wwwroot/js --format=iife --minify --out-extension:.js=.bundle.js",
+    "watch": "esbuild src/*.ts --bundle --outdir=../wwwroot/js --format=iife --watch --out-extension:.js=.bundle.js",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/howler": "^2.2.12",
     "esbuild": "^0.19.0",
     "typescript": "^5.3.0"
   },
   "dependencies": {
+    "howler": "^2.2.4",
     "rxjs": "^7.8.2"
   }
 }

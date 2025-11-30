@@ -154,6 +154,7 @@ public sealed class ChatViewModel : ViewModelBase
 
     private void HandleAudioChunk(AudioChunkReceived e)
     {
+        _log.Information("Audio chunk received: {Length} bytes", e.Data.Length);
         if (_currentAssistantMessage is null) return;
         MarkAssistantHasAudio();
         _audio.Queue(e.Data);

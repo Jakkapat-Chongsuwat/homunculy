@@ -1,37 +1,61 @@
-using System.Net.WebSockets;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Text;
-using System.Text.Json;
 using ChatClient.Application.Configuration;
 using ChatClient.Domain.Abstractions;
 using ChatClient.Domain.Events;
+using ChatClient.Domain.Exceptions;
 using ChatClient.Domain.ValueObjects;
 
 namespace ChatClient.Infrastructure.WebSocket;
 
 /// <summary>
-/// WebSocket client implementation.
+/// Reactive WebSocket client with automatic reconnection.
+/// Composes small, focused components following SRP.
 /// </summary>
 public sealed class WebSocketClient : IWebSocketClient
 {
     private readonly ChatSettings _settings;
     private readonly ILogService _log;
-    private readonly Subject<ChatEvent> _events;
+    private readonly WebSocketConfig _config;
 
-    private ClientWebSocket? _socket;
-    private CancellationTokenSource? _receiveCts;
-    private Task? _receiveTask;
+    // Composed components (SRP)
+    private readonly SocketConnection _connection;
+    private readonly SocketReceiver _receiver;
+    private readonly SocketSender _sender;
+    private readonly ReconnectStrategy _reconnect;
+
+    // Reactive state
+    private readonly BehaviorSubject<ConnectionState> _state;
+    private readonly Subject<ChatEvent> _events;
+    private readonly CompositeDisposable _subscriptions;
+    
+    private IDisposable? _pingSubscription;
+    private IDisposable? _receiveSubscription;
+    private DateTime _lastPongReceived = DateTime.UtcNow;
 
     public WebSocketClient(ChatSettings settings, ILogService log)
+        : this(settings, log, WebSocketConfig.Default) { }
+
+    public WebSocketClient(ChatSettings settings, ILogService log, WebSocketConfig config)
     {
         _settings = settings;
         _log = log;
+        _config = config;
+
+        _connection = new SocketConnection(config);
+        _receiver = new SocketReceiver(config);
+        _sender = new SocketSender();
+        _reconnect = new ReconnectStrategy(config);
+
+        _state = new BehaviorSubject<ConnectionState>(ConnectionState.Disconnected);
         _events = new Subject<ChatEvent>();
+        _subscriptions = new CompositeDisposable();
+
+        WireStateToEvents();
     }
 
-    public ConnectionState State { get; private set; } = ConnectionState.Disconnected;
-
+    public ConnectionState State => _state.Value;
     public IObservable<ChatEvent> Events => _events.AsObservable();
 
     public async Task<bool> ConnectAsync(CancellationToken ct = default)
@@ -39,197 +63,238 @@ public sealed class WebSocketClient : IWebSocketClient
         if (State == ConnectionState.Connected)
             return true;
 
-        try
-        {
-            return await DoConnectAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            HandleConnectError(ex);
-            return false;
-        }
+        _reconnect.Reset();
+        return await ConnectWithRetryAsync(ct);
     }
 
     public async Task SendAsync(string message, CancellationToken ct = default)
     {
-        if (!IsConnected())
+        if (!_connection.IsOpen)
         {
             EmitError("Not connected");
             return;
         }
 
-        var request = MessageBuilder.CreateRequest(_settings, message);
-        await SendJsonAsync(request, ct);
+        try
+        {
+            var request = MessageBuilder.CreateRequest(_settings, message);
+            await _sender.SendJsonAsync(_connection, request, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex, "Send failed");
+            EmitError($"Send failed: {ex.Message}");
+            await HandleDisconnectAsync();
+        }
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
-        await CancelReceiveLoop();
-        await CloseSocketAsync();
+        _reconnect.PreventAutoReconnect();
+        await CleanupAsync();
         SetState(ConnectionState.Disconnected);
     }
 
     public async ValueTask DisposeAsync()
     {
         await DisconnectAsync();
+        _subscriptions.Dispose();
+        _state.Dispose();
         _events.Dispose();
-        _receiveCts?.Dispose();
     }
 
-    private async Task<bool> DoConnectAsync(CancellationToken ct)
+    private void WireStateToEvents()
     {
-        SetState(ConnectionState.Connecting);
+        var stateSubscription = _state
+            .DistinctUntilChanged()
+            .Select(s => new ConnectionStateChanged(s))
+            .Subscribe(_events);
 
-        _socket = new ClientWebSocket();
-        await _socket.ConnectAsync(new Uri(_settings.WebSocketUri), ct);
-
-        await ReceiveStatusAsync(ct);
-        SetState(ConnectionState.Connected);
-
-        StartReceiveLoop();
-        return true;
+        _subscriptions.Add(stateSubscription);
     }
 
-    private async Task ReceiveStatusAsync(CancellationToken ct)
+    private async Task<bool> ConnectWithRetryAsync(CancellationToken ct)
     {
-        var message = await ReceiveOneAsync(ct);
-        var evt = MessageParser.Parse(message);
+        while (_reconnect.CanRetry && !ct.IsCancellationRequested)
+        {
+            try
+            {
+                SetState(_reconnect.Attempts == 0 
+                    ? ConnectionState.Connecting 
+                    : ConnectionState.Reconnecting);
 
-        if (evt is StatusMessageReceived status)
-            _events.OnNext(status);
+                await EstablishConnectionAsync(ct);
+                
+                _reconnect.Reset();
+                SetState(ConnectionState.Connected);
+                
+                StartPingLoop();
+                StartReceiveLoop();
+                
+                return true;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _reconnect.RecordAttempt();
+                
+                if (!_reconnect.CanRetry)
+                {
+                    _log.Error(ex, "Max reconnection attempts reached");
+                    EmitError($"Connection failed after {_reconnect.MaxAttempts} attempts");
+                    SetState(ConnectionState.Disconnected);
+                    return false;
+                }
+
+                var delay = _reconnect.GetNextDelay();
+                _log.Warning(
+                    "Attempt {N}/{Max} failed: {Error}. Retry in {Delay}ms",
+                    _reconnect.Attempts, _reconnect.MaxAttempts, 
+                    ex.Message, delay.TotalMilliseconds);
+
+                await Task.Delay(delay, ct);
+            }
+        }
+
+        return false;
+    }
+
+    private async Task EstablishConnectionAsync(CancellationToken ct)
+    {
+        var uri = new Uri(_settings.WebSocketUri);
+        
+        _log.Information("Connecting to {Uri}", uri);
+        await _connection.ConnectAsync(uri, ct);
+
+        var status = await _receiver.ReceiveOneAsync(_connection, ct);
+        var evt = MessageParser.Parse(status);
+        
+        if (evt is StatusMessageReceived msg)
+            _events.OnNext(msg);
+
+        _log.Information("Connected successfully");
+    }
+
+    private void StartPingLoop()
+    {
+        _pingSubscription?.Dispose();
+        _lastPongReceived = DateTime.UtcNow;
+        
+        _pingSubscription = Observable
+            .Interval(_config.PingInterval)
+            .Where(_ => _connection.IsOpen)
+            .SelectMany(_ => SendPingAndCheckPong())
+            .Subscribe();
+
+        _subscriptions.Add(_pingSubscription);
+    }
+
+    private async Task<bool> SendPingAndCheckPong()
+    {
+        try
+        {
+            // Check if we received a pong recently (dead connection detection)
+            var timeSinceLastPong = DateTime.UtcNow - _lastPongReceived;
+            if (timeSinceLastPong > _config.PongTimeout + _config.PingInterval)
+            {
+                _log.Warning("No pong received in {Seconds}s, connection may be dead", 
+                    timeSinceLastPong.TotalSeconds);
+                await HandleDisconnectAsync();
+                return false;
+            }
+
+            await _sender.SendPingAsync(_connection, _connection.Token);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void StartReceiveLoop()
     {
-        _receiveCts = new CancellationTokenSource();
-        _receiveTask = ReceiveLoopAsync(_receiveCts.Token);
-    }
+        _receiveSubscription?.Dispose();
 
-    private async Task ReceiveLoopAsync(CancellationToken ct)
-    {
-        var buffer = new StringBuilder();
+        _receiveSubscription = _receiver
+            .CreateReceiveStream(_connection)
+            .Subscribe(
+                ProcessMessage,
+                async ex => await OnReceiveError(ex),
+                async () => await OnReceiveComplete());
 
-        try
-        {
-            while (!ct.IsCancellationRequested && IsConnected())
-            {
-                var (data, endOfMessage) = await ReceiveChunkAsync(ct);
-
-                buffer.Append(data);
-
-                if (!endOfMessage) continue;
-
-                ProcessMessage(buffer.ToString());
-                buffer.Clear();
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal shutdown
-        }
-        catch (Exception ex)
-        {
-            HandleReceiveError(ex);
-        }
-    }
-
-    private async Task<(string Data, bool EndOfMessage)> ReceiveChunkAsync(
-        CancellationToken ct)
-    {
-        var buffer = new byte[8192];
-        var result = await _socket!.ReceiveAsync(buffer, ct);
-
-        if (result.MessageType == WebSocketMessageType.Close)
-        {
-            SetState(ConnectionState.Disconnected);
-            return (string.Empty, true);
-        }
-
-        var data = Encoding.UTF8.GetString(buffer, 0, result.Count);
-        return (data, result.EndOfMessage);
-    }
-
-    private async Task<string> ReceiveOneAsync(CancellationToken ct)
-    {
-        var buffer = new StringBuilder();
-
-        while (true)
-        {
-            var (data, endOfMessage) = await ReceiveChunkAsync(ct);
-            buffer.Append(data);
-
-            if (endOfMessage)
-                return buffer.ToString();
-        }
+        _subscriptions.Add(_receiveSubscription);
     }
 
     private void ProcessMessage(string json)
     {
-        var evt = MessageParser.Parse(json);
+        if (IsPong(json))
+        {
+            _lastPongReceived = DateTime.UtcNow;
+            return;
+        }
 
+        var evt = MessageParser.Parse(json);
         if (evt is not null)
             _events.OnNext(evt);
     }
 
-    private async Task SendJsonAsync<T>(T message, CancellationToken ct)
-    {
-        var json = JsonSerializer.Serialize(message);
-        var bytes = Encoding.UTF8.GetBytes(json);
-        var segment = new ArraySegment<byte>(bytes);
+    private static bool IsPong(string json) =>
+        json.Contains("\"type\":\"pong\"") || 
+        json.Contains("\"type\": \"pong\"");
 
-        await _socket!.SendAsync(segment, WebSocketMessageType.Text, true, ct);
+    private async Task OnReceiveError(Exception ex)
+    {
+        _log.Error(ex, "Receive error");
+        EmitError($"Connection error: {ex.Message}");
+        await HandleDisconnectAsync();
     }
 
-    private async Task CancelReceiveLoop()
+    private async Task OnReceiveComplete()
     {
-        if (_receiveCts is null) return;
+        _log.Information("Connection closed");
+        await HandleDisconnectAsync();
+    }
 
-        await _receiveCts.CancelAsync();
+    private async Task HandleDisconnectAsync()
+    {
+        if (State == ConnectionState.Reconnecting)
+            return;
 
-        if (_receiveTask is not null)
+        var wasConnected = State == ConnectionState.Connected;
+        
+        SetState(ConnectionState.Disconnected);
+        await CleanupAsync();
+
+        if (wasConnected)
+            _reconnect.Reset();
+
+        if (_reconnect.CanRetry)
         {
-            try { await _receiveTask; }
-            catch (OperationCanceledException) { }
+            _log.Information("Auto-reconnecting...");
+            _ = Task.Run(() => ConnectWithRetryAsync(CancellationToken.None));
+        }
+        else
+        {
+            _log.Warning("Auto-reconnect disabled");
         }
     }
 
-    private async Task CloseSocketAsync()
+    private async Task CleanupAsync()
     {
-        if (_socket?.State != WebSocketState.Open)
-            return;
+        _pingSubscription?.Dispose();
+        _pingSubscription = null;
+        
+        _receiveSubscription?.Dispose();
+        _receiveSubscription = null;
 
-        await _socket.CloseAsync(
-            WebSocketCloseStatus.NormalClosure,
-            "Closing",
-            CancellationToken.None);
-
-        _socket.Dispose();
-        _socket = null;
+        await _connection.CloseAsync();
     }
 
-    private bool IsConnected() =>
-        _socket?.State == WebSocketState.Open;
-
-    private void SetState(ConnectionState state)
-    {
-        State = state;
-        _events.OnNext(new ConnectionStateChanged(state));
-    }
-
-    private void EmitError(string message) =>
-        _events.OnNext(new ErrorOccurred(message));
-
-    private void HandleConnectError(Exception ex)
-    {
-        _log.Error(ex, "Connection failed");
-        EmitError($"Connection failed: {ex.Message}");
-        SetState(ConnectionState.Disconnected);
-    }
-
-    private void HandleReceiveError(Exception ex)
-    {
-        _log.Error(ex, "Receive error");
-        EmitError($"Receive error: {ex.Message}");
-        SetState(ConnectionState.Disconnected);
-    }
+    private void SetState(ConnectionState state) => _state.OnNext(state);
+    
+    private void EmitError(string message) => _events.OnNext(new ErrorOccurred(message));
 }

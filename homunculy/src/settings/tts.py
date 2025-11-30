@@ -36,6 +36,10 @@ class TTSSettings(BaseSettings):
         default="eleven_turbo_v2_5",
         description="Fast model for WebSocket streaming"
     )
+    elevenlabs_output_format: str = Field(
+        default="pcm_24000",
+        description="Output format: pcm_24000 for iOS compatibility, mp3_44100_128 for desktop"
+    )
     
     # Azure TTS Configuration (future)
     azure_api_key: Optional[str] = Field(

@@ -61,6 +61,6 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton(settings);
         services.AddSingleton<ILogService, LogService>();
-        services.AddSingleton<IWebSocketClient, WebSocketClient>();
+        services.AddScoped<IWebSocketClient, WebSocketClient>();
     }
 }

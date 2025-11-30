@@ -1,6 +1,3 @@
-/** Reactive audio module. */
-
 export { IAudioPlayer } from './interfaces';
-export { MediaSourceAdapter } from './media-source';
-export { AudioStream } from './stream';
+export { IAudioAdapter } from './audio-adapter';
 export { WebAudioPlayer } from './player';

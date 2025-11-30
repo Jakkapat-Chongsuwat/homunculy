@@ -1,6 +1,6 @@
 /** .NET JSInterop bridge for audio player. */
 
-import { WebAudioPlayer } from './audio';
+import { WebAudioPlayer } from './audio/player';
 
 const player = new WebAudioPlayer();
 

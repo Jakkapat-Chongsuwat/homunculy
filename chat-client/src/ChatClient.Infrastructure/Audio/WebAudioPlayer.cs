@@ -24,12 +24,17 @@ public sealed class WebAudioPlayer : IAudioPlayer, IAsyncDisposable
 
     public void Queue(byte[] audioData)
     {
+        _log.Information("Queue called with {Length} bytes, circuitReady={Ready}, initialized={Init}", 
+            audioData.Length, _circuitReady, _initialized);
         var base64 = Convert.ToBase64String(audioData);
         _ = EnqueueAsync(base64);
     }
 
-    public void Flush() =>
+    public void Flush()
+    {
+        _log.Information("Flush called, circuitReady={Ready}", _circuitReady);
         _ = SafeInvokeAsync("flush");
+    }
 
     public void Stop() =>
         _ = SafeInvokeAsync("stop");

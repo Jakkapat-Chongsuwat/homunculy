@@ -1,0 +1,5 @@
+docker: 'docker push' requires 1 argument
+
+Usage:  docker push [OPTIONS] NAME[:TAG]
+
+Run 'docker push --help' for more information
