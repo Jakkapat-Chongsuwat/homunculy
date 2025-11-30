@@ -1,7 +1,7 @@
 """Database configuration settings - simplified for Clean Architecture."""
 
 from typing import Literal, Optional
-from pydantic import Field
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings
 
 
@@ -16,34 +16,48 @@ class DatabaseSettings(BaseSettings):
         default="postgresql",
         description="Database provider to use"
     )
-
-    # Connection URI (primary configuration method)
-    uri: str = Field(
-        default="postgresql+asyncpg://homunculy:homunculy@postgres:5432/homunculy",
-        description="Database connection string"
-    )
     
-    # PostgreSQL specific settings
+    # PostgreSQL specific settings (primary for Aspire)
     postgres_host: str = Field(
         default="postgres",
+        alias="DB_HOST",
         description="PostgreSQL host"
     )
     postgres_port: int = Field(
         default=5432,
+        alias="DB_PORT",
         description="PostgreSQL port"
     )
     postgres_db: str = Field(
         default="homunculy",
+        alias="DB_NAME",
         description="PostgreSQL database name"
     )
     postgres_user: str = Field(
         default="homunculy",
+        alias="DB_USER",
         description="PostgreSQL username"
     )
     postgres_password: str = Field(
         default="homunculy",
+        alias="DB_PASSWORD",
         description="PostgreSQL password"
     )
+    
+    # Connection URI (can be set directly or computed)
+    uri_override: Optional[str] = Field(
+        default=None,
+        alias="DATABASE_URI",
+        description="Database connection string (overrides computed URI)"
+    )
+    
+    @computed_field
+    @property
+    def uri(self) -> str:
+        """Compute database URI from components or use override."""
+        if self.uri_override:
+            return self.uri_override
+        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
     
     # SQLite specific settings
     sqlite_path: str = Field(
@@ -81,11 +95,11 @@ class DatabaseSettings(BaseSettings):
 
     class Config:
         """Pydantic config."""
-        env_prefix = "DATABASE_"
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"
+        populate_by_name = True
 
 
 database_settings = DatabaseSettings()

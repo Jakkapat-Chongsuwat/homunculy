@@ -1,7 +1,14 @@
 """WebSocket adapters for real-time streaming communication."""
 
 from .handlers.chat_handler import websocket_chat_endpoint
-from .managers import WebSocketSessionManager
+from .utils import (
+    build_context,
+    map_configuration,
+    ParseError,
+    parse_message,
+    WebSocketSender,
+    create_sender,
+)
 from .models import (
     MessageType,
     ChatStreamRequest,
@@ -16,7 +23,12 @@ from .models import (
 
 __all__ = [
     "websocket_chat_endpoint",
-    "WebSocketSessionManager",
+    "build_context",
+    "map_configuration",
+    "ParseError",
+    "parse_message",
+    "WebSocketSender",
+    "create_sender",
     "MessageType",
     "ChatStreamRequest",
     "ChatStreamResponse",

@@ -1,22 +1,31 @@
 {
 	"folders": [
 		{
+			"name": "homunculy",
 			"path": "homunculy"
 		},
 		{
+			"name": "management-service",
 			"path": "management-service"
 		},
 		{
+			"name": "homunculy-db",
 			"path": "homunculy-db"
 		},
 		{
+			"name": "management-service-db",
 			"path": "management-service-db"
 		},
 		{
+			"name": "chat-client",
+			"path": "chat-client"
+		},
+		{
+			"name": "Homunculy",
 			"path": "."
 		},
 		{
-			"path": "chat-client"
+			"path": "aspire"
 		}
 	],
 	"settings": {}
