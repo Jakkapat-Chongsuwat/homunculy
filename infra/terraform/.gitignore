@@ -1,0 +1,15 @@
+# Terraform generated files and directories
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl # Consider committing this for team consistency
+
+# Sensitive data
+*.tfvars
+*.tfvars.json
+
+# Crash logs and other temporary files
+crash.log
+debug.log
+override.tf
+override.tf.json

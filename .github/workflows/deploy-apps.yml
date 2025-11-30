@@ -1,0 +1,234 @@
+# =============================================================================
+# Deploy Applications to Azure Container Apps
+# =============================================================================
+# Triggers: After image build, manual dispatch
+# Purpose: Update Container Apps with new images
+# =============================================================================
+
+name: Deploy Apps
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      service:
+        description: 'Service to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - homunculy
+          - chat-client
+      image_tag:
+        description: 'Image tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
+
+  workflow_run:
+    workflows: ["Build Images"]
+    types: [completed]
+    branches: [main]
+
+env:
+  RESOURCE_GROUP: rg-homunculy-${{ github.event.inputs.environment || 'dev' }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Deploy Homunculy App
+  # ---------------------------------------------------------------------------
+  deploy-homunculy:
+    name: Deploy Homunculy
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && 
+       (github.event.inputs.service == 'all' || github.event.inputs.service == 'homunculy')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
+      url: ${{ steps.deploy.outputs.app_url }}
+    
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Image Tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Container Apps
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          REGISTRY="acrhomunculy${ENV}.azurecr.io"
+          APP_NAME="ca-homunculy-${ENV}"
+          
+          az containerapp update \
+            --name $APP_NAME \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "${REGISTRY}/homunculy-app:${{ steps.tag.outputs.tag }}"
+          
+          APP_URL=$(az containerapp show \
+            --name $APP_NAME \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          echo "app_url=https://${APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: Deploy Summary
+        run: |
+          echo "## 🚀 Homunculy Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** ${{ steps.deploy.outputs.app_url }}" >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------------------------------------------------
+  # Deploy Chat Client
+  # ---------------------------------------------------------------------------
+  deploy-chat-client:
+    name: Deploy Chat Client
+    runs-on: ubuntu-latest
+    needs: deploy-homunculy
+    if: |
+      (github.event_name == 'workflow_dispatch' && 
+       (github.event.inputs.service == 'all' || github.event.inputs.service == 'chat-client')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
+      url: ${{ steps.deploy.outputs.app_url }}
+    
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Image Tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Container Apps
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          REGISTRY="acrhomunculy${ENV}.azurecr.io"
+          APP_NAME="ca-chat-client-${ENV}"
+          
+          az containerapp update \
+            --name $APP_NAME \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "${REGISTRY}/chat-client:${{ steps.tag.outputs.tag }}"
+          
+          APP_URL=$(az containerapp show \
+            --name $APP_NAME \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          echo "app_url=https://${APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: Deploy Summary
+        run: |
+          echo "## 🚀 Chat Client Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** ${{ steps.deploy.outputs.app_url }}" >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------------------------------------------------
+  # Health Check
+  # ---------------------------------------------------------------------------
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy-homunculy, deploy-chat-client]
+    if: always() && (needs.deploy-homunculy.result == 'success' || needs.deploy-chat-client.result == 'success')
+    
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Check Homunculy Health
+        id: homunculy-health
+        continue-on-error: true
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          APP_URL=$(az containerapp show \
+            --name "ca-homunculy-${ENV}" \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          for i in {1..5}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_URL}/health" || echo "000")
+            if [ "$STATUS" == "200" ]; then
+              echo "status=healthy" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS, retrying..."
+            sleep 10
+          done
+          echo "status=unhealthy" >> $GITHUB_OUTPUT
+          exit 1
+
+      - name: Check Chat Client Health
+        id: chat-health
+        continue-on-error: true
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          APP_URL=$(az containerapp show \
+            --name "ca-chat-client-${ENV}" \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          for i in {1..5}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_URL}/health" || echo "000")
+            if [ "$STATUS" == "200" ]; then
+              echo "status=healthy" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS, retrying..."
+            sleep 10
+          done
+          echo "status=unhealthy" >> $GITHUB_OUTPUT
+          exit 1
+
+      - name: Health Summary
+        run: |
+          echo "## 🏥 Health Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Homunculy | ${{ steps.homunculy-health.outputs.status == 'healthy' && '✅ Healthy' || '❌ Unhealthy' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Chat Client | ${{ steps.chat-health.outputs.status == 'healthy' && '✅ Healthy' || '❌ Unhealthy' }} |" >> $GITHUB_STEP_SUMMARY

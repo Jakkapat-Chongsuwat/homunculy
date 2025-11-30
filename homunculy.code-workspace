@@ -27,6 +27,9 @@
 		{
 			"name": "Homunculy",
 			"path": "."
+		},
+		{
+			"path": "infra"
 		}
 	],
 	"settings": {
