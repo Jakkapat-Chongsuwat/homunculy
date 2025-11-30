@@ -1,0 +1,43 @@
+@using ChatClient.Domain.Entities
+
+<div class="chat-message @GetRoleClass()">
+    <div class="message-avatar">
+        @GetAvatarIcon()
+    </div>
+    <div class="message-content">
+        <div class="message-header">
+            <span class="message-role">@GetRoleName()</span>
+            <span class="message-time">@FormatTime()</span>
+        </div>
+        <div class="message-text">
+            @Message.Content
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public required ChatMessage Message { get; set; }
+
+    private string GetRoleClass() =>
+        Message.Role.ToString().ToLowerInvariant();
+
+    private string GetRoleName() => Message.Role switch
+    {
+        MessageRole.User => "You",
+        MessageRole.Assistant => "Assistant",
+        MessageRole.System => "System",
+        _ => Message.Role.ToString()
+    };
+
+    private string GetAvatarIcon() => Message.Role switch
+    {
+        MessageRole.User => "👤",
+        MessageRole.Assistant => "🤖",
+        MessageRole.System => "⚙️",
+        _ => "💬"
+    };
+
+    private string FormatTime() =>
+        Message.Timestamp.ToString("HH:mm");
+}

@@ -62,8 +62,8 @@ def parse_message(raw: str) -> Tuple[Optional[Union[ChatStreamRequest, str]], Op
         - (None, ParseError) for errors
     """
     data, error = parse_json(raw)
-    if error:
-        return None, error
+    if error or data is None:
+        return None, error or ParseError("PARSE_ERROR", "Failed to parse message")
     
     message_type = get_message_type(data)
     if not message_type:

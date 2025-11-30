@@ -1,0 +1,26 @@
+@using ChatClient.Domain.Entities
+
+<div class="chat-messages" @ref="_messagesContainer">
+    @foreach (var message in Messages)
+    {
+        <ChatMessageItem Message="@message" />
+    }
+</div>
+
+@code {
+    private ElementReference _messagesContainer;
+
+    [Parameter]
+    public IReadOnlyList<ChatMessage> Messages { get; set; } = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await ScrollToBottom();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        // Scroll handled via JS interop if needed
+        await Task.CompletedTask;
+    }
+}

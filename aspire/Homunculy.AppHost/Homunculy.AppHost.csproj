@@ -12,9 +12,15 @@
   <ItemGroup>
     <!-- Core Aspire hosting packages -->
     <PackageReference Include="Aspire.Hosting.AppHost" Version="13.0.1" />
+    <PackageReference Include="Aspire.Hosting.Maui" Version="13.0.0-preview.1.25560.3" />
     
     <!-- PostgreSQL support -->
     <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Chat Client -->
+    <ProjectReference Include="..\..\chat-client\src\ChatClient.Presentation.Web\ChatClient.Presentation.Web.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,46 @@
+@using ChatClient.Domain.ValueObjects
+
+<header class="chat-header">
+    <div class="header-title">
+        <h1>Homunculy Chat</h1>
+    </div>
+    <div class="connection-controls">
+        <div class="connection-status @GetStatusClass()">
+            <span class="status-indicator"></span>
+            <span class="status-text">@GetStatusText()</span>
+        </div>
+        @if (ShowRetryButton)
+        {
+            <button class="retry-button" @onclick="OnRetry" disabled="@IsConnecting">
+                @(IsConnecting ? "Connecting..." : "Retry")
+            </button>
+        }
+    </div>
+</header>
+
+@code {
+    [Parameter]
+    public ConnectionState ConnectionState { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    private bool ShowRetryButton => ConnectionState == ConnectionState.Disconnected;
+    private bool IsConnecting => ConnectionState == ConnectionState.Connecting;
+
+    private string GetStatusClass() => ConnectionState switch
+    {
+        ConnectionState.Connected => "connected",
+        ConnectionState.Connecting => "connecting",
+        ConnectionState.Reconnecting => "reconnecting",
+        _ => "disconnected"
+    };
+
+    private string GetStatusText() => ConnectionState switch
+    {
+        ConnectionState.Connected => "Connected",
+        ConnectionState.Connecting => "Connecting...",
+        ConnectionState.Reconnecting => "Reconnecting...",
+        _ => "Disconnected"
+    };
+}

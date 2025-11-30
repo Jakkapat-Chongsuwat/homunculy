@@ -1,0 +1,95 @@
+@using ChatClient.Application.ViewModels
+@using ChatClient.Domain.Abstractions
+@using ChatClient.Domain.Entities
+@using ChatClient.Domain.ValueObjects
+@using System.Reactive.Linq
+@using System.Collections.Specialized
+@implements IDisposable
+@inject ChatViewModel ViewModel
+@inject IAudioPlayer AudioPlayer
+
+<div class="chat-container">
+    <ChatHeader ConnectionState="@_connectionState" OnRetry="@HandleRetry" />
+
+    <ChatMessageList Messages="@ViewModel.Messages" />
+
+    <ChatInput @bind-Message="@_currentMessage"
+               OnSend="@HandleSend"
+               IsConnected="@IsConnected" />
+</div>
+
+@code {
+    private string _currentMessage = string.Empty;
+    private ConnectionState _connectionState = ConnectionState.Disconnected;
+    private IDisposable? _connectionSubscription;
+    private IDisposable? _messageSubscription;
+    private bool _initialized;
+
+    private bool IsConnected =>
+        _connectionState == ConnectionState.Connected;
+
+    protected override void OnInitialized()
+    {
+        SubscribeToConnectionState();
+        SubscribeToMessages();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            await AudioPlayer.InitializeAsync();
+            await ViewModel.ConnectAsync();
+        }
+    }
+
+    private void SubscribeToConnectionState()
+    {
+        _connectionSubscription = ViewModel.ConnectionState
+            .Subscribe(state =>
+            {
+                _connectionState = state;
+                InvokeAsync(StateHasChanged);
+            });
+    }
+
+    private void SubscribeToMessages()
+    {
+        // Subscribe to new messages
+        _messageSubscription = ViewModel.MessageAdded
+            .Subscribe(_ => InvokeAsync(StateHasChanged));
+
+        // Subscribe to collection changes (for updates to existing messages)
+        ViewModel.Messages.CollectionChanged += OnMessagesChanged;
+    }
+
+    private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleSend()
+    {
+        if (string.IsNullOrWhiteSpace(_currentMessage))
+            return;
+
+        ViewModel.CurrentInput = _currentMessage;
+        _currentMessage = string.Empty;
+
+        await ViewModel.SendMessageAsync();
+    }
+
+    private async Task HandleRetry()
+    {
+        await ViewModel.ConnectAsync();
+    }
+
+    public void Dispose()
+    {
+        _connectionSubscription?.Dispose();
+        _messageSubscription?.Dispose();
+        ViewModel.Messages.CollectionChanged -= OnMessagesChanged;
+        ViewModel.Dispose();
+    }
+}

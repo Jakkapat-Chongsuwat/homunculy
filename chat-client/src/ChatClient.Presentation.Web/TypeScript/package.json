@@ -1,0 +1,17 @@
+{
+  "name": "chatclient-web-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --minify",
+    "watch": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "rxjs": "^7.8.2"
+  }
+}

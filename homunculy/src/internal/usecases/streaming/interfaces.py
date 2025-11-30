@@ -4,6 +4,7 @@ Streaming Use Case Protocols.
 Defines Protocol-based interfaces for streaming operations using PEP 544.
 """
 
+from collections.abc import Callable
 from typing import Optional, Protocol
 
 from internal.domain.entities import AgentConfiguration
@@ -24,8 +25,8 @@ class StreamChatUseCase(Protocol):
         context: dict,
         stream_audio: bool,
         voice_id: Optional[str],
-        on_text_chunk: Optional[callable],
-        on_audio_chunk: Optional[callable],
+        on_text_chunk: Optional[Callable[..., None]],
+        on_audio_chunk: Optional[Callable[..., None]],
     ) -> str:
         """
         Execute streaming chat and return full response text.

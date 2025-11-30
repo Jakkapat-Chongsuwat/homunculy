@@ -221,7 +221,8 @@ class WebSocketSessionAdapter:
 
     async def _cancel_active(self) -> None:
         """Cancel the active task."""
-        self._active_task.cancel()
+        if self._active_task is not None:
+            self._active_task.cancel()
 
     async def _send_interrupted(self) -> None:
         """Send interruption notification."""
@@ -269,7 +270,7 @@ class WebSocketSessionAdapter:
 
     async def _cancel_if_active(self) -> None:
         """Cancel active task if exists."""
-        if not self._is_active():
+        if not self._is_active() or self._active_task is None:
             return
 
         self._active_task.cancel()

@@ -21,12 +21,15 @@
 			"path": "chat-client"
 		},
 		{
-			"name": "Homunculy",
-			"path": "."
+			"name": "aspire",
+			"path": "aspire"
 		},
 		{
-			"path": "aspire"
+			"name": "Homunculy",
+			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"dotnet.defaultSolution": "Homunculy.All.sln"
+	}
 }

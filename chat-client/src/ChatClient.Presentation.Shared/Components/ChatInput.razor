@@ -1,0 +1,62 @@
+<div class="chat-input-container">
+    <textarea class="chat-input"
+              placeholder="Type a message..."
+              @bind="Message"
+              @bind:event="oninput"
+              @bind:after="NotifyMessageChanged"
+              @onkeydown="HandleKeyDown"
+              @onkeydown:preventDefault="@_preventEnter"
+              disabled="@(!IsConnected)">
+    </textarea>
+    <button class="send-button"
+            @onclick="HandleClick"
+            disabled="@(!CanSend)">
+        Send
+    </button>
+</div>
+
+@code {
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> MessageChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnSend { get; set; }
+
+    [Parameter]
+    public bool IsConnected { get; set; }
+
+    private bool _preventEnter;
+
+    private bool CanSend =>
+        IsConnected && !string.IsNullOrWhiteSpace(Message);
+
+    private async Task NotifyMessageChanged()
+    {
+        await MessageChanged.InvokeAsync(Message);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        _preventEnter = IsEnterWithoutShift(e);
+        if (_preventEnter)
+        {
+            await SendMessage();
+        }
+    }
+
+    private bool IsEnterWithoutShift(KeyboardEventArgs e) =>
+        e.Key == "Enter" && !e.ShiftKey;
+
+    private async Task HandleClick() =>
+        await SendMessage();
+
+    private async Task SendMessage()
+    {
+        if (!CanSend) return;
+        await MessageChanged.InvokeAsync(Message);
+        await OnSend.InvokeAsync();
+    }
+}

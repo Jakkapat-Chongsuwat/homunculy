@@ -1,15 +1,46 @@
 /*
- * Homunculy Service Defaults
+ * Homunculy Service Defaults (for ASP.NET Core Web Apps)
+ * ======================================================
  * 
- * Provides standardized configuration for:
- * - OpenTelemetry (logging, metrics, tracing)
- * - Health checks
- * - Service discovery
- * - HTTP resilience
+ * What is Service Defaults?
+ * -------------------------
+ * A shared configuration project that provides consistent Aspire integration:
  * 
- * Can be referenced by any .NET service in the ecosystem.
- * For polyglot services (Python, Go), use their native telemetry libraries
- * with OTLP export to the Aspire dashboard.
+ * 1. SERVICE DISCOVERY
+ *    - Resolve "https+http://service-name" to actual URLs
+ *    - Aspire injects correct endpoints automatically
+ *    - Works with containers, projects, and external services
+ * 
+ * 2. RESILIENCE (via Polly)
+ *    - Retry policies with exponential backoff
+ *    - Circuit breakers to prevent cascade failures
+ *    - Timeout handling for HTTP calls
+ * 
+ * 3. OPENTELEMETRY
+ *    - Distributed tracing across services
+ *    - Metrics (request rates, latencies, errors)
+ *    - Structured logs to Aspire Dashboard
+ * 
+ * 4. HEALTH CHECKS
+ *    - /health - Overall health
+ *    - /alive - Liveness probe (is the service running?)
+ *    - /ready - Readiness probe (is it ready to serve traffic?)
+ * 
+ * Why separate from MAUI Service Defaults?
+ * ----------------------------------------
+ * - This uses IHostApplicationBuilder + WebApplication
+ * - Includes ASP.NET Core instrumentation
+ * - Has HTTP endpoints for health checks
+ * - MAUI apps use MauiAppBuilder and don't expose HTTP endpoints
+ * 
+ * Usage in Program.cs:
+ * --------------------
+ *   var builder = WebApplication.CreateBuilder(args);
+ *   builder.AddServiceDefaults();  // <-- Add this
+ *   
+ *   var app = builder.Build();
+ *   app.MapDefaultEndpoints();     // <-- And this
+ *   app.Run();
  */
 
 using Microsoft.AspNetCore.Builder;
