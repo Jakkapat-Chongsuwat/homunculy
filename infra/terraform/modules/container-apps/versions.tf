@@ -1,8 +1,7 @@
 # =============================================================================
-# Terraform Version Constraints
+# Container Apps Module - Provider Requirements
 # =============================================================================
-# Purpose: Define provider versions and requirements
-# Following: Clean Code - Single Responsibility, explicit dependencies
+# Purpose: Define required providers for the container-apps module
 # =============================================================================
 
 terraform {
@@ -12,16 +11,6 @@ terraform {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
-    }
-
-    azapi = {
-      source  = "Azure/azapi"
-      version = "~> 2.0"
-    }
-
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
     }
 
     time = {

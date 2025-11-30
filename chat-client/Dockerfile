@@ -2,6 +2,7 @@
 # Chat Client - Multi-stage Dockerfile
 # =============================================================================
 # Purpose: Build and run Blazor Server application
+# Note: Build from repo root: docker build -f chat-client/Dockerfile .
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -12,11 +13,11 @@ FROM node:22-alpine AS typescript-build
 WORKDIR /src
 
 # Copy TypeScript project files
-COPY src/ChatClient.Presentation.Web/TypeScript/package*.json ./
+COPY chat-client/src/ChatClient.Presentation.Web/TypeScript/package*.json ./
 RUN npm ci
 
-# Copy and build TypeScript
-COPY src/ChatClient.Presentation.Web/TypeScript/ ./
+# Copy and build TypeScript (outputs all .ts files to dist/)
+COPY chat-client/src/ChatClient.Presentation.Web/TypeScript/ ./
 RUN npm run build
 
 # -----------------------------------------------------------------------------
@@ -28,31 +29,34 @@ ARG ASPNETCORE_ENVIRONMENT=Production
 
 WORKDIR /src
 
+# Add NuGet source for preview packages
+RUN dotnet nuget add source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet10/nuget/v3/index.json -n dotnet10
+
 # Copy solution and project files
-COPY *.sln ./
-COPY src/ChatClient.Domain/*.csproj src/ChatClient.Domain/
-COPY src/ChatClient.Application/*.csproj src/ChatClient.Application/
-COPY src/ChatClient.Infrastructure/*.csproj src/ChatClient.Infrastructure/
-COPY src/ChatClient.Presentation.Shared/*.csproj src/ChatClient.Presentation.Shared/
-COPY src/ChatClient.Presentation.Web/*.csproj src/ChatClient.Presentation.Web/
-COPY src/ChatClient.MauiServiceDefaults/*.csproj src/ChatClient.MauiServiceDefaults/
+COPY chat-client/*.sln ./chat-client/
+COPY chat-client/src/ChatClient.Domain/*.csproj chat-client/src/ChatClient.Domain/
+COPY chat-client/src/ChatClient.Application/*.csproj chat-client/src/ChatClient.Application/
+COPY chat-client/src/ChatClient.Infrastructure/*.csproj chat-client/src/ChatClient.Infrastructure/
+COPY chat-client/src/ChatClient.Presentation.Shared/*.csproj chat-client/src/ChatClient.Presentation.Shared/
+COPY chat-client/src/ChatClient.Presentation.Web/*.csproj chat-client/src/ChatClient.Presentation.Web/
+COPY chat-client/src/ChatClient.MauiServiceDefaults/*.csproj chat-client/src/ChatClient.MauiServiceDefaults/
 
 # Copy Aspire service defaults (required reference)
-COPY ../aspire/Homunculy.ServiceDefaults/*.csproj ../aspire/Homunculy.ServiceDefaults/
+COPY aspire/Homunculy.ServiceDefaults/*.csproj aspire/Homunculy.ServiceDefaults/
 
 # Restore dependencies
-RUN dotnet restore src/ChatClient.Presentation.Web/ChatClient.Presentation.Web.csproj
+RUN dotnet restore chat-client/src/ChatClient.Presentation.Web/ChatClient.Presentation.Web.csproj
 
 # Copy source code
-COPY src/ src/
-COPY ../aspire/Homunculy.ServiceDefaults/ ../aspire/Homunculy.ServiceDefaults/
+COPY chat-client/src/ chat-client/src/
+COPY aspire/Homunculy.ServiceDefaults/ aspire/Homunculy.ServiceDefaults/
 
-# Copy built TypeScript assets
-COPY --from=typescript-build /src/dist/ src/ChatClient.Presentation.Web/wwwroot/js/
+# Copy built TypeScript assets (all files from dist/)
+COPY --from=typescript-build /src/dist/ chat-client/src/ChatClient.Presentation.Web/wwwroot/js/
 
-# Build and publish
-WORKDIR /src/src/ChatClient.Presentation.Web
-RUN dotnet publish -c Release -o /app/publish --no-restore
+# Build and publish (restore again to get packages from dotnet10 feed)
+WORKDIR /src/chat-client/src/ChatClient.Presentation.Web
+RUN dotnet publish -c Release -o /app/publish
 
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime

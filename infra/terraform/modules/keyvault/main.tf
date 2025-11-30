@@ -19,44 +19,22 @@ resource "azurerm_key_vault" "main" {
   purge_protection_enabled        = var.environment == "prod" ? true : false
   soft_delete_retention_days      = 7
 
-  # Default access policy for Terraform
-  access_policy {
-    tenant_id = var.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
-
-    secret_permissions = [
-      "Get",
-      "List",
-      "Set",
-      "Delete",
-      "Purge",
-      "Recover",
-    ]
-
-    key_permissions = [
-      "Get",
-      "List",
-      "Create",
-      "Delete",
-    ]
-  }
+  # Enable RBAC authorization for Key Vault
+  # This allows using Azure RBAC roles instead of access policies
+  # Required for Container Apps managed identity to access secrets
+  rbac_authorization_enabled = true
 
   tags = merge(var.tags, {
     component = "security"
   })
 }
 
-# Dynamic access policies
-resource "azurerm_key_vault_access_policy" "policies" {
-  for_each = { for idx, policy in var.access_policies : idx => policy }
-
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = var.tenant_id
-  object_id    = each.value.object_id
-
-  secret_permissions      = each.value.secret_permissions
-  key_permissions         = each.value.key_permissions
-  certificate_permissions = each.value.certificate_permissions
+# Grant Key Vault Secrets Officer role to Terraform service principal
+# This allows Terraform to manage secrets in the Key Vault
+resource "azurerm_role_assignment" "terraform_secrets_officer" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 # Secrets
@@ -66,6 +44,9 @@ resource "azurerm_key_vault_secret" "secrets" {
   name         = each.value
   value        = var.secret_values[each.value]
   key_vault_id = azurerm_key_vault.main.id
+
+  # Ensure Terraform has permission before creating secrets
+  depends_on = [azurerm_role_assignment.terraform_secrets_officer]
 
   tags = merge(var.tags, {
     component = "secret"

@@ -147,3 +147,35 @@ run "keyvault_tags" {
     error_message = "Key Vault should have component=security tag"
   }
 }
+
+# -----------------------------------------------------------------------------
+# Test: Key Vault uses RBAC authorization
+# -----------------------------------------------------------------------------
+run "rbac_authorization_enabled" {
+  command = plan
+
+  module {
+    source = "./modules/keyvault"
+  }
+
+  assert {
+    condition     = azurerm_key_vault.main.rbac_authorization_enabled == true
+    error_message = "Key Vault should use RBAC authorization for managed identity access"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Terraform service principal gets Secrets Officer role
+# -----------------------------------------------------------------------------
+run "terraform_role_assignment" {
+  command = plan
+
+  module {
+    source = "./modules/keyvault"
+  }
+
+  assert {
+    condition     = azurerm_role_assignment.terraform_secrets_officer.role_definition_name == "Key Vault Secrets Officer"
+    error_message = "Terraform should be assigned Key Vault Secrets Officer role"
+  }
+}

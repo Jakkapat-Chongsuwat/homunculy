@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --minify",
+    "build": "esbuild src/*.ts --bundle --outdir=dist --format=iife --minify",
+    "build:local": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --minify",
     "watch": "esbuild src/interop.ts --bundle --outfile=../wwwroot/js/audioPlayer.js --format=iife --watch",
     "typecheck": "tsc --noEmit"
   },

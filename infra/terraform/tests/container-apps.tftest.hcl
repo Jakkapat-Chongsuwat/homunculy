@@ -5,8 +5,9 @@
 # Run: terraform test -filter=tests/container-apps.tftest.hcl
 # =============================================================================
 
-# Mock provider to avoid real Azure calls
+# Mock providers to avoid real Azure calls
 mock_provider "azurerm" {}
+mock_provider "time" {}
 
 variables {
   resource_group_name        = "rg-test"
@@ -22,20 +23,21 @@ variables {
   homunculy_image_tag    = "v1.0.0"
   homunculy_min_replicas = 0
   homunculy_max_replicas = 5
+  homunculy_cpu          = 0.5
+  homunculy_memory       = "1Gi"
 
   chat_client_image_tag    = "v1.0.0"
   chat_client_min_replicas = 0
   chat_client_max_replicas = 5
+  chat_client_cpu          = 0.25
+  chat_client_memory       = "0.5Gi"
 
   database_host     = "psql-homunculy-dev.postgres.database.azure.com"
   database_name     = "homunculy"
   database_username = "homunculyadmin"
-  database_password = "testpassword"
 
-  openai_api_key     = "sk-test"
-  elevenlabs_api_key = "test-key"
-
-  application_insights_connection_string = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+  keyvault_id  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
+  keyvault_uri = "https://kv-test.vault.azure.net/"
 
   tags = {
     test = "true"
@@ -230,5 +232,105 @@ run "revision_mode" {
   assert {
     condition     = azurerm_container_app.chat_client.revision_mode == "Single"
     error_message = "Chat client revision mode should be Single"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: User Assigned Managed Identity is created
+# -----------------------------------------------------------------------------
+run "managed_identity_created" {
+  command = plan
+
+  module {
+    source = "./modules/container-apps"
+  }
+
+  assert {
+    condition     = azurerm_user_assigned_identity.container_apps.name == "id-homunculy-containerapp-dev"
+    error_message = "Managed Identity name should follow pattern: id-{project}-containerapp-{environment}"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Role assignment for Key Vault Secrets User
+# -----------------------------------------------------------------------------
+run "keyvault_role_assignment" {
+  command = plan
+
+  module {
+    source = "./modules/container-apps"
+  }
+
+  assert {
+    condition     = azurerm_role_assignment.keyvault_secrets_user.role_definition_name == "Key Vault Secrets User"
+    error_message = "Role assignment should grant Key Vault Secrets User role"
+  }
+
+  assert {
+    condition     = azurerm_role_assignment.keyvault_secrets_user.scope == "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
+    error_message = "Role assignment scope should be the Key Vault"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: RBAC propagation delay is configured
+# -----------------------------------------------------------------------------
+run "rbac_propagation_delay" {
+  command = plan
+
+  module {
+    source = "./modules/container-apps"
+  }
+
+  assert {
+    condition     = time_sleep.rbac_propagation.create_duration == "60s"
+    error_message = "RBAC propagation delay should be 60 seconds"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Homunculy app uses Key Vault references for secrets
+# -----------------------------------------------------------------------------
+run "homunculy_keyvault_secrets" {
+  command = plan
+
+  module {
+    source = "./modules/container-apps"
+  }
+
+  assert {
+    condition     = length([for s in azurerm_container_app.homunculy.secret : s if s.name == "db-password"]) == 1
+    error_message = "Homunculy should have db-password secret configured"
+  }
+
+  assert {
+    condition     = length([for s in azurerm_container_app.homunculy.secret : s if s.name == "openai-api-key"]) == 1
+    error_message = "Homunculy should have openai-api-key secret configured"
+  }
+
+  assert {
+    condition     = length([for s in azurerm_container_app.homunculy.secret : s if s.name == "elevenlabs-api-key"]) == 1
+    error_message = "Homunculy should have elevenlabs-api-key secret configured"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Homunculy app has managed identity assigned
+# -----------------------------------------------------------------------------
+run "homunculy_managed_identity" {
+  command = plan
+
+  module {
+    source = "./modules/container-apps"
+  }
+
+  assert {
+    condition     = azurerm_container_app.homunculy.identity[0].type == "UserAssigned"
+    error_message = "Homunculy should have UserAssigned managed identity"
+  }
+
+  assert {
+    condition     = length(azurerm_container_app.homunculy.identity[0].identity_ids) == 1
+    error_message = "Homunculy should have exactly one identity assigned"
   }
 }

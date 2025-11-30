@@ -41,6 +41,18 @@ resource "azurerm_role_assignment" "keyvault_secrets_user" {
 }
 
 # -----------------------------------------------------------------------------
+# Wait for RBAC propagation
+# Azure RBAC can take up to 10 minutes to propagate. We add a delay to ensure
+# the role assignment is effective before Container Apps try to access secrets.
+# -----------------------------------------------------------------------------
+
+resource "time_sleep" "rbac_propagation" {
+  depends_on = [azurerm_role_assignment.keyvault_secrets_user]
+
+  create_duration = "60s"
+}
+
+# -----------------------------------------------------------------------------
 # Homunculy App (Python FastAPI)
 # -----------------------------------------------------------------------------
 
@@ -67,6 +79,9 @@ resource "azurerm_container_app" "homunculy" {
     username             = var.container_registry_admin_username
     password_secret_name = "registry-password"
   }
+
+  # Ensure role assignment is propagated before accessing Key Vault
+  depends_on = [time_sleep.rbac_propagation]
 
   # Secrets - Key Vault references
   secret {
