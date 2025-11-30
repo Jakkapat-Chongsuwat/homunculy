@@ -66,6 +66,8 @@ def create_llm_node(llm: Union[ChatOpenAI, Runnable]):
     raw messages. This keeps summarization internal - users never see the
     "Summary of conversation" text, but the LLM has efficient context.
     """
+    from common.logger import get_logger
+    logger = get_logger(__name__)
 
     async def call_llm(state: ConversationState) -> Dict[str, Any]:
         # Prefer llm_input_messages (summarized) if available, fall back to messages
@@ -88,6 +90,13 @@ def create_llm_node(llm: Union[ChatOpenAI, Runnable]):
                 "error": None,
             }
         except Exception as exc:  # pragma: no cover - surfaced upstream
+            logger.error(
+                "LLM invocation failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                messages_count=len(messages) if messages else 0,
+                exc_info=True
+            )
             return {"error": str(exc), "response": None}
 
     return call_llm

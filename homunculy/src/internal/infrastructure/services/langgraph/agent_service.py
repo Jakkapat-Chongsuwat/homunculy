@@ -204,22 +204,29 @@ class LangGraphAgentService(LLMService):
         self,
         configuration: AgentConfiguration,
         system_prompt: str,
+        bind_tools: bool = True,
     ):
         """
         Retrieve cached graph or build new one with checkpointer and optional TTS tools.
         
         All graphs share the same checkpointer instance for state persistence.
-        If TTS service is available, TTS tools are automatically registered.
+        If TTS service is available and bind_tools=True, TTS tools are registered.
+        
+        Args:
+            configuration: Agent configuration
+            system_prompt: System prompt for the agent
+            bind_tools: Whether to bind TTS tools (False for streaming to avoid tool calls)
         """
         await self._ensure_checkpointer()
         
-        config_sig = self._get_config_signature(configuration)
+        # Include bind_tools in cache key to separate tool-bound vs non-tool graphs
+        config_sig = f"{self._get_config_signature(configuration)}:tools={bind_tools}"
         
         if config_sig in self._graph_cache:
             logger.debug("Using cached graph", config_sig=config_sig)
             return self._graph_cache[config_sig]
         
-        logger.info("Building graph", config_sig=config_sig, tts_enabled=self.tts_service is not None)
+        logger.info("Building graph", config_sig=config_sig, tts_enabled=self.tts_service is not None and bind_tools)
         
         assert self.api_key is not None, "API key must be set"
         
@@ -230,8 +237,8 @@ class LangGraphAgentService(LLMService):
             configuration.max_tokens,
         )
         
-        # Register TTS tools if TTS service is available
-        if self.tts_service:
+        # Only register TTS tools if requested (not for streaming)
+        if bind_tools and self.tts_service:
             from internal.infrastructure.services.langgraph.agent_tools import (
                 create_text_to_speech_tool,
                 create_list_voices_tool,
@@ -618,7 +625,8 @@ class LangGraphAgentService(LLMService):
             )
             
             system_prompt = build_system_prompt(configuration)
-            graph = await self._get_or_build_graph(configuration, system_prompt)
+            # Don't bind tools for streaming - TTS is handled separately via WebSocket
+            graph = await self._get_or_build_graph(configuration, system_prompt, bind_tools=False)
             
             is_first_message = await self._check_if_first_message(graph, thread_id)
             messages_to_add = self._build_message_list(system_prompt, message, is_first_message, thread_id)
@@ -644,7 +652,9 @@ class LangGraphAgentService(LLMService):
             ):
                 # Only stream AI responses from the 'llm' node, not internal summaries
                 # metadata contains langgraph_node, langgraph_triggers, etc.
-                node_name = metadata.get("langgraph_node", "") if metadata else ""
+                node_name = ""
+                if isinstance(metadata, dict):
+                    node_name = metadata.get("langgraph_node", "")
                 
                 # Skip messages from summarize node (internal summary context)
                 if node_name == "summarize":

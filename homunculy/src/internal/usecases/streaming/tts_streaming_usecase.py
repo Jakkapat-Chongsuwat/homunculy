@@ -6,6 +6,7 @@ This is a use case that orchestrates TTS service calls and audio delivery.
 """
 
 import asyncio
+import re
 from typing import Optional, Callable, Awaitable
 
 from common.logger import get_logger
@@ -19,6 +20,24 @@ logger = get_logger(__name__)
 # Minimum chunk size to send (bytes)
 # Small chunks can have incomplete MP3 frames causing "ah/uh" sounds
 MIN_CHUNK_SIZE = 1024
+
+# Regex to strip emojis and other symbols that TTS reads poorly
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map
+    "\U0001F700-\U0001F77F"  # alchemical
+    "\U0001F780-\U0001F7FF"  # geometric shapes extended
+    "\U0001F800-\U0001F8FF"  # supplemental arrows-c
+    "\U0001F900-\U0001F9FF"  # supplemental symbols
+    "\U0001FA00-\U0001FA6F"  # chess symbols
+    "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-a
+    "\U00002702-\U000027B0"  # dingbats
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "]+",
+    flags=re.UNICODE,
+)
 
 
 class TTSStreamingUseCaseImpl:
@@ -81,15 +100,20 @@ class TTSStreamingUseCaseImpl:
 
     async def _process_sentence(self, sentence: str) -> None:
         """Process a single sentence through TTS."""
-        if not sentence.strip():
+        cleaned = self._strip_emojis(sentence)
+        if not cleaned.strip():
             return
 
         try:
-            await self._stream_sentence(sentence)
+            await self._stream_sentence(cleaned)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.error("TTS error", error=str(e))
+
+    def _strip_emojis(self, text: str) -> str:
+        """Remove emojis and symbols that TTS reads poorly."""
+        return EMOJI_PATTERN.sub("", text)
 
     async def _stream_sentence(self, sentence: str) -> None:
         """Stream TTS audio for a sentence."""
