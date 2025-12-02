@@ -6,7 +6,39 @@ var managementDbPassword = builder.AddParameter("management-db-password", secret
 var openaiApiKey = builder.AddParameter("openai-api-key", secret: true);
 var elevenLabsApiKey = builder.AddParameter("elevenlabs-api-key", secret: true);
 
+// ============================================================================
+// RAG Stack (Pinecone Local + RAG Service)
+// ============================================================================
+
+// Pinecone Local - Vector Database for RAG
+var pineconeLocal = builder.AddContainer("pinecone-local", "ghcr.io/pinecone-io/pinecone-index", "latest")
+    .WithHttpEndpoint(port: 5081, targetPort: 5081, name: "grpc")
+    .WithEnvironment("PORT", "5081")
+    .WithEnvironment("INDEX_TYPE", "serverless")
+    .WithEnvironment("DIMENSION", "1536")
+    .WithEnvironment("METRIC", "cosine");
+
+// RAG Service (Python/FastAPI)
+var ragService = builder.AddContainer("rag-service", "rag-service")
+    .WithDockerfile("../../rag-service", "Dockerfile")
+    .WithHttpEndpoint(port: 8001, targetPort: 8001, name: "http")
+    .WithEnvironment("APP_HOST", "0.0.0.0")
+    .WithEnvironment("APP_PORT", "8001")
+    .WithEnvironment("PINECONE_ENVIRONMENT", "local")
+    .WithEnvironment("PINECONE_API_KEY", "pclocal")
+    .WithEnvironment("PINECONE_HOST", "pinecone-local:5081")
+    .WithEnvironment("PINECONE_INDEX_NAME", "homunculy-rag")
+    .WithEnvironment("PINECONE_DIMENSION", "1536")
+    .WithEnvironment("OPENAI_API_KEY", openaiApiKey)
+    .WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-small")
+    .WithEnvironment("RAG_CHUNK_SIZE", "512")
+    .WithEnvironment("RAG_TOP_K", "5")
+    .WithExternalHttpEndpoints()
+    .WaitFor(pineconeLocal);
+
+// ============================================================================
 // Homunculy Stack (Python/FastAPI + PostgreSQL)
+// ============================================================================
 var homunculyPostgres = builder.AddPostgres("homunculy-postgres", password: homunculyDbPassword)
     .WithDataVolume("homunculy-postgres-data")
     .WithPgAdmin();
@@ -43,11 +75,13 @@ var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithEnvironment("TTS_ELEVENLABS_API_KEY", elevenLabsApiKey)
     .WithEnvironment("TTS_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     .WithEnvironment("TTS_ELEVENLABS_STREAMING_MODEL_ID", "eleven_turbo_v2_5")
+    .WithEnvironment("RAG_SERVICE_URL", ragService.GetEndpoint("http"))
     .WithEnvironment("LOGGING_LEVEL", "INFO")
     .WithEnvironment("LOGGING_FORMAT", "json")
     .WithBindMount("../../homunculy/logs", "/app/logs")
     .WithExternalHttpEndpoints()
-    .WaitFor(homunculyMigrations);
+    .WaitFor(homunculyMigrations)
+    .WaitFor(ragService);
 
 // Management Stack (Go/Fiber + PostgreSQL)
 var managementPostgres = builder.AddPostgres("management-postgres", password: managementDbPassword)

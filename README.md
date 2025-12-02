@@ -22,12 +22,17 @@
 │           LangGraph Agents • TTS • Streaming Chat                │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
-              ┌──────────────┴──────────────┐
-              ▼                             ▼
-       ┌────────────┐                ┌────────────┐
-       │ PostgreSQL │                │ PostgreSQL │
-       │ (Homunculy)│                │(Management)│
-       └────────────┘                └────────────┘
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+  ┌────────────┐      ┌────────────┐      ┌────────────┐
+  │ PostgreSQL │      │ PostgreSQL │      │   RAG      │
+  │ (Homunculy)│      │(Management)│      │  Service   │
+  └────────────┘      └────────────┘      └─────┬──────┘
+                                                │
+                                          ┌─────┴──────┐
+                                          │  Pinecone  │
+                                          │ (Vectors)  │
+                                          └────────────┘
 ```
 
 ## 📁 Project Structure
@@ -35,6 +40,7 @@
 | Folder | Language | Description |
 |--------|----------|-------------|
 | [`homunculy/`](./homunculy/) | Python | Core AI agent service (FastAPI + LangGraph) |
+| [`rag-service/`](./rag-service/) | Python | RAG pipeline & semantic search (Pinecone) |
 | [`management-service/`](./management-service/) | Go | User & quota management (Fiber) |
 | [`chat-client/`](./chat-client/) | C# | Multi-platform UI (Blazor + MAUI) |
 | [`aspire/`](./aspire/) | C# | Local dev orchestration (.NET Aspire) |
@@ -75,6 +81,7 @@ cd chat-client/src/ChatClient.Presentation.Web && dotnet run
 | Layer | Technology |
 |-------|------------|
 | **AI/ML** | LangGraph, LangChain, OpenAI, PydanticAI |
+| **RAG** | Pinecone (Vector DB), OpenAI Embeddings |
 | **TTS** | ElevenLabs |
 | **Backend** | FastAPI (Python), Fiber (Go) |
 | **Frontend** | Blazor WebAssembly, MAUI |
@@ -105,8 +112,10 @@ dotnet run --project Homunculy.AppHost
 |---------|-----|
 | Aspire Dashboard | http://localhost:15178 |
 | Homunculy API | http://localhost:8000 |
+| RAG Service | http://localhost:8001 |
 | Management API | http://localhost:8080 |
 | Chat Client | http://localhost:5000 |
+| Pinecone Local | localhost:5081 |
 
 ## 📚 Documentation
 

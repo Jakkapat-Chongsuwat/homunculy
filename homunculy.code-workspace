@@ -30,9 +30,21 @@
 		},
 		{
 			"path": "infra"
+		},
+		{
+			"name": "rag-service",
+			"path": "rag-service"
 		}
 	],
 	"settings": {
-		"dotnet.defaultSolution": "Homunculy.All.sln"
+		"dotnet.defaultSolution": "Homunculy.All.sln",
+		"python.defaultInterpreterPath": "${workspaceFolder:homunculy}/.venv/Scripts/python.exe",
+		"[python]": {
+			"editor.formatOnSave": true
+		}
+	},
+	"launch": {
+		"configurations": [],
+		"compounds": []
 	}
 }
