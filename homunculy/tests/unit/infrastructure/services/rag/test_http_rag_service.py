@@ -108,3 +108,82 @@ class TestHTTPRAGService:
         """Should handle missing results key."""
         result = service.parse_results({})
         assert result == []
+
+    def test_parse_results_uses_text_field(self, service: HTTPRAGService) -> None:
+        """Should use 'text' field when 'content' is not present."""
+        data = {
+            "results": [
+                {
+                    "id": "doc1",
+                    "text": "Document text from API",
+                    "score": 0.9,
+                    "metadata": {"source": "api"},
+                }
+            ]
+        }
+        result = service.parse_results(data)
+
+        assert result[0]["content"] == "Document text from API"
+
+    def test_parse_results_prefers_text_over_content(self, service: HTTPRAGService) -> None:
+        """Should prefer 'text' field over 'content' field."""
+        data = {
+            "results": [
+                {
+                    "id": "doc1",
+                    "text": "Primary text",
+                    "content": "Fallback content",
+                    "score": 0.9,
+                }
+            ]
+        }
+        result = service.parse_results(data)
+
+        assert result[0]["content"] == "Primary text"
+
+    def test_parse_results_falls_back_to_content(self, service: HTTPRAGService) -> None:
+        """Should fall back to 'content' when 'text' is empty."""
+        data = {
+            "results": [
+                {
+                    "id": "doc1",
+                    "text": "",
+                    "content": "Fallback content",
+                    "score": 0.9,
+                }
+            ]
+        }
+        result = service.parse_results(data)
+
+        assert result[0]["content"] == "Fallback content"
+
+    @pytest.mark.asyncio
+    async def test_retrieve_parses_text_field_from_api(self, service: HTTPRAGService) -> None:
+        """Should correctly parse 'text' field from real API response format."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "id": "chunk_0",
+                    "text": "The RAG system uses self-reflective approach",
+                    "score": 0.48,
+                    "metadata": {
+                        "title": "RAG Architecture",
+                        "source": "documentation",
+                    },
+                }
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            mock_instance.post.return_value = mock_response
+
+            result = await service.retrieve("RAG system")
+
+            assert len(result) == 1
+            assert result[0]["content"] == "The RAG system uses self-reflective approach"
+            assert result[0]["score"] == 0.48
+            assert result[0]["metadata"]["title"] == "RAG Architecture"

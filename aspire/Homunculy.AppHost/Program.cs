@@ -117,11 +117,17 @@ var managementApp = builder.AddContainer("management-app", "management-app")
     .WaitFor(homunculyApp);
 
 // Chat Clients
-var chatClientWeb = builder.AddProject<Projects.ChatClient_Presentation_Web>("chat-client-web")
+var chatClientWeb = builder.AddContainer("chat-client-web", "chat-client-web")
+    .WithDockerfile("../..", "chat-client/Dockerfile")
+    .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
+    .WithEnvironment("ASPNETCORE_URLS", "http://+:8080")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("ConnectionStrings__homunculy-app", homunculyApp.GetEndpoint("http"))
+    .WithEnvironment("ChatClient__ServerUri", homunculyApp.GetEndpoint("http"))
     .WithExternalHttpEndpoints()
-    .WaitFor(homunculyApp)
-    .WithEnvironment("ConnectionStrings__homunculy-app", homunculyApp.GetEndpoint("http"));
+    .WaitFor(homunculyApp);
 
+// MAUI client (desktop, runs locally not in container)
 var mauiApp = builder.AddMauiProject("chat-client-maui", @"../../chat-client/src/ChatClient.Presentation.Maui/ChatClient.Presentation.Maui.csproj");
 mauiApp.AddWindowsDevice();
 

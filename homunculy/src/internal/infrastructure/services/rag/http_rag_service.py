@@ -50,7 +50,7 @@ class HTTPRAGService(RAGService):
         return [
             {
                 "id": r.get("id", ""),
-                "content": r.get("content", ""),
+                "content": r.get("text", "") or r.get("content", ""),
                 "score": r.get("score", 0.0),
                 "metadata": r.get("metadata"),
             }

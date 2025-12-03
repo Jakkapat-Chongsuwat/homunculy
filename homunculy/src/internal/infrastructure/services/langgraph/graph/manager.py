@@ -4,7 +4,9 @@ Graph management for LangGraph agent service.
 Handles graph caching, building, and configuration-based compilation.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from langchain_core.tools import BaseTool
 
 from common.logger import get_logger
 from internal.domain.entities import AgentConfiguration
@@ -118,8 +120,13 @@ class GraphManager:
             configuration.max_tokens,
         )
 
+        # Collect tools
+        tools: List[BaseTool] = []
         if bind_tools:
-            base_llm = self._bind_tools(base_llm)
+            tools = self._get_tools()
+            if tools:
+                # Bind tools to LLM for function calling
+                base_llm = base_llm.bind_tools(tools)
 
         return build_conversation_graph_with_summarization(
             base_llm,
@@ -128,11 +135,12 @@ class GraphManager:
             self._max_tokens_before_summary,
             self._max_summary_tokens,
             checkpointer=self._checkpointer,
+            tools=tools if tools else None,
         )
 
-    def _bind_tools(self, llm: Any) -> Any:
-        """Bind all available tools to LLM."""
-        tools = []
+    def _get_tools(self) -> List[BaseTool]:
+        """Collect all available tools."""
+        tools: List[BaseTool] = []
 
         # Add TTS tools if available
         if self._tts_service:
@@ -154,9 +162,7 @@ class GraphManager:
             tools.append(create_rag_search_tool(self._rag_service))
             logger.info("RAG tools added", tools=["search_documents"])
 
-        if tools:
-            return llm.bind_tools(tools)
-        return llm
+        return tools
 
     def clear_cache(self) -> None:
         """Clear graph cache."""

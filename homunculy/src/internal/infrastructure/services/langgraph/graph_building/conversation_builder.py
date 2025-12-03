@@ -1,11 +1,13 @@
 """LangGraph conversation flow builders."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode
 from pydantic import SecretStr
 
 from internal.domain.entities import AgentConfiguration
@@ -18,6 +20,7 @@ class ConversationState(MessagesState):
     llm_input_messages: List[AnyMessage]
     response: Optional[str]
     error: Optional[str]
+    tools: Optional[List[Any]]  # Store tools for tool node
 
 
 def create_langchain_model(
@@ -43,20 +46,36 @@ def build_system_prompt(configuration: AgentConfiguration) -> str:
     return f"{base}\n\n{personality}".strip()
 
 
-def _create_llm_node(llm: Union[ChatOpenAI, Runnable]):
-    """Create LLM invocation node."""
+def _create_llm_node(llm: Union[ChatOpenAI, Runnable], use_summarized: bool = True):
+    """Create LLM invocation node.
+
+    Args:
+        llm: The language model to use
+        use_summarized: If True, use llm_input_messages (from summarizer).
+                       If False, use messages directly (for tool follow-up).
+    """
     from common.logger import get_logger
 
     logger = get_logger(__name__)
 
     async def call_llm(state: ConversationState) -> Dict[str, Any]:
-        messages = state.get("llm_input_messages") or state.get("messages")
+        if use_summarized:
+            messages = state.get("llm_input_messages") or state.get("messages", [])
+        else:
+            messages = state.get("messages", [])
+
         if not messages:
             return {"error": "No messages", "response": None}
 
         try:
             result = await llm.ainvoke(messages)
             content = result.content if hasattr(result, 'content') else str(result)
+
+            if isinstance(result, AIMessage):
+                tool_calls = getattr(result, 'tool_calls', None)
+                if tool_calls:
+                    return {"messages": [result], "error": None}
+
             return {"response": content, "messages": [result], "error": None}
         except Exception as exc:
             logger.error("LLM failed", error=str(exc), exc_info=True)
@@ -93,6 +112,22 @@ def _get_summarization_model(llm: Union[ChatOpenAI, Runnable], max_tokens: int):
     return llm
 
 
+def _should_continue_after_llm(state: ConversationState) -> str:
+    """Determine if we should continue to tools or end."""
+    messages = state.get("messages", [])
+    if not messages:
+        return END
+
+    last_message = messages[-1]
+
+    if isinstance(last_message, AIMessage):
+        tool_calls = getattr(last_message, 'tool_calls', None)
+        if tool_calls:
+            return "tools"
+
+    return END
+
+
 def build_conversation_graph_with_summarization(
     llm: Union[ChatOpenAI, Runnable],
     system_prompt: str,
@@ -100,8 +135,14 @@ def build_conversation_graph_with_summarization(
     max_tokens_before_summary: int = 1024,
     max_summary_tokens: int = 128,
     checkpointer=None,
+    tools: Optional[Sequence[BaseTool]] = None,
 ):
-    """Compile conversation graph with LangMem summarization."""
+    """Compile conversation graph with LangMem summarization and tool support.
+
+    Graph structure:
+    - Without tools: START → summarize → llm → END
+    - With tools: START → summarize → llm → (tools → llm_tool_followup)* → END
+    """
     from langmem.short_term import SummarizationNode
 
     summarization_node = SummarizationNode(
@@ -116,9 +157,23 @@ def build_conversation_graph_with_summarization(
 
     graph = StateGraph(ConversationState)
     graph.add_node("summarize", summarization_node)
-    graph.add_node("llm", _create_llm_node(llm))
+    graph.add_node("llm", _create_llm_node(llm, use_summarized=True))
     graph.add_edge(START, "summarize")
     graph.add_edge("summarize", "llm")
-    graph.add_edge("llm", END)
+
+    if tools:
+        tool_node = ToolNode(tools)
+        graph.add_node("tools", tool_node)
+        # Separate LLM node for after tools - uses messages directly
+        graph.add_node("llm_tool_followup", _create_llm_node(llm, use_summarized=False))
+
+        # After initial LLM, check if we need to run tools
+        graph.add_conditional_edges("llm", _should_continue_after_llm, ["tools", END])
+        # After tools, go to tool followup LLM
+        graph.add_edge("tools", "llm_tool_followup")
+        # After tool followup, check again (might need more tools or end)
+        graph.add_conditional_edges("llm_tool_followup", _should_continue_after_llm, ["tools", END])
+    else:
+        graph.add_edge("llm", END)
 
     return graph.compile(checkpointer=checkpointer)
