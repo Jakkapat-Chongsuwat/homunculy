@@ -1,50 +1,44 @@
-"""LangGraph Agent Service with Postgres-backed persistence."""
+"""
+LangGraph Agent Service with Postgres-backed persistence.
+
+Refactored to use smaller, focused modules:
+- CheckpointerManager: Checkpoint initialization/lifecycle
+- GraphManager: Graph caching and building
+- ResponseBuilder: Response construction
+- BackgroundSummarizer: Async summarization (optional)
+"""
 
 import asyncio
 import os
-from typing import Any, Dict, Optional, TYPE_CHECKING, AsyncIterator
+from typing import Any, Dict, Optional, cast
+
+from langchain_core.runnables.config import RunnableConfig
 
 from common.logger import get_logger
-from settings.tts import tts_settings
-
-from langgraph.checkpoint.memory import MemorySaver
-
-if TYPE_CHECKING:
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver as AsyncPostgresSaverType
-else:
-    AsyncPostgresSaverType = object
-
-try:
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-    from psycopg import AsyncConnection
-    from psycopg.rows import dict_row
-    from psycopg_pool import AsyncConnectionPool
-    HAS_POSTGRES_CHECKPOINT = True
-except ImportError:
-    HAS_POSTGRES_CHECKPOINT = False
-    AsyncPostgresSaver = type('AsyncPostgresSaver', (), {})
-    AsyncConnection = type('AsyncConnection', (), {})
-    AsyncConnectionPool = type('AsyncConnectionPool', (), {})
-
 from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
-from internal.domain.services import LLMService, TTSService
 from internal.domain.exceptions import AgentExecutionException
-from internal.infrastructure.services.langgraph.exceptions import (
-    CheckpointerConnectionException,
-    CheckpointerSetupException,
-    LLMAuthenticationException,
-    GraphStateException,
+from internal.domain.services import LLMService, TTSService
+from internal.infrastructure.services.langgraph.checkpointer_manager import (
+    CheckpointerManager,
+    create_checkpointer_manager,
 )
-from internal.infrastructure.services.langgraph.graph_building import (
-    build_conversation_graph_with_summarization,
-    create_langchain_model,
-    build_system_prompt,
+from internal.infrastructure.services.langgraph.exceptions import (
+    GraphStateException,
+    LLMAuthenticationException,
+)
+from internal.infrastructure.services.langgraph.graph_building import build_system_prompt
+from internal.infrastructure.services.langgraph.graph_manager import (
+    GraphManager,
+    ThreadResolver,
+)
+from internal.infrastructure.services.langgraph.response_builder import (
+    ResponseBuilder,
+    create_response_builder,
 )
 from settings import (
-    DATABASE_URI,
     LLM_SUMMARIZATION_MAX_TOKENS,
-    LLM_SUMMARIZATION_TRIGGER_TOKENS,
     LLM_SUMMARIZATION_SUMMARY_TOKENS,
+    LLM_SUMMARIZATION_TRIGGER_TOKENS,
 )
 
 
@@ -54,9 +48,11 @@ logger = get_logger(__name__)
 class LangGraphAgentService(LLMService):
     """
     LangGraph-based Agent service with Postgres-backed persistence.
-    
-    Uses AsyncPostgresSaver for stateless checkpoint storage, enabling
-    horizontal scaling and container restart resilience.
+
+    Uses modular components for maintainability:
+    - CheckpointerManager for state persistence
+    - GraphManager for graph lifecycle
+    - ResponseBuilder for response construction
     """
 
     def __init__(
@@ -65,204 +61,51 @@ class LangGraphAgentService(LLMService):
         max_tokens: int = LLM_SUMMARIZATION_MAX_TOKENS,
         max_tokens_before_summary: int = LLM_SUMMARIZATION_TRIGGER_TOKENS,
         max_summary_tokens: int = LLM_SUMMARIZATION_SUMMARY_TOKENS,
-        checkpointer = None,
+        checkpointer: Any = None,
         tts_service: Optional[TTSService] = None,
     ) -> None:
-        """
-        Initialize agent service with checkpoint configuration.
-        
-        Args:
-            api_key: OpenAI API key (defaults to env var)
-            max_tokens: Max tokens to return to LLM after summarization (from settings)
-            max_tokens_before_summary: Token threshold for summarization (from settings)
-            max_summary_tokens: Max tokens in summary (from settings)
-            checkpointer: Optional checkpointer for testing
-            tts_service: Optional TTS service for voice capabilities
-        """
-        self.api_key = api_key or os.getenv("LLM_OPENAI_API_KEY")
-        if not self.api_key:
+        """Initialize agent service."""
+        resolved_key = api_key or os.getenv("LLM_OPENAI_API_KEY")
+        if not resolved_key:
             raise LLMAuthenticationException(
-                "OpenAI API key not provided. Set LLM_OPENAI_API_KEY environment variable.",
-                provider="openai"
+                "OpenAI API key not provided",
+                provider="openai",
             )
+        self.api_key: str = resolved_key
 
-        self.max_tokens = max_tokens
-        self.max_tokens_before_summary = max_tokens_before_summary
-        self.max_summary_tokens = max_summary_tokens
         self.tts_service = tts_service
-        
-        self._checkpointer = checkpointer
-        self._checkpointer_initialized = checkpointer is not None
-        self._postgres_pool: Optional[Any] = None
-        self._graph_cache: Dict[str, Any] = {}
-        
+        self._checkpointer_mgr = create_checkpointer_manager(checkpointer)
+        self._graph_mgr: Optional[GraphManager] = None
+        self._response_builder: Optional[ResponseBuilder] = None
+
+        self._max_tokens = max_tokens
+        self._max_tokens_before_summary = max_tokens_before_summary
+        self._max_summary_tokens = max_summary_tokens
+
         logger.info(
             "LangGraphAgentService initialized",
-            checkpointer="provided" if checkpointer else "will_initialize",
-            postgres_available=HAS_POSTGRES_CHECKPOINT,
-            tts_enabled=tts_service is not None
+            tts_enabled=tts_service is not None,
         )
-    
-    async def _ensure_checkpointer(self) -> None:
-        """
-        Initialize Postgres checkpointer on first use.
-        
-        Creates persistent connection and calls AsyncPostgresSaver.setup()
-        to create required database tables. Raises exceptions in production mode.
-        
-        Raises:
-            CheckpointerConnectionException: If connection times out
-            CheckpointerSetupException: If setup fails
-        """
-        if self._checkpointer_initialized:
-            return
-        
-        logger.info("Initializing checkpointer")
-        
-        if HAS_POSTGRES_CHECKPOINT and DATABASE_URI:
-            try:
-                db_uri = DATABASE_URI.replace('+asyncpg', '')
-                db_host = db_uri.split('@')[1] if '@' in db_uri else 'unknown'
-                logger.info("Connecting to Postgres", db_host=db_host)
-                
-                # Production-grade connection pooling
-                self._postgres_pool = AsyncConnectionPool(  # type: ignore[attr-defined]
-                    db_uri,
-                    min_size=2,
-                    max_size=10,
-                    kwargs={
-                        "autocommit": True,
-                        "prepare_threshold": 0,
-                        "row_factory": dict_row
-                    }
-                )
-                
-                self._checkpointer = AsyncPostgresSaver(self._postgres_pool)  # type: ignore[arg-type]
-                
-                logger.info("Setting up checkpoint tables")
-                await asyncio.wait_for(
-                    self._checkpointer.setup(),  # type: ignore[attr-defined]
-                    timeout=30.0
-                )
-                
-                logger.info(
-                    "AsyncPostgresSaver initialized successfully",
-                    pool_min_size=2,
-                    pool_max_size=10
-                )
-                
-            except asyncio.TimeoutError as e:
-                logger.error("Checkpoint connection timeout", error=str(e))
-                raise CheckpointerConnectionException(
-                    "Connection to PostgreSQL timed out",
-                    storage_type="postgres"
-                ) from e
-                
-            except Exception as e:
-                logger.error("Failed to initialize checkpointer", error=str(e), exc_info=True)
-                raise CheckpointerSetupException(
-                    f"Failed to setup PostgreSQL checkpointer: {e}",
-                    storage_type="postgres"
-                ) from e
-        else:
-            reason = "package not installed" if not HAS_POSTGRES_CHECKPOINT else "no DATABASE_URI"
-            logger.warning("Postgres unavailable, using MemorySaver", reason=reason)
-            self._checkpointer = MemorySaver()
-        
-        self._checkpointer_initialized = True
-        logger.info("Checkpointer ready", checkpointer_type=type(self._checkpointer).__name__)
 
-    def _get_config_signature(self, configuration: AgentConfiguration) -> str:
-        """Generate unique signature for graph caching."""
-        return f"{configuration.model_name}:{configuration.temperature}:{configuration.max_tokens}"
+    async def _ensure_initialized(self) -> None:
+        """Initialize all components on first use."""
+        await self._checkpointer_mgr.ensure_initialized()
 
-    def _resolve_thread_id(
-        self,
-        configuration: AgentConfiguration,
-        context: Optional[Dict[str, Any]],
-    ) -> str:
-        """
-        Resolve checkpoint thread_id from context.
-        
-        Priority: session_id > user_id:agent_id > default
-        """
-        if not context:
-            return "default"
-
-        session_id = context.get("session_id")
-        if session_id:
-            return f"session:{session_id}"
-
-        user_id = context.get("user_id")
-        if not user_id:
-            return "default"
-
-        agent_scope = context.get("agent_id") or configuration.model_name
-        return f"user:{user_id}:{agent_scope}"
-
-    async def _get_or_build_graph(
-        self,
-        configuration: AgentConfiguration,
-        system_prompt: str,
-        bind_tools: bool = True,
-    ):
-        """
-        Retrieve cached graph or build new one with checkpointer and optional TTS tools.
-        
-        All graphs share the same checkpointer instance for state persistence.
-        If TTS service is available and bind_tools=True, TTS tools are registered.
-        
-        Args:
-            configuration: Agent configuration
-            system_prompt: System prompt for the agent
-            bind_tools: Whether to bind TTS tools (False for streaming to avoid tool calls)
-        """
-        await self._ensure_checkpointer()
-        
-        # Include bind_tools in cache key to separate tool-bound vs non-tool graphs
-        config_sig = f"{self._get_config_signature(configuration)}:tools={bind_tools}"
-        
-        if config_sig in self._graph_cache:
-            logger.debug("Using cached graph", config_sig=config_sig)
-            return self._graph_cache[config_sig]
-        
-        logger.info("Building graph", config_sig=config_sig, tts_enabled=self.tts_service is not None and bind_tools)
-        
-        assert self.api_key is not None, "API key must be set"
-        
-        base_llm = create_langchain_model(
-            self.api_key, 
-            configuration.model_name,
-            configuration.temperature,
-            configuration.max_tokens,
-        )
-        
-        # Only register TTS tools if requested (not for streaming)
-        if bind_tools and self.tts_service:
-            from internal.infrastructure.services.langgraph.agent_tools import (
-                create_text_to_speech_tool,
-                create_list_voices_tool,
+        if not self._graph_mgr:
+            self._graph_mgr = GraphManager(
+                api_key=self.api_key,
+                checkpointer=self._checkpointer_mgr.checkpointer,
+                tts_service=self.tts_service,
+                max_tokens=self._max_tokens,
+                max_tokens_before_summary=self._max_tokens_before_summary,
+                max_summary_tokens=self._max_summary_tokens,
             )
-            
-            tts_tool = create_text_to_speech_tool(self.tts_service)
-            list_voices_tool = create_list_voices_tool(self.tts_service)
-            
-            # Bind tools to the model
-            base_llm = base_llm.bind_tools([tts_tool, list_voices_tool])
-            logger.info("TTS tools bound to agent", tools=["text_to_speech", "list_voices"])
-        
-        graph = build_conversation_graph_with_summarization(
-            base_llm,
-            system_prompt,
-            self.max_tokens,
-            self.max_tokens_before_summary,
-            self.max_summary_tokens,
-            checkpointer=self._checkpointer,
-        )
-        
-        self._graph_cache[config_sig] = graph
-        logger.info("Graph compiled and cached", config_sig=config_sig)
-        return graph
+
+        if not self._response_builder:
+            self._response_builder = create_response_builder(
+                tts_service=self.tts_service,
+                storage_type=self._checkpointer_mgr.storage_type,
+            )
 
     async def chat(
         self,
@@ -270,463 +113,197 @@ class LangGraphAgentService(LLMService):
         message: str,
         context: Optional[Dict[str, Any]] = None,
     ) -> AgentResponse:
-        """
-        Execute chat interaction with Postgres-backed persistence.
-        
-        Conversation state is loaded from and persisted to Postgres automatically.
-        Service remains stateless and can restart without data loss.
-        
-        If TTS service is available, automatically generates audio for the response.
-        """
+        """Execute chat with Postgres-backed persistence."""
+        thread_id = "unknown"
         try:
-            self._validate_api_key()
-            
-            thread_id = self._resolve_thread_id(configuration, context)
-            logger.info(
-                "Chat request",
-                thread_id=thread_id,
-                message_preview=message[:50]
+            await self._ensure_initialized()
+
+            thread_id = ThreadResolver.resolve(configuration, context)
+            logger.info("Chat request", thread_id=thread_id)
+
+            if not self._graph_mgr:
+                raise AgentExecutionException("Graph manager not initialized")
+
+            graph = await self._graph_mgr.get_or_build(configuration)
+
+            response_text, summary_used = await self._execute_chat(
+                graph, thread_id, configuration, message
             )
-            
-            system_prompt = build_system_prompt(configuration)
-            graph = await self._get_or_build_graph(configuration, system_prompt)
-            
-            is_first_message = await self._check_if_first_message(graph, thread_id)
-            messages_to_add = self._build_message_list(system_prompt, message, is_first_message, thread_id)
-            
-            response_text, summary_used = await self._execute_graph(graph, thread_id, messages_to_add)
-            
-            # Auto-generate TTS audio only if requested via context flag
-            audio_response = None
-            if self.tts_service and context and context.get("include_audio", False):
-                audio_response = await self._generate_response_audio(response_text)
-            
-            return self._build_success_response(
-                configuration, thread_id, response_text, summary_used, audio_response
+
+            audio = await self._maybe_generate_audio(context, response_text)
+
+            if not self._response_builder:
+                raise AgentExecutionException("Response builder not initialized")
+
+            return self._response_builder.build_success(
+                configuration=configuration,
+                thread_id=thread_id,
+                response_text=response_text,
+                summary_used=summary_used,
+                checkpointer_name=type(self._checkpointer_mgr.checkpointer).__name__,
+                audio_response=audio,
             )
 
         except Exception as exc:
-            logger.error(
-                "Chat error",
-                thread_id=thread_id if 'thread_id' in locals() else "unknown",
-                error=str(exc),
-                exc_info=True
+            logger.error("Chat error", thread_id=thread_id, error=str(exc))
+            if self._response_builder:
+                return self._response_builder.build_error(str(exc))
+            return AgentResponse(
+                message=f"Error: {exc}",
+                confidence=0.0,
+                status=AgentStatus.ERROR,
             )
-            return self._build_error_response(str(exc))
-    
-    def _validate_api_key(self) -> None:
-        """Validate API key is set."""
-        if not self.api_key:
-            raise LLMAuthenticationException(
-                "API key is required",
-                provider="openai"
-            )
-    
-    async def _check_if_first_message(self, graph, thread_id: str) -> bool:
-        """Check if this is the first message in conversation."""
-        from langchain_core.runnables.config import RunnableConfig
-        
-        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-        
-        try:
-            existing_state = await graph.aget_state(config)
-            existing_messages = existing_state.values.get("messages", [])
-            is_first = len(existing_messages) == 0
-            
-            self._log_conversation_state(thread_id, is_first, existing_messages)
-            return is_first
-            
-        except GraphStateException:
-            raise
-        except Exception as e:
-            logger.warning(
-                "Could not get existing state",
-                thread_id=thread_id,
-                error=str(e)
-            )
-            # Wrap in domain exception
-            raise GraphStateException(
-                f"Failed to retrieve conversation state: {str(e)}",
-                thread_id=thread_id
-            ) from e
-    
-    def _log_conversation_state(
-        self, 
-        thread_id: str, 
-        is_first_message: bool, 
-        existing_messages: list
-    ) -> None:
-        """Log conversation state for debugging."""
-        storage_type = self._get_storage_type()
-        logger.info(
-            "Thread state",
-            thread_id=thread_id,
-            first_message=is_first_message,
-            existing_messages_count=len(existing_messages),
-            checkpointer=type(self._checkpointer).__name__,
-            storage=storage_type
-        )
-        
-        if existing_messages:
-            msg_ids = [getattr(msg, 'id', 'no-id') for msg in existing_messages[:3]]
-            logger.debug("Existing message IDs", message_ids=msg_ids, count=len(existing_messages))
-    
-    def _build_message_list(
-        self, 
-        system_prompt: str, 
-        message: str, 
-        is_first_message: bool,
-        thread_id: str
-    ) -> list:
-        """Build list of messages to add to graph."""
-        from langchain_core.messages import HumanMessage, SystemMessage
-        
-        messages_to_add = []
-        
-        if is_first_message:
-            logger.info("First message in thread, adding system prompt", thread_id=thread_id)
-            messages_to_add.append(SystemMessage(content=system_prompt))
-        
-        messages_to_add.append(HumanMessage(content=message))
-        logger.debug("Adding messages to graph", message_count=len(messages_to_add))
-        
-        return messages_to_add
-    
-    async def _execute_graph(
-        self, 
-        graph, 
-        thread_id: str, 
-        messages_to_add: list
+
+    async def _execute_chat(
+        self,
+        graph: Any,
+        thread_id: str,
+        configuration: AgentConfiguration,
+        message: str,
     ) -> tuple[str, bool]:
-        """Execute LangGraph and return response."""
+        """Execute graph and return response."""
+        from langchain_core.messages import HumanMessage, SystemMessage
         from langchain_core.runnables.config import RunnableConfig
-        from typing import cast
-        
+
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-        input_update = cast(Any, {"messages": messages_to_add})
 
-        logger.info("Invoking graph", thread_id=thread_id)
-        result = await graph.ainvoke(input_update, config)
-        logger.info("Graph invocation complete", thread_id=thread_id)
+        # Check existing state
+        is_first = await self._is_first_message(graph, cast(RunnableConfig, config))
 
-        await self._log_post_invocation_state(graph, thread_id, config)
-        self._check_graph_errors(result, thread_id)
-        
-        # Extract response from result or messages
-        response_text = result.get("response", "")
-        
-        # If response is empty, check if there are tool calls in messages
-        if not response_text:
+        # Build messages
+        messages = []
+        if is_first:
+            system_prompt = build_system_prompt(configuration)
+            messages.append(SystemMessage(content=system_prompt))
+        messages.append(HumanMessage(content=message))
+
+        # Invoke graph
+        result = await graph.ainvoke({"messages": messages}, config)
+
+        # Extract response
+        response_text = self._extract_response(result)
+        summary_used = bool(result.get("context", {}).get("running_summary"))
+
+        return response_text, summary_used
+
+    async def _is_first_message(self, graph: Any, config: RunnableConfig) -> bool:
+        """Check if this is first message in thread."""
+        try:
+            state = await graph.aget_state(config)
+            return len(state.values.get("messages", [])) == 0
+        except Exception as e:
+            logger.warning("Could not get state", error=str(e))
+            configurable = config.get("configurable") or {}
+            thread_id = configurable.get("thread_id") if isinstance(configurable, dict) else None
+            raise GraphStateException(
+                f"Failed to get state: {e}",
+                thread_id=thread_id,
+            ) from e
+
+    def _extract_response(self, result: dict) -> str:
+        """Extract response text from graph result."""
+        response = result.get("response", "")
+
+        if not response:
             messages = result.get("messages", [])
             if messages:
-                last_message = messages[-1]
-                if hasattr(last_message, 'content'):
-                    response_text = last_message.content or ""
-                    
-                # Check for tool calls
-                if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                    tool_info = []
-                    for tool_call in last_message.tool_calls:
-                        tool_name = tool_call.get('name', 'unknown')
-                        tool_info.append(f"Called tool: {tool_name}")
-                    if tool_info:
-                        response_text = response_text + " " + " ".join(tool_info) if response_text else " ".join(tool_info)
-        
-        if not response_text:
-            response_text = "No response generated"
-        
-        summary_used = bool(result.get("context", {}).get("running_summary"))
-        
-        logger.info(
-            "Response generated",
-            thread_id=thread_id,
-            response_length=len(response_text),
-            summary_used=summary_used
-        )
-        
-        return response_text, summary_used
-    
-    async def _log_post_invocation_state(self, graph, thread_id: str, config) -> None:
-        """Log conversation state after invocation."""
-        try:
-            post_state = await graph.aget_state(config)
-            post_messages = post_state.values.get("messages", [])
-            logger.info(
-                "Thread post-invocation state",
-                thread_id=thread_id,
-                messages_count=len(post_messages)
-            )
-        except Exception as e:
-            logger.warning("Could not get post-invocation state", error=str(e))
-    
-    def _check_graph_errors(self, result: dict, thread_id: str) -> None:
-        """Check for graph execution errors."""
-        if result.get("error"):
-            error_msg = result["error"]
-            logger.error(
-                "Graph execution error",
-                thread_id=thread_id,
-                error=error_msg
-            )
-            raise AgentExecutionException(
-                f"LangGraph execution error: {error_msg}",
-                thread_id=thread_id
-            )
-    
-    def _get_storage_type(self) -> str:
-        """Get current storage type."""
-        if HAS_POSTGRES_CHECKPOINT and type(self._checkpointer).__name__ == 'AsyncPostgresSaver':
-            return 'postgres'
-        return 'memory'
-    
-    async def _generate_response_audio(self, text: str) -> Optional[dict]:
-        """
-        Generate TTS audio for response text.
-        
-        Returns:
-            Dictionary with AudioResponse structure or None if generation fails
-        """
-        if not self.tts_service:
-            return None
-            
-        try:
-            import base64
-            
-            # Clean text for TTS (remove tool call messages)
-            clean_text = text.replace("Called tool:", "").replace("text_to_speech", "").strip()
-            
-            if not clean_text or len(clean_text) < 3:
-                logger.debug("Skipping TTS - text too short or empty")
-                return None
-            
-            logger.info("Generating TTS audio for response", text_length=len(clean_text))
-            
-            # Use default voice from settings
-            voice_id = tts_settings.default_voice_id
-            audio_bytes = await self.tts_service.synthesize(
-                text=clean_text,
-                voice_id=voice_id,
-                model_id=tts_settings.elevenlabs_model_id,
-                stability=tts_settings.default_stability,
-                similarity_boost=tts_settings.default_similarity_boost,
-                style=tts_settings.default_style,
-                use_speaker_boost=tts_settings.default_use_speaker_boost
-            )
-            
-            # Encode to base64 for JSON transport
-            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-            
-            logger.info(
-                "TTS audio generated",
-                audio_size_kb=len(audio_bytes) / 1024,
-                base64_size_kb=len(audio_base64) / 1024
-            )
-            
-            # Return strongly-typed audio response structure
-            return {
-                "data": audio_base64,
-                "format": "mp3",
-                "encoding": "base64",
-                "size_bytes": len(audio_bytes),
-                "voice_id": voice_id,
-                "duration_ms": None  # Could calculate from audio if needed
-            }
-            
-        except Exception as e:
-            logger.error("Failed to generate response audio", error=str(e), exc_info=True)
-            return None
-    
-    def _build_success_response(
+                last_msg = messages[-1]
+                response = getattr(last_msg, 'content', '') or ""
+
+        return response or "No response generated"
+
+    async def _maybe_generate_audio(
         self,
-        configuration: AgentConfiguration,
-        thread_id: str,
-        response_text: str,
-        summary_used: bool,
-        audio_response: Optional[dict] = None
-    ) -> AgentResponse:
-        """Build successful response with strongly-typed metadata and optional audio."""
-        storage_type = self._get_storage_type()
-        
-        metadata = {
-            "model_used": configuration.model_name,
-            "tokens_used": None,  # Could track if LangChain provides callback
-            "execution_time_ms": None,  # Could track with timer
-            "tools_called": [],  # Could extract from graph state
-            "checkpointer_state": None,
-            "thread_id": thread_id,
-            "storage_type": storage_type,
-            # Legacy fields for backward compatibility
-            "model": configuration.model_name,
-            "temperature": configuration.temperature,
-            "max_tokens": configuration.max_tokens,
-            "orchestrator": "langgraph",
-            "memory": "langmem",
-            "summary_used": summary_used,
-            "checkpointer": type(self._checkpointer).__name__,
-            "storage": storage_type,
-        }
-        
-        # Include strongly-typed audio if generated
-        if audio_response:
-            metadata["audio"] = audio_response
-        
-        return AgentResponse(
-            message=response_text,
-            confidence=0.95,
-            reasoning=f"Generated by {configuration.model_name} via LangGraph",
-            metadata=metadata,
-            status=AgentStatus.COMPLETED,
-        )
-    
-    def _build_error_response(self, error_message: str) -> AgentResponse:
-        """Build error response."""
-        return AgentResponse(
-            message=f"Error: {error_message}",
-            confidence=0.0,
-            reasoning="Failed to communicate with LLM via LangGraph",
-            metadata={"error": error_message},
-            status=AgentStatus.ERROR,
-        )
-    
+        context: Optional[Dict[str, Any]],
+        text: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Generate audio if requested in context."""
+        if not context or not context.get("include_audio"):
+            return None
+        if not self._response_builder:
+            return None
+        return await self._response_builder.generate_audio(text)
+
     async def stream_chat(
         self,
         configuration: AgentConfiguration,
         message: str,
         context: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Stream chat response as text chunks are generated by LLM.
-        
-        Uses LangGraph's .astream() with stream_mode="messages" to yield
-        text chunks in real-time as the LLM generates them. This enables
-        interruption during generation via asyncio.CancelledError.
-        
-        Args:
-            configuration: Agent configuration
-            message: User message
-            context: Optional context (must include user_id for thread isolation)
-            
-        Yields:
-            str: Text chunks as generated by LLM
-            
-        Raises:
-            asyncio.CancelledError: When streaming is interrupted
-            AgentExecutionException: On LLM errors
-        """
+        """Stream chat response as text chunks."""
+        thread_id = "unknown"
+        chunk_count = 0
+
         try:
-            self._validate_api_key()
-            
-            thread_id = self._resolve_thread_id(configuration, context)
-            logger.info(
-                "Starting LLM stream",
-                thread_id=thread_id,
-                message_preview=message[:50],
-                stream_mode="messages"
-            )
-            
-            system_prompt = build_system_prompt(configuration)
-            # Don't bind tools for streaming - TTS is handled separately via WebSocket
-            graph = await self._get_or_build_graph(configuration, system_prompt, bind_tools=False)
-            
-            is_first_message = await self._check_if_first_message(graph, thread_id)
-            messages_to_add = self._build_message_list(system_prompt, message, is_first_message, thread_id)
-            
-            from langchain_core.runnables.config import RunnableConfig
-            from typing import cast
-            
-            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-            input_update = cast(Any, {"messages": messages_to_add})
-            
-            logger.info("Starting graph stream", thread_id=thread_id)
-            
-            chunk_count = 0
-            total_text = ""
-            
-            # Stream messages from LangGraph
-            # Filter to only stream AIMessage chunks from the 'llm' node
-            # This excludes summary messages from llm_input_messages (internal context)
-            async for message_chunk, metadata in graph.astream(
-                input_update, 
-                config, 
-                stream_mode="messages"
-            ):
-                # Only stream AI responses from the 'llm' node, not internal summaries
-                # metadata contains langgraph_node, langgraph_triggers, etc.
-                node_name = ""
-                if isinstance(metadata, dict):
-                    node_name = metadata.get("langgraph_node", "")
-                
-                # Skip messages from summarize node (internal summary context)
-                if node_name == "summarize":
-                    logger.debug(
-                        "Skipping summary message (internal context)",
-                        thread_id=thread_id,
-                        node=node_name
-                    )
-                    continue
-                
-                # Only stream content from AIMessage responses
-                from langchain_core.messages import AIMessageChunk
-                if not isinstance(message_chunk, AIMessageChunk):
-                    continue
-                
-                # Extract text content from message chunk
-                content = getattr(message_chunk, 'content', '')
-                
-                if content and isinstance(content, str):
-                    chunk_count += 1
-                    total_text += content
-                    
-                    logger.debug(
-                        "LLM chunk received",
-                        thread_id=thread_id,
-                        chunk_index=chunk_count,
-                        chunk_length=len(content),
-                        chunk_preview=content[:30],
-                        node=node_name,
-                        metadata=str(metadata) if metadata else None
-                    )
-                    
-                    # Yield text chunk
-                    yield content
-            
+            await self._ensure_initialized()
+
+            thread_id = ThreadResolver.resolve(configuration, context)
+            logger.info("Starting LLM stream", thread_id=thread_id)
+
+            if not self._graph_mgr:
+                raise AgentExecutionException("Graph manager not initialized")
+
+            # Don't bind tools for streaming
+            graph = await self._graph_mgr.get_or_build(configuration, bind_tools=False)
+
+            async for chunk in self._stream_graph(graph, thread_id, configuration, message):
+                chunk_count += 1
+                yield chunk
+
             logger.info(
                 "LLM stream completed",
                 thread_id=thread_id,
-                total_chunks=chunk_count,
-                total_length=len(total_text),
-                text_preview=total_text[:100]
+                chunks=chunk_count,
             )
-            
+
         except asyncio.CancelledError:
-            logger.warning(
-                "LLM stream cancelled - checkpoint auto-saved by LangGraph",
-                thread_id=thread_id if 'thread_id' in locals() else 'unknown',
-                chunks_sent=chunk_count if 'chunk_count' in locals() else 0,
-                checkpoint_preserved=True
-            )
-            # LangGraph automatically saves checkpoint state when CancelledError is raised
-            # The conversation state up to this point is preserved in Postgres
-            # Next message will resume from the current conversation state
+            logger.warning("Stream cancelled", thread_id=thread_id)
             raise
-            
         except Exception as exc:
-            logger.error(
-                "LLM stream error",
-                thread_id=thread_id if 'thread_id' in locals() else 'unknown',
-                error=str(exc),
-                exc_info=True
-            )
+            logger.error("Stream error", thread_id=thread_id, error=str(exc))
             raise AgentExecutionException(
-                f"LLM streaming failed: {str(exc)}",
-                thread_id=thread_id if 'thread_id' in locals() else 'unknown'
+                f"Streaming failed: {exc}",
+                thread_id=thread_id,
             ) from exc
-    
+
+    async def _stream_graph(
+        self,
+        graph: Any,
+        thread_id: str,
+        configuration: AgentConfiguration,
+        message: str,
+    ):
+        """Stream graph execution."""
+        from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage
+        from langchain_core.runnables.config import RunnableConfig
+
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+
+        is_first = await self._is_first_message(graph, cast(RunnableConfig, config))
+
+        messages = []
+        if is_first:
+            system_prompt = build_system_prompt(configuration)
+            messages.append(SystemMessage(content=system_prompt))
+        messages.append(HumanMessage(content=message))
+
+        async for chunk, metadata in graph.astream(
+            {"messages": messages},
+            config,
+            stream_mode="messages",
+        ):
+            # Skip summarize node output
+            if isinstance(metadata, dict):
+                if metadata.get("langgraph_node") == "summarize":
+                    continue
+
+            if not isinstance(chunk, AIMessageChunk):
+                continue
+
+            content = getattr(chunk, 'content', '')
+            if content and isinstance(content, str):
+                yield content
+
     async def cleanup(self) -> None:
-        """Cleanup resources including Postgres connection pool."""
-        if self._postgres_pool:
-            try:
-                await self._postgres_pool.close()  # type: ignore[attr-defined]
-                logger.info("AsyncPostgresSaver connection pool closed")
-            except Exception as e:
-                logger.error("Error closing connection pool", error=str(e))
+        """Cleanup resources."""
+        await self._checkpointer_mgr.cleanup()

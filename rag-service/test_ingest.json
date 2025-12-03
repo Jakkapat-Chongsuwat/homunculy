@@ -1,0 +1,5 @@
+{
+  "text": "Homunculy is an AI agent management system built with FastAPI and Clean Architecture. It supports creating and managing AI agents powered by PydanticAI and OpenAI models. The system provides REST and GraphQL APIs for agent interactions. Agents can be configured with custom system prompts, temperature settings, and model selection. The architecture follows SOLID principles with separate layers for domain, use cases, and infrastructure.",
+  "metadata": {"source": "docs", "category": "overview"},
+  "namespace": "default"
+}

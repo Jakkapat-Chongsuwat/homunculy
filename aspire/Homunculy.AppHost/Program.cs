@@ -16,7 +16,8 @@ var pineconeLocal = builder.AddContainer("pinecone-local", "ghcr.io/pinecone-io/
     .WithEnvironment("PORT", "5081")
     .WithEnvironment("INDEX_TYPE", "serverless")
     .WithEnvironment("DIMENSION", "1536")
-    .WithEnvironment("METRIC", "cosine");
+    .WithEnvironment("METRIC", "cosine")
+    .WithVolume("pinecone-local-data", "/data");
 
 // RAG Service (Python/FastAPI)
 var ragService = builder.AddContainer("rag-service", "rag-service")

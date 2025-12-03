@@ -8,6 +8,7 @@ and combining all individual service configuration modules.
 # Load environment variables from .env file BEFORE importing settings
 try:
     import dotenv
+
     dotenv.load_dotenv()
 except ImportError:
     pass  # python-dotenv not installed, rely on system environment variables
@@ -19,11 +20,18 @@ from .security import security_settings, SecuritySettings
 from .logging import logging_settings, LoggingSettings
 from .tts import tts_settings, TTSSettings
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Root settings class that combines all configuration."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     app: ApplicationSettings = app_settings
     database: DatabaseSettings = database_settings
@@ -31,12 +39,6 @@ class Settings(BaseSettings):
     security: SecuritySettings = security_settings
     logging: LoggingSettings = logging_settings
     tts: TTSSettings = tts_settings
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "ignore"  # Ignore extra env vars not defined in any settings module
 
 
 # Global settings instance

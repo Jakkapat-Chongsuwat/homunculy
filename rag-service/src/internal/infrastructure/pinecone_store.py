@@ -4,12 +4,9 @@ Pinecone Vector Store Implementation.
 Supports both Pinecone Cloud and Pinecone Local (Docker).
 """
 
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from pinecone.grpc import GRPCClientConfig, PineconeGRPC
 
 from internal.domain.entities import (
     DocumentChunk,
@@ -17,15 +14,12 @@ from internal.domain.entities import (
     QueryResponse,
     QueryResult,
 )
-from internal.domain.services import (
-    VectorStoreService,
-)
-from settings import (
-    pinecone_settings,
-)
-from settings.logging import (
-    get_logger,
-)
+from internal.domain.services import VectorStoreService
+from settings import pinecone_settings
+from settings.logging import get_logger
+
+if TYPE_CHECKING:
+    from pinecone.grpc import GRPCIndex
 
 logger = get_logger(__name__)
 
@@ -43,18 +37,25 @@ class PineconeVectorStore(VectorStoreService):
         self,
     ) -> None:
         """Initialize Pinecone client."""
-        self._index = None
+        self._index: Optional["GRPCIndex"] = None
         self._initialize_client()
 
-    def _initialize_client(
-        self,
-    ) -> None:
-        """Initialize Pinecone client based on environment."""
-        from pinecone.grpc import (
-            GRPCClientConfig,
-            PineconeGRPC,
-        )
+    def _get_index(self) -> "GRPCIndex":
+        """
+        Get the Pinecone index, raising if not initialized.
 
+        Returns:
+            The initialized GRPCIndex.
+
+        Raises:
+            RuntimeError: If the index is not initialized.
+        """
+        if self._index is None:
+            raise RuntimeError("Pinecone index not initialized")
+        return self._index
+
+    def _initialize_client(self) -> None:
+        """Initialize Pinecone client based on environment."""
         if pinecone_settings.is_local:
             logger.info(
                 "Connecting to Pinecone Local",
@@ -107,13 +108,14 @@ class PineconeVectorStore(VectorStoreService):
         batch_size = 100
         total_upserted = 0
 
+        index = self._get_index()
         for i in range(
             0,
             len(vectors),
             batch_size,
         ):
             batch = vectors[i : i + batch_size]
-            self._index.upsert(
+            index.upsert(
                 vectors=batch,
                 namespace=namespace,
             )
@@ -153,7 +155,8 @@ class PineconeVectorStore(VectorStoreService):
             has_filter=request.filter is not None,
         )
 
-        query_response = self._index.query(
+        index = self._get_index()
+        query_response = index.query(
             vector=embedding,
             top_k=request.top_k,
             namespace=request.namespace,
@@ -164,26 +167,24 @@ class PineconeVectorStore(VectorStoreService):
 
         # Convert matches to QueryResult
         results = []
-        for match in query_response.get(
-            "matches",
-            [],
-        ):
-            # Apply similarity threshold
-            score = match.get(
-                "score",
-                0.0,
+        matches = getattr(query_response, "matches", []) or []
+        for match in matches:
+            # Pinecone GRPC returns protobuf objects - access score directly
+            score = match.score if hasattr(match, "score") else 0.0
+            logger.info(
+                "Match found",
+                match_id=match.id if hasattr(match, "id") else "unknown",
+                score=score,
+                threshold=request.similarity_threshold,
+                has_score_attr=hasattr(match, "score"),
+                match_type=type(match).__name__,
             )
             if score >= request.similarity_threshold:
                 results.append(QueryResult.from_pinecone_match(match))
 
         logger.info(
             "Query complete",
-            total_matches=len(
-                query_response.get(
-                    "matches",
-                    [],
-                )
-            ),
+            total_matches=len(matches),
             filtered_results=len(results),
         )
 
@@ -197,12 +198,7 @@ class PineconeVectorStore(VectorStoreService):
     async def delete(
         self,
         ids: Optional[List[str]] = None,
-        metadata_filter: Optional[
-            Dict[
-                str,
-                Any,
-            ]
-        ] = None,
+        metadata_filter: Optional[Dict[str, Any]] = None,
         namespace: str = "default",
         delete_all: bool = False,
     ) -> int:
@@ -225,20 +221,21 @@ class PineconeVectorStore(VectorStoreService):
             id_count=(len(ids) if ids else 0),
         )
 
+        index = self._get_index()
         if delete_all:
-            self._index.delete(
+            index.delete(
                 delete_all=True,
                 namespace=namespace,
             )
             return -1  # Unknown count for delete_all
         elif ids:
-            self._index.delete(
+            index.delete(
                 ids=ids,
                 namespace=namespace,
             )
             return len(ids)
         elif metadata_filter:
-            self._index.delete(
+            index.delete(
                 filter=metadata_filter,
                 namespace=namespace,
             )
@@ -246,30 +243,26 @@ class PineconeVectorStore(VectorStoreService):
 
         return 0
 
-    async def get_index_stats(
-        self,
-    ) -> Dict[str, Any,]:
+    async def get_index_stats(self) -> Dict[str, Any]:
         """
         Get Pinecone index statistics.
 
         Returns:
             Dict with index stats
         """
-        stats = self._index.describe_index_stats()
+        index = self._get_index()
+        stats = index.describe_index_stats()
+
+        # Handle both dict and object response formats
+        dimension = getattr(stats, "dimension", None)
+        total_vector_count = getattr(stats, "total_vector_count", 0)
+        namespaces = getattr(stats, "namespaces", {})
+        index_fullness = getattr(stats, "index_fullness", 0)
 
         return {
             "index_name": pinecone_settings.index_name,
-            "dimension": stats.get("dimension"),
-            "total_vector_count": stats.get(
-                "total_vector_count",
-                0,
-            ),
-            "namespaces": stats.get(
-                "namespaces",
-                {},
-            ),
-            "index_fullness": stats.get(
-                "index_fullness",
-                0,
-            ),
+            "dimension": dimension,
+            "total_vector_count": total_vector_count,
+            "namespaces": namespaces if isinstance(namespaces, dict) else {},
+            "index_fullness": index_fullness,
         }

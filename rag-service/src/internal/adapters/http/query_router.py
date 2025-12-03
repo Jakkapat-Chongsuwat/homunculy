@@ -143,7 +143,7 @@ async def query_documents(
     response = await usecase.retrieve(
         query=request.query,
         top_k=request.top_k,
-        filter=request.filter,
+        metadata_filter=request.filter,
         namespace=request.namespace,
         similarity_threshold=request.similarity_threshold,
     )
@@ -194,7 +194,7 @@ async def get_context(
     response = await usecase.retrieve(
         query=request.query,
         top_k=request.top_k,
-        filter=request.filter,
+        metadata_filter=request.filter,
         namespace=request.namespace,
     )
 

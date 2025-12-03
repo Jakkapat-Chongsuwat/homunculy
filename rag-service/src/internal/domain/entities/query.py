@@ -66,28 +66,31 @@ class QueryResult:
     @classmethod
     def from_pinecone_match(
         cls,
-        match: Dict[
-            str,
-            Any,
-        ],
+        match: Any,
     ) -> "QueryResult":
-        """Create from Pinecone match result."""
-        metadata = match.get(
-            "metadata",
-            {},
-        )
-        return cls(
-            id=match["id"],
-            text=metadata.get(
-                "text",
-                "",
-            ),
-            score=match.get(
-                "score",
-                0.0,
-            ),
-            metadata=metadata,
-        )
+        """Create from Pinecone match result (supports both dict and object)."""
+        # Handle both dict and object formats (REST vs GRPC client)
+        if isinstance(match, dict):
+            metadata = match.get("metadata", {})
+            return cls(
+                id=match["id"],
+                text=metadata.get("text", ""),
+                score=match.get("score", 0.0),
+                metadata=metadata,
+            )
+        else:
+            # GRPC protobuf object format - access attributes directly
+            match_id = match.id if hasattr(match, "id") else ""
+            score = match.score if hasattr(match, "score") else 0.0
+            # metadata is a dict-like object in protobuf
+            raw_metadata = match.metadata if hasattr(match, "metadata") else {}
+            metadata = dict(raw_metadata) if raw_metadata else {}
+            return cls(
+                id=match_id,
+                text=metadata.get("text", ""),
+                score=score,
+                metadata=metadata,
+            )
 
 
 @dataclass
@@ -109,7 +112,10 @@ class QueryResponse:
 
     def to_dict(
         self,
-    ) -> Dict[str, Any,]:
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Convert to dictionary for API response."""
         return {
             "results": [

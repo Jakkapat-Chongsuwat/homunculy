@@ -97,10 +97,14 @@ class RetrieveUseCase:
         # Build query request
         request = QueryRequest(
             query=query,
-            top_k=top_k or rag_settings.top_k,
+            top_k=top_k if top_k is not None else rag_settings.top_k,
             filter=metadata_filter,
             namespace=namespace,
-            similarity_threshold=similarity_threshold or rag_settings.similarity_threshold,
+            similarity_threshold=(
+                similarity_threshold
+                if similarity_threshold is not None
+                else rag_settings.similarity_threshold
+            ),
         )
 
         # Search vector store

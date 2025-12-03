@@ -1,0 +1,6 @@
+{
+  "query": "What is Homunculy and what architecture does it use?",
+  "top_k": 5,
+  "namespace": "default",
+  "similarity_threshold": 0.0
+}

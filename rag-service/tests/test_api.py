@@ -3,10 +3,14 @@ Test RAG API endpoints.
 """
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
+from src.main import app
 
 # Note: These tests require Pinecone Local running
-# Start with: docker run -d --name pinecone-local -e PORT=5081 -e INDEX_TYPE=serverless -e DIMENSION=1536 -e METRIC=cosine -p 5081:5081 ghcr.io/pinecone-io/pinecone-index:latest
+# Start with:
+#   docker run -d --name pinecone-local -e PORT=5081 -e INDEX_TYPE=serverless \
+#     -e DIMENSION=1536 -e METRIC=cosine -p 5081:5081 ghcr.io/pinecone-io/pinecone-index:latest
 
 
 @pytest.fixture
@@ -33,9 +37,8 @@ class TestHealthEndpoint:
     @pytest.mark.asyncio
     async def test_health_returns_healthy(self):
         """Health endpoint should return healthy status."""
-        from src.main import app
-
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/health")
 
         assert response.status_code == 200
@@ -49,9 +52,8 @@ class TestRootEndpoint:
     @pytest.mark.asyncio
     async def test_root_returns_service_info(self):
         """Root endpoint should return service information."""
-        from src.main import app
-
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/")
 
         assert response.status_code == 200
