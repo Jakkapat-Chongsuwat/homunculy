@@ -5,12 +5,13 @@ Provides infrastructure-level dependencies (database sessions, repositories, UoW
 Only contains providers that depend on concrete infrastructure implementations.
 """
 
+import os
 from typing import AsyncGenerator, Optional
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from internal.domain.repositories import UnitOfWork
-from internal.domain.services import LLMService, TTSService
+from internal.domain.services import LLMService, TTSService, RAGService
 from internal.infrastructure.persistence.sqlalchemy.database import (
     async_session_factory,
 )
@@ -20,6 +21,7 @@ from internal.infrastructure.persistence.sqlalchemy.repositories import (
 from internal.domain.entities.agent import AgentProvider
 from internal.infrastructure.services.langgraph import LangGraphAgentService
 from internal.infrastructure.services.tts import ElevenLabsTTSService
+from internal.infrastructure.services.rag import HTTPRAGService
 from internal.usecases.streaming import StreamChatUseCaseImpl
 from settings import settings
 
@@ -59,22 +61,23 @@ def get_llm_service(provider: AgentProvider = AgentProvider.LANGRAPH) -> LLMServ
     conversation state across requests. Each request gets the same checkpointer
     instance via shared database connection.
 
-    Automatically injects TTS service if available, enabling TTS tools for agents.
+    Automatically injects TTS and RAG services if available.
 
     Args:
         provider: The AI provider to use (only LangGraph supported now)
 
     Returns:
-        LLMService instance with persistent PostgreSQL memory and optional TTS tools
+        LLMService instance with persistent PostgreSQL memory and optional tools
 
     Raises:
         ValueError: If provider is not supported
     """
-    # Get TTS service (may be None if not configured)
+    # Get optional services (may be None if not configured)
     tts_service = get_tts_service()
+    rag_service = get_rag_service()
 
     # Return new service instance (stateless - checkpointer handles persistence)
-    return LangGraphAgentService(tts_service=tts_service)
+    return LangGraphAgentService(tts_service=tts_service, rag_service=rag_service)
 
 
 def get_tts_service() -> Optional[TTSService]:
@@ -87,15 +90,31 @@ def get_tts_service() -> Optional[TTSService]:
     Returns:
         TTSService instance or None if not configured
     """
-    # Try to get ElevenLabs API key from .env
-    import os
-
     elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
 
     if elevenlabs_api_key:
         return ElevenLabsTTSService(api_key=elevenlabs_api_key)
     else:
         # TTS not configured - tools won't be available
+        return None
+
+
+def get_rag_service() -> Optional[RAGService]:
+    """
+    Get RAG Service dependency (Factory Pattern).
+
+    Creates HTTP RAG service if RAG_SERVICE_URL is configured.
+    If not configured, returns None (RAG tools won't be available).
+
+    Returns:
+        RAGService instance or None if not configured
+    """
+    rag_service_url = os.getenv('RAG_SERVICE_URL')
+
+    if rag_service_url:
+        return HTTPRAGService(base_url=rag_service_url)
+    else:
+        # RAG not configured - tools won't be available
         return None
 
 

@@ -3,18 +3,18 @@ LangGraph Service Implementation.
 
 Modular components following Clean Architecture:
 - agent_service: Main LLM service
-- checkpointer_manager: Checkpoint lifecycle
-- graph_manager: Graph caching and building
-- response_builder: Response construction
-- background_summarizer: Async summarization
+- checkpointer/: Checkpoint lifecycle management
+- graph/: Graph caching and building
+- response/: Response construction
+- summarizer/: Async summarization
 - rag/: Self-reflective RAG with dependency injection
+- agent_tools/: LangChain tools for agents
 """
 
 from .agent_service import LangGraphAgentService
-from .background_summarizer import BackgroundSummarizer, create_background_summarizer
-from .checkpointer_manager import CheckpointerManager, create_checkpointer_manager
+from .checkpointer import CheckpointerManager, create_checkpointer_manager
 from .exceptions import CheckpointerConnectionException, CheckpointerSetupException
-from .graph_manager import GraphManager, ThreadResolver, create_graph_manager
+from .graph import GraphManager, ThreadResolver, create_graph_manager
 from .rag import (
     RAGState,
     SelfReflectiveRAGGraph,
@@ -24,7 +24,8 @@ from .rag import (
     OpenAIAnswerGrader,
     create_rag_graph,
 )
-from .response_builder import ResponseBuilder, create_response_builder
+from .response import ResponseBuilder, create_response_builder
+from .summarizer import BackgroundSummarizer, create_background_summarizer
 
 __all__ = [
     "LangGraphAgentService",

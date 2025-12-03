@@ -17,8 +17,8 @@ from langchain_core.runnables.config import RunnableConfig
 from common.logger import get_logger
 from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
 from internal.domain.exceptions import AgentExecutionException
-from internal.domain.services import LLMService, TTSService
-from internal.infrastructure.services.langgraph.checkpointer_manager import (
+from internal.domain.services import LLMService, TTSService, RAGService
+from internal.infrastructure.services.langgraph.checkpointer import (
     CheckpointerManager,
     create_checkpointer_manager,
 )
@@ -27,11 +27,11 @@ from internal.infrastructure.services.langgraph.exceptions import (
     LLMAuthenticationException,
 )
 from internal.infrastructure.services.langgraph.graph_building import build_system_prompt
-from internal.infrastructure.services.langgraph.graph_manager import (
+from internal.infrastructure.services.langgraph.graph import (
     GraphManager,
     ThreadResolver,
 )
-from internal.infrastructure.services.langgraph.response_builder import (
+from internal.infrastructure.services.langgraph.response import (
     ResponseBuilder,
     create_response_builder,
 )
@@ -63,6 +63,7 @@ class LangGraphAgentService(LLMService):
         max_summary_tokens: int = LLM_SUMMARIZATION_SUMMARY_TOKENS,
         checkpointer: Any = None,
         tts_service: Optional[TTSService] = None,
+        rag_service: Optional[RAGService] = None,
     ) -> None:
         """Initialize agent service."""
         resolved_key = api_key or os.getenv("LLM_OPENAI_API_KEY")
@@ -74,6 +75,7 @@ class LangGraphAgentService(LLMService):
         self.api_key: str = resolved_key
 
         self.tts_service = tts_service
+        self.rag_service = rag_service
         self._checkpointer_mgr = create_checkpointer_manager(checkpointer)
         self._graph_mgr: Optional[GraphManager] = None
         self._response_builder: Optional[ResponseBuilder] = None
@@ -85,6 +87,7 @@ class LangGraphAgentService(LLMService):
         logger.info(
             "LangGraphAgentService initialized",
             tts_enabled=tts_service is not None,
+            rag_enabled=rag_service is not None,
         )
 
     async def _ensure_initialized(self) -> None:
@@ -96,6 +99,7 @@ class LangGraphAgentService(LLMService):
                 api_key=self.api_key,
                 checkpointer=self._checkpointer_mgr.checkpointer,
                 tts_service=self.tts_service,
+                rag_service=self.rag_service,
                 max_tokens=self._max_tokens,
                 max_tokens_before_summary=self._max_tokens_before_summary,
                 max_summary_tokens=self._max_summary_tokens,

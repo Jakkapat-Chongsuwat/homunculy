@@ -1,6 +1,7 @@
 """Unit tests for Document entity."""
 
 import pytest
+
 from internal.domain.entities.document import Document
 
 

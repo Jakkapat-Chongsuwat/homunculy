@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import httpx
 
 from internal.infrastructure.services.rag.http_rag_service import HTTPRAGService
 

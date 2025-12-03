@@ -9,6 +9,7 @@ from .service_providers import (
     get_uow,
     get_llm_service,
     get_tts_service,
+    get_rag_service,
     get_stream_chat_usecase,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "get_uow",
     "get_llm_service",
     "get_tts_service",
+    "get_rag_service",
     "get_stream_chat_usecase",
 ]

@@ -17,29 +17,17 @@ logger = get_logger(__name__)
 
 
 class ResponseBuilder:
-    """
-    Builds AgentResponse instances with optional TTS audio.
-
-    Handles success and error responses with consistent metadata.
-    """
+    """Builds AgentResponse instances with optional TTS audio."""
 
     def __init__(
         self,
         tts_service: Optional[TTSService] = None,
         storage_type: str = "memory",
     ) -> None:
-        """
-        Initialize response builder.
-
-        Args:
-            tts_service: Optional TTS service for audio generation
-            storage_type: Current checkpointer storage type
-        """
         self._tts = tts_service
         self._storage_type = storage_type
 
     def update_storage_type(self, storage_type: str) -> None:
-        """Update storage type for metadata."""
         self._storage_type = storage_type
 
     def build_success(
@@ -55,7 +43,6 @@ class ResponseBuilder:
         metadata = self._build_metadata(
             configuration, thread_id, summary_used, checkpointer_name, audio_response
         )
-
         return AgentResponse(
             message=response_text,
             confidence=0.95,
@@ -82,28 +69,18 @@ class ResponseBuilder:
         checkpointer_name: str,
         audio_response: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Build response metadata."""
         metadata = {
             "model_used": configuration.model_name,
-            "tokens_used": None,
-            "execution_time_ms": None,
-            "tools_called": [],
-            "checkpointer_state": None,
             "thread_id": thread_id,
             "storage_type": self._storage_type,
-            "model": configuration.model_name,
             "temperature": configuration.temperature,
             "max_tokens": configuration.max_tokens,
             "orchestrator": "langgraph",
-            "memory": "langmem",
             "summary_used": summary_used,
             "checkpointer": checkpointer_name,
-            "storage": self._storage_type,
         }
-
         if audio_response:
             metadata["audio"] = audio_response
-
         return metadata
 
     async def generate_audio(self, text: str) -> Optional[Dict[str, Any]]:
@@ -113,7 +90,6 @@ class ResponseBuilder:
 
         clean_text = self._clean_text_for_tts(text)
         if not clean_text or len(clean_text) < 3:
-            logger.debug("Skipping TTS - text too short")
             return None
 
         try:
@@ -123,17 +99,15 @@ class ResponseBuilder:
             return None
 
     def _clean_text_for_tts(self, text: str) -> str:
-        """Clean text for TTS synthesis."""
         return text.replace("Called tool:", "").replace("text_to_speech", "").strip()
 
     async def _synthesize_audio(self, text: str) -> Dict[str, Any]:
-        """Synthesize audio and return response dict."""
         if not self._tts:
             raise ValueError("TTS service not configured")
 
         logger.info("Generating TTS audio", text_length=len(text))
-
         voice_id = tts_settings.default_voice_id
+
         audio_bytes = await self._tts.synthesize(
             text=text,
             voice_id=voice_id,
@@ -144,20 +118,12 @@ class ResponseBuilder:
             use_speaker_boost=tts_settings.default_use_speaker_boost,
         )
 
-        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-
-        logger.info(
-            "TTS audio generated",
-            size_kb=len(audio_bytes) / 1024,
-        )
-
         return {
-            "data": audio_base64,
+            "data": base64.b64encode(audio_bytes).decode('utf-8'),
             "format": "mp3",
             "encoding": "base64",
             "size_bytes": len(audio_bytes),
             "voice_id": voice_id,
-            "duration_ms": None,
         }
 
 
@@ -166,7 +132,4 @@ def create_response_builder(
     storage_type: str = "memory",
 ) -> ResponseBuilder:
     """Factory function for ResponseBuilder."""
-    return ResponseBuilder(
-        tts_service=tts_service,
-        storage_type=storage_type,
-    )
+    return ResponseBuilder(tts_service=tts_service, storage_type=storage_type)

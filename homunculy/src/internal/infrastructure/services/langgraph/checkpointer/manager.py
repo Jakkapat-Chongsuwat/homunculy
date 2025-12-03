@@ -5,7 +5,6 @@ Handles PostgreSQL and in-memory checkpoint initialization.
 """
 
 import asyncio
-import os
 from typing import Any, Optional
 
 from common.logger import get_logger
@@ -33,44 +32,27 @@ except ImportError:
 
 
 class CheckpointerManager:
-    """
-    Manages LangGraph checkpointer initialization and lifecycle.
-
-    Supports:
-    - PostgreSQL (production) via AsyncPostgresSaver
-    - In-memory (development/testing) via MemorySaver
-    """
+    """Manages LangGraph checkpointer initialization and lifecycle."""
 
     def __init__(self, checkpointer: Optional[Any] = None) -> None:
-        """
-        Initialize checkpointer manager.
-
-        Args:
-            checkpointer: Pre-configured checkpointer (for testing)
-        """
         self._checkpointer = checkpointer
         self._initialized = checkpointer is not None
         self._postgres_pool: Optional[Any] = None
 
     @property
     def checkpointer(self) -> Any:
-        """Get current checkpointer instance."""
         return self._checkpointer
 
     @property
     def is_initialized(self) -> bool:
-        """Check if checkpointer is ready."""
         return self._initialized
 
     @property
     def storage_type(self) -> str:
-        """Get current storage type."""
         if not self._checkpointer:
             return "none"
         name = type(self._checkpointer).__name__
-        if name == "AsyncPostgresSaver":
-            return "postgres"
-        return "memory"
+        return "postgres" if name == "AsyncPostgresSaver" else "memory"
 
     async def ensure_initialized(self) -> None:
         """Initialize checkpointer on first use."""
@@ -85,58 +67,40 @@ class CheckpointerManager:
             self._init_memory()
 
         self._initialized = True
-        logger.info(
-            "Checkpointer ready",
-            type=type(self._checkpointer).__name__,
-        )
+        logger.info("Checkpointer ready", type=type(self._checkpointer).__name__)
 
     def _should_use_postgres(self) -> bool:
-        """Check if PostgreSQL should be used."""
         return HAS_POSTGRES_CHECKPOINT and bool(DATABASE_URI)
 
     async def _init_postgres(self) -> None:
         """Initialize PostgreSQL checkpointer."""
-        if not HAS_POSTGRES_CHECKPOINT or AsyncPostgresSaver is None or AsyncConnectionPool is None:
+        if not HAS_POSTGRES_CHECKPOINT or not AsyncPostgresSaver or not AsyncConnectionPool:
             raise CheckpointerSetupException(
                 "PostgreSQL checkpointer package not installed",
                 storage_type="postgres",
             )
 
         db_uri = DATABASE_URI.replace('+asyncpg', '')
-        db_host = self._extract_host(db_uri)
-
-        logger.info("Connecting to Postgres", db_host=db_host)
+        logger.info("Connecting to Postgres", db_host=self._extract_host(db_uri))
 
         try:
             self._postgres_pool = AsyncConnectionPool(
                 db_uri,
                 min_size=2,
                 max_size=10,
-                kwargs={
-                    "autocommit": True,
-                    "prepare_threshold": 0,
-                    "row_factory": dict_row,
-                },
+                kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
             )
-
             self._checkpointer = AsyncPostgresSaver(self._postgres_pool)
-
-            await asyncio.wait_for(
-                self._checkpointer.setup(),
-                timeout=30.0,
-            )
-
+            await asyncio.wait_for(self._checkpointer.setup(), timeout=30.0)
             logger.info("PostgreSQL checkpointer initialized")
 
         except asyncio.TimeoutError as e:
             raise CheckpointerConnectionException(
-                "PostgreSQL connection timed out",
-                storage_type="postgres",
+                "PostgreSQL connection timed out", storage_type="postgres"
             ) from e
         except Exception as e:
             raise CheckpointerSetupException(
-                f"PostgreSQL setup failed: {e}",
-                storage_type="postgres",
+                f"PostgreSQL setup failed: {e}", storage_type="postgres"
             ) from e
 
     def _init_memory(self) -> None:
@@ -145,14 +109,10 @@ class CheckpointerManager:
 
         reason = "package not installed" if not HAS_POSTGRES_CHECKPOINT else "no DATABASE_URI"
         logger.warning("Using MemorySaver", reason=reason)
-
         self._checkpointer = MemorySaver()
 
     def _extract_host(self, db_uri: str) -> str:
-        """Extract host from database URI."""
-        if '@' in db_uri:
-            return db_uri.split('@')[1].split('/')[0]
-        return "unknown"
+        return db_uri.split('@')[1].split('/')[0] if '@' in db_uri else "unknown"
 
     async def cleanup(self) -> None:
         """Release checkpointer resources."""
@@ -164,8 +124,6 @@ class CheckpointerManager:
                 logger.error("Pool close error", error=str(e))
 
 
-def create_checkpointer_manager(
-    checkpointer: Optional[Any] = None,
-) -> CheckpointerManager:
+def create_checkpointer_manager(checkpointer: Optional[Any] = None) -> CheckpointerManager:
     """Factory function for CheckpointerManager."""
     return CheckpointerManager(checkpointer=checkpointer)

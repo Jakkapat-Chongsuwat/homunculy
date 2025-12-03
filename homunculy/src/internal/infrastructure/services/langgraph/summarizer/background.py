@@ -9,6 +9,7 @@ import asyncio
 from typing import Any, Dict, Optional, Sequence
 
 from langchain_core.messages import BaseMessage, SystemMessage
+
 from common.logger import get_logger
 
 
@@ -108,7 +109,7 @@ class BackgroundSummarizer:
 
             prompt = self._build_summary_prompt(messages, existing_summary)
             result = await self._model.ainvoke([SystemMessage(content=prompt)])
-            summary = result.content if hasattr(result, 'content') else str(result)
+            summary = result.content if hasattr(result, "content") else str(result)
 
             logger.info(
                 "Background summarization complete",
@@ -156,8 +157,8 @@ class BackgroundSummarizer:
         """Format messages for summary prompt."""
         lines = []
         for msg in messages[-10:]:  # Last 10 messages for context
-            role = getattr(msg, 'type', 'unknown')
-            content = getattr(msg, 'content', str(msg))
+            role = getattr(msg, "type", "unknown")
+            content = getattr(msg, "content", str(msg))
             lines.append(f"{role}: {content[:200]}")
         return "\n".join(lines)
 

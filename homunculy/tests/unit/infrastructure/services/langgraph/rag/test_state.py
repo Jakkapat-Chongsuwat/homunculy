@@ -1,6 +1,7 @@
 """Unit tests for RAG state module."""
 
 import pytest
+
 from internal.infrastructure.services.langgraph.rag.state import (
     RAGState,
     create_initial_state,
