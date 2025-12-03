@@ -247,8 +247,8 @@ class LangGraphAgentService(LLMService):
             if not self._graph_mgr:
                 raise AgentExecutionException("Graph manager not initialized")
 
-            # Don't bind tools for streaming
-            graph = await self._graph_mgr.get_or_build(configuration, bind_tools=False)
+            # Enable tools for streaming to allow RAG and TTS tools
+            graph = await self._graph_mgr.get_or_build(configuration, bind_tools=True)
 
             async for chunk in self._stream_graph(graph, thread_id, configuration, message):
                 chunk_count += 1
@@ -277,8 +277,13 @@ class LangGraphAgentService(LLMService):
         configuration: AgentConfiguration,
         message: str,
     ):
-        """Stream graph execution."""
-        from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage
+        """Stream graph execution with tool support.
+
+        When tools are enabled, we use ainvoke to let the graph fully execute
+        (including any tool calls), then stream the final response character by character.
+        This ensures RAG and other tools work correctly while still providing streaming output.
+        """
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
         from langchain_core.runnables.config import RunnableConfig
 
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -291,22 +296,29 @@ class LangGraphAgentService(LLMService):
             messages.append(SystemMessage(content=system_prompt))
         messages.append(HumanMessage(content=message))
 
-        async for chunk, metadata in graph.astream(
-            {"messages": messages},
-            config,
-            stream_mode="messages",
-        ):
-            # Skip summarize node output
-            if isinstance(metadata, dict):
-                if metadata.get("langgraph_node") == "summarize":
-                    continue
+        # Use ainvoke to allow full tool execution, then stream the result
+        result = await graph.ainvoke({"messages": messages}, config)
 
-            if not isinstance(chunk, AIMessageChunk):
-                continue
+        # Extract final response from messages
+        response_text = ""
+        result_messages = result.get("messages", [])
+        if result_messages:
+            # Find the last AI message (not a tool message)
+            for msg in reversed(result_messages):
+                if isinstance(msg, AIMessage) and not getattr(msg, 'tool_calls', None):
+                    response_text = getattr(msg, 'content', '') or ""
+                    break
 
-            content = getattr(chunk, 'content', '')
-            if content and isinstance(content, str):
-                yield content
+        if not response_text:
+            response_text = result.get("response", "No response generated")
+
+        # Stream the response character by character for smooth output
+        # Use small chunks for natural streaming feel
+        chunk_size = 10
+        for i in range(0, len(response_text), chunk_size):
+            chunk = response_text[i : i + chunk_size]
+            yield chunk
+            await asyncio.sleep(0.01)  # Small delay for streaming effect
 
     async def cleanup(self) -> None:
         """Cleanup resources."""

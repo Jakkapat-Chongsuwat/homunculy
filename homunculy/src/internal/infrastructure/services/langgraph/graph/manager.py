@@ -146,12 +146,10 @@ class GraphManager:
         if self._tts_service:
             from internal.infrastructure.services.langgraph.agent_tools import (
                 create_list_voices_tool,
-                create_text_to_speech_tool,
             )
 
-            tools.append(create_text_to_speech_tool(self._tts_service))
             tools.append(create_list_voices_tool(self._tts_service))
-            logger.info("TTS tools added", tools=["text_to_speech", "list_voices"])
+            logger.info("TTS tools added", tools=["list_voices"])
 
         # Add RAG tool if available
         if self._rag_service:
