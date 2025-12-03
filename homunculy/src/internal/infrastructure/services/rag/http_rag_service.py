@@ -15,8 +15,8 @@ class HTTPRAGService(RAGService):
         timeout: float = 30.0,
     ) -> None:
         """Initialize HTTP RAG client."""
-        self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
 
     async def retrieve(
         self,
@@ -25,26 +25,26 @@ class HTTPRAGService(RAGService):
         namespace: str = "default",
     ) -> List[Dict[str, Any]]:
         """Retrieve documents via HTTP."""
-        url = f"{self._base_url}/api/v1/query"
+        url = f"{self.base_url}/api/v1/query"
         payload = {
             "query": query,
             "top_k": top_k,
             "namespace": namespace,
         }
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(url, json=payload)
             response.raise_for_status()
             data = response.json()
 
-        return self._parse_results(data)
+        return self.parse_results(data)
 
     async def search_web(self, query: str) -> List[Dict[str, Any]]:
         """Web search fallback (placeholder)."""
         # TODO: Implement actual web search via Tavily or similar
         return []
 
-    def _parse_results(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def parse_results(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Parse API response to documents."""
         results = data.get("results", [])
         return [

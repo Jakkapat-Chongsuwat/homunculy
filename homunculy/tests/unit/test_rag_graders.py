@@ -1,191 +1,157 @@
 """Unit tests for RAG graders."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-from internal.infrastructure.services.langgraph.rag.graders import (
-    DocumentGrader,
-    HallucinationGrader,
-    AnswerGrader,
-    GradeDocuments,
-    GradeHallucinations,
-    GradeAnswer,
+from internal.domain.services import LLMClient
+from internal.infrastructure.services.langgraph.rag.schemas import (
+    GradeDocumentsSchema,
+    GradeHallucinationsSchema,
+    GradeAnswerSchema,
+)
+from internal.infrastructure.services.langgraph.rag.document_grader import (
+    OpenAIDocumentGrader,
+)
+from internal.infrastructure.services.langgraph.rag.hallucination_grader import (
+    OpenAIHallucinationGrader,
+)
+from internal.infrastructure.services.langgraph.rag.answer_grader import (
+    OpenAIAnswerGrader,
 )
 
 
-class TestGradeDocuments:
-    """Tests for GradeDocuments Pydantic model."""
+class TestGradeSchemas:
+    """Tests for grading schema models."""
 
-    def test_valid_yes_score(self) -> None:
-        """Should accept 'yes' score."""
-        grade = GradeDocuments(binary_score="yes")
+    def test_grade_documents_schema(self) -> None:
+        """Should create valid document grade."""
+        grade = GradeDocumentsSchema(binary_score="yes")
         assert grade.binary_score == "yes"
 
-    def test_valid_no_score(self) -> None:
-        """Should accept 'no' score."""
-        grade = GradeDocuments(binary_score="no")
+    def test_grade_hallucinations_schema(self) -> None:
+        """Should create valid hallucination grade."""
+        grade = GradeHallucinationsSchema(binary_score="no")
         assert grade.binary_score == "no"
 
-
-class TestGradeHallucinations:
-    """Tests for GradeHallucinations Pydantic model."""
-
-    def test_valid_yes_score(self) -> None:
-        """Should accept 'yes' for grounded."""
-        grade = GradeHallucinations(binary_score="yes")
+    def test_grade_answer_schema(self) -> None:
+        """Should create valid answer grade."""
+        grade = GradeAnswerSchema(binary_score="yes")
         assert grade.binary_score == "yes"
 
 
-class TestGradeAnswer:
-    """Tests for GradeAnswer Pydantic model."""
-
-    def test_valid_no_score(self) -> None:
-        """Should accept 'no' for not useful."""
-        grade = GradeAnswer(binary_score="no")
-        assert grade.binary_score == "no"
-
-
-class TestDocumentGrader:
-    """Tests for DocumentGrader."""
+class TestOpenAIDocumentGrader:
+    """Tests for OpenAIDocumentGrader."""
 
     @pytest.fixture
-    def mock_grader(self) -> DocumentGrader:
-        """Create grader with mocked LLM."""
-        with patch("internal.infrastructure.services.langgraph.rag.graders.ChatOpenAI") as mock_llm:
-            mock_instance = MagicMock()
-            mock_llm.return_value = mock_instance
-            grader = DocumentGrader(model="gpt-4o-mini")
-            return grader
+    def mock_client(self) -> AsyncMock:
+        """Create mock LLM client."""
+        return AsyncMock(spec=LLMClient)
+
+    @pytest.fixture
+    def grader(self, mock_client: AsyncMock) -> OpenAIDocumentGrader:
+        """Create grader with mock client."""
+        return OpenAIDocumentGrader(mock_client)
 
     @pytest.mark.asyncio
-    async def test_grade_returns_true_for_relevant(self, mock_grader: DocumentGrader) -> None:
+    async def test_grade_returns_true_for_relevant(
+        self, grader: OpenAIDocumentGrader, mock_client: AsyncMock
+    ) -> None:
         """Should return True for relevant document."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.return_value = GradeDocuments(binary_score="yes")
-
-        result = await mock_grader.grade(
-            "What is Python?",
-            "Python is a programming language.",
-        )
+        mock_client.invoke_structured.return_value = GradeDocumentsSchema(binary_score="yes")
+        result = await grader.grade("What is Python?", "Python is a programming language.")
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_grade_returns_false_for_irrelevant(self, mock_grader: DocumentGrader) -> None:
+    async def test_grade_returns_false_for_irrelevant(
+        self, grader: OpenAIDocumentGrader, mock_client: AsyncMock
+    ) -> None:
         """Should return False for irrelevant document."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.return_value = GradeDocuments(binary_score="no")
-
-        result = await mock_grader.grade(
-            "What is Python?",
-            "The weather is sunny today.",
-        )
+        mock_client.invoke_structured.return_value = GradeDocumentsSchema(binary_score="no")
+        result = await grader.grade("What is Python?", "The weather is sunny.")
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_grade_documents_filters_irrelevant(self, mock_grader: DocumentGrader) -> None:
+    async def test_grade_batch_filters_documents(
+        self, grader: OpenAIDocumentGrader, mock_client: AsyncMock
+    ) -> None:
         """Should filter out irrelevant documents."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.side_effect = [
-            GradeDocuments(binary_score="yes"),
-            GradeDocuments(binary_score="no"),
-            GradeDocuments(binary_score="yes"),
+        mock_client.invoke_structured.side_effect = [
+            GradeDocumentsSchema(binary_score="yes"),
+            GradeDocumentsSchema(binary_score="no"),
+            GradeDocumentsSchema(binary_score="yes"),
         ]
-
         documents = [
-            {"content": "Relevant doc 1", "id": "1"},
-            {"content": "Irrelevant doc", "id": "2"},
-            {"content": "Relevant doc 2", "id": "3"},
+            {"content": "Relevant 1", "id": "1"},
+            {"content": "Irrelevant", "id": "2"},
+            {"content": "Relevant 2", "id": "3"},
         ]
-
-        result = await mock_grader.grade_documents("test query", documents)
-
+        result = await grader.grade_batch("test", documents)
         assert len(result) == 2
         assert result[0]["id"] == "1"
         assert result[1]["id"] == "3"
 
 
-class TestHallucinationGrader:
-    """Tests for HallucinationGrader."""
+class TestOpenAIHallucinationGrader:
+    """Tests for OpenAIHallucinationGrader."""
 
     @pytest.fixture
-    def mock_grader(self) -> HallucinationGrader:
-        """Create grader with mocked LLM."""
-        with patch("internal.infrastructure.services.langgraph.rag.graders.ChatOpenAI") as mock_llm:
-            mock_instance = MagicMock()
-            mock_llm.return_value = mock_instance
-            grader = HallucinationGrader(model="gpt-4o-mini")
-            return grader
+    def mock_client(self) -> AsyncMock:
+        """Create mock LLM client."""
+        return AsyncMock(spec=LLMClient)
+
+    @pytest.fixture
+    def grader(self, mock_client: AsyncMock) -> OpenAIHallucinationGrader:
+        """Create grader with mock client."""
+        return OpenAIHallucinationGrader(mock_client)
 
     @pytest.mark.asyncio
-    async def test_check_returns_true_when_grounded(self, mock_grader: HallucinationGrader) -> None:
-        """Should return True when answer is grounded."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.return_value = GradeHallucinations(binary_score="yes")
-
-        result = await mock_grader.check(
-            [{"content": "Python is a language."}],
-            "Python is a programming language.",
-        )
+    async def test_check_returns_true_when_grounded(
+        self, grader: OpenAIHallucinationGrader, mock_client: AsyncMock
+    ) -> None:
+        """Should return True when grounded."""
+        mock_client.invoke_structured.return_value = GradeHallucinationsSchema(binary_score="yes")
+        result = await grader.check([{"content": "Python is a language."}], "Python is a language.")
         assert result is True
 
     @pytest.mark.asyncio
     async def test_check_returns_false_when_hallucinating(
-        self, mock_grader: HallucinationGrader
+        self, grader: OpenAIHallucinationGrader, mock_client: AsyncMock
     ) -> None:
-        """Should return False when answer has hallucination."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.return_value = GradeHallucinations(binary_score="no")
-
-        result = await mock_grader.check(
-            [{"content": "Python is a language."}],
-            "Python was created in 2020.",
+        """Should return False when hallucinating."""
+        mock_client.invoke_structured.return_value = GradeHallucinationsSchema(binary_score="no")
+        result = await grader.check(
+            [{"content": "Python is a language."}], "Python was made in 2020."
         )
         assert result is False
 
-    def test_format_documents(self, mock_grader: HallucinationGrader) -> None:
-        """Should format documents into single string."""
-        documents = [
-            {"content": "Doc 1"},
-            {"content": "Doc 2"},
-        ]
-        result = mock_grader._format_documents(documents)
-        assert result == "Doc 1\n\nDoc 2"
 
-
-class TestAnswerGrader:
-    """Tests for AnswerGrader."""
+class TestOpenAIAnswerGrader:
+    """Tests for OpenAIAnswerGrader."""
 
     @pytest.fixture
-    def mock_grader(self) -> AnswerGrader:
-        """Create grader with mocked LLM."""
-        with patch("internal.infrastructure.services.langgraph.rag.graders.ChatOpenAI") as mock_llm:
-            mock_instance = MagicMock()
-            mock_llm.return_value = mock_instance
-            grader = AnswerGrader(model="gpt-4o-mini")
-            return grader
+    def mock_client(self) -> AsyncMock:
+        """Create mock LLM client."""
+        return AsyncMock(spec=LLMClient)
+
+    @pytest.fixture
+    def grader(self, mock_client: AsyncMock) -> OpenAIAnswerGrader:
+        """Create grader with mock client."""
+        return OpenAIAnswerGrader(mock_client)
 
     @pytest.mark.asyncio
-    async def test_grade_returns_true_for_useful_answer(self, mock_grader: AnswerGrader) -> None:
+    async def test_grade_returns_true_for_useful(
+        self, grader: OpenAIAnswerGrader, mock_client: AsyncMock
+    ) -> None:
         """Should return True for useful answer."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.return_value = GradeAnswer(binary_score="yes")
-
-        result = await mock_grader.grade(
-            "What is Python?",
-            "Python is a high-level programming language.",
-        )
+        mock_client.invoke_structured.return_value = GradeAnswerSchema(binary_score="yes")
+        result = await grader.grade("What is Python?", "Python is a programming language.")
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_grade_returns_false_for_unhelpful_answer(
-        self, mock_grader: AnswerGrader
+    async def test_grade_returns_false_for_unhelpful(
+        self, grader: OpenAIAnswerGrader, mock_client: AsyncMock
     ) -> None:
         """Should return False for unhelpful answer."""
-        mock_grader._grader = AsyncMock()
-        mock_grader._grader.ainvoke.return_value = GradeAnswer(binary_score="no")
-
-        result = await mock_grader.grade(
-            "What is Python?",
-            "I don't know anything about that.",
-        )
+        mock_client.invoke_structured.return_value = GradeAnswerSchema(binary_score="no")
+        result = await grader.grade("What is Python?", "I don't know.")
         assert result is False

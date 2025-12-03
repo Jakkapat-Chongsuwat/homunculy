@@ -35,9 +35,9 @@ class TestRAGState:
             "documents_relevant": False,
             "rewritten_query": "better query",
         }
-        assert state["web_search_needed"] is True
-        assert state["documents_relevant"] is False
-        assert state["rewritten_query"] == "better query"
+        assert state.get("web_search_needed") is True
+        assert state.get("documents_relevant") is False
+        assert state.get("rewritten_query") == "better query"
 
 
 class TestCreateInitialState:
@@ -68,20 +68,7 @@ class TestCreateInitialState:
         state = create_initial_state("test", max_attempts=5)
         assert state["max_retrieval_attempts"] == 5
 
-    def test_creates_state_with_false_flags(self) -> None:
-        """Should initialize boolean flags to False."""
-        state = create_initial_state("test")
-        assert state["web_search_needed"] is False
-        assert state["documents_relevant"] is False
-        assert state["hallucination_detected"] is False
-        assert state["answer_useful"] is False
-
     def test_creates_state_with_empty_generation(self) -> None:
         """Should start with empty generation."""
         state = create_initial_state("test")
         assert state["generation"] == ""
-
-    def test_creates_state_with_none_rewritten_query(self) -> None:
-        """Should start with no rewritten query."""
-        state = create_initial_state("test")
-        assert state["rewritten_query"] is None

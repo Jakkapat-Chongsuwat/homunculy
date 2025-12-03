@@ -1,24 +1,29 @@
-"""Query Rewriter for RAG."""
+"""Query Rewriter Implementation."""
 
-from langchain_openai import ChatOpenAI
+from typing import List, Dict
+
+from internal.domain.services import QueryRewriterService, LLMClient
+
+QUERY_REWRITER_PROMPT = """You are a question re-writer. Convert the input question 
+to a better version optimized for vectorstore retrieval. 
+Output only the rewritten question."""
 
 
-class QueryRewriter:
-    """Rewrites queries for better retrieval."""
+class OpenAIQueryRewriter(QueryRewriterService):
+    """OpenAI implementation of query rewriter."""
 
-    SYSTEM_PROMPT = """You are a question re-writer. Your task is to convert an input question 
-to a better version optimized for vectorstore retrieval. Look at the input and try to 
-reason about the underlying semantic intent / meaning. Output only the rewritten question."""
-
-    def __init__(self, model: str = "gpt-4o-mini") -> None:
-        """Initialize query rewriter."""
-        self._llm = ChatOpenAI(model=model, temperature=0)
+    def __init__(self, llm_client: LLMClient) -> None:
+        """Initialize with LLM client."""
+        self._client = llm_client
 
     async def rewrite(self, question: str) -> str:
         """Rewrite question for better retrieval."""
-        messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT},
+        messages = self._build_messages(question)
+        return await self._client.invoke(messages)
+
+    def _build_messages(self, question: str) -> List[Dict[str, str]]:
+        """Build prompt messages."""
+        return [
+            {"role": "system", "content": QUERY_REWRITER_PROMPT},
             {"role": "user", "content": question},
         ]
-        response = await self._llm.ainvoke(messages)
-        return response.content
