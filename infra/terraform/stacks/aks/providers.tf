@@ -23,3 +23,28 @@ provider "azurerm" {
 provider "azapi" {}
 
 provider "random" {}
+
+# -----------------------------------------------------------------------------
+# Helm Provider (for Kubernetes add-ons)
+# -----------------------------------------------------------------------------
+
+provider "helm" {
+  kubernetes {
+    host                   = try(module.aks.cluster_fqdn, "https://localhost")
+    cluster_ca_certificate = try(base64decode(module.aks.kube_config[0].cluster_ca_certificate), "")
+    client_certificate     = try(base64decode(module.aks.kube_config[0].client_certificate), "")
+    client_key             = try(base64decode(module.aks.kube_config[0].client_key), "")
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Kubectl Provider (for raw manifests like ClusterIssuers)
+# -----------------------------------------------------------------------------
+
+provider "kubectl" {
+  host                   = try(module.aks.cluster_fqdn, "https://localhost")
+  cluster_ca_certificate = try(base64decode(module.aks.kube_config[0].cluster_ca_certificate), "")
+  client_certificate     = try(base64decode(module.aks.kube_config[0].client_certificate), "")
+  client_key             = try(base64decode(module.aks.kube_config[0].client_key), "")
+  load_config_file       = false
+}

@@ -32,6 +32,14 @@ resource "azurerm_kubernetes_cluster" "main" {
   automatic_upgrade_channel = var.automatic_upgrade
   node_os_upgrade_channel   = var.node_os_upgrade_channel
 
+  # Private cluster configuration
+  private_cluster_enabled             = var.private_cluster_enabled
+  private_dns_zone_id                 = var.private_cluster_enabled ? var.private_dns_zone_id : null
+  private_cluster_public_fqdn_enabled = var.private_cluster_enabled ? false : null
+
+  # Azure Policy addon
+  azure_policy_enabled = var.azure_policy_enabled
+
   # Enable OIDC for workload identity
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
@@ -47,6 +55,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     os_disk_size_gb             = 30
     os_disk_type                = "Managed"
     temporary_name_for_rotation = "systemtemp"
+    vnet_subnet_id              = var.aks_subnet_id
 
     upgrade_settings {
       max_surge                     = "10%"
@@ -78,6 +87,14 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Key Vault secrets provider
   key_vault_secrets_provider {
     secret_rotation_enabled = true
+  }
+
+  # Microsoft Defender for Containers
+  dynamic "microsoft_defender" {
+    for_each = var.microsoft_defender_enabled ? [1] : []
+    content {
+      log_analytics_workspace_id = var.log_analytics_workspace_id
+    }
   }
 
   tags = var.tags

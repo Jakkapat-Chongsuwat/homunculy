@@ -18,6 +18,7 @@ locals {
   })
 
   resource_group_name = "rg-${var.project_name}-aks-${var.environment}"
+  is_production       = var.environment == "prod"
 }
 
 # -----------------------------------------------------------------------------
@@ -48,6 +49,30 @@ resource "random_password" "db_password" {
 }
 
 # -----------------------------------------------------------------------------
+# VNet Module (Production: dedicated network)
+# -----------------------------------------------------------------------------
+
+module "vnet" {
+  count  = var.enable_vnet_integration ? 1 : 0
+  source = "../../modules/vnet"
+
+  resource_group_name = azurerm_resource_group.main.name
+  location            = var.location
+  project_name        = var.project_name
+  environment         = var.environment
+  tags                = local.common_tags
+
+  address_space                           = var.vnet_address_space
+  aks_subnet_address_prefix               = var.aks_subnet_address_prefix
+  database_subnet_address_prefix          = var.database_subnet_address_prefix
+  private_endpoints_subnet_address_prefix = var.private_endpoints_subnet_address_prefix
+  bastion_subnet_address_prefix           = var.bastion_subnet_address_prefix
+
+  create_bastion_subnet    = var.private_cluster_enabled
+  create_private_dns_zones = var.private_cluster_enabled
+}
+
+# -----------------------------------------------------------------------------
 # Monitoring Module
 # -----------------------------------------------------------------------------
 
@@ -59,7 +84,7 @@ module "monitoring" {
   project_name        = var.project_name
   environment         = var.environment
   tags                = local.common_tags
-  retention_in_days   = var.environment == "prod" ? 90 : 30
+  retention_in_days   = local.is_production ? 90 : 30
 }
 
 # -----------------------------------------------------------------------------
@@ -74,7 +99,7 @@ module "container_registry" {
   project_name        = var.project_name
   environment         = var.environment
   tags                = local.common_tags
-  sku                 = var.environment == "prod" ? "Standard" : "Basic"
+  sku                 = local.is_production ? "Standard" : "Basic"
   admin_enabled       = true
 }
 
@@ -141,18 +166,33 @@ module "aks" {
   automatic_upgrade       = var.aks_automatic_upgrade
   node_os_upgrade_channel = var.node_os_upgrade_channel
 
+  # Production Security Features
+  private_cluster_enabled    = var.private_cluster_enabled
+  azure_policy_enabled       = var.azure_policy_enabled
+  microsoft_defender_enabled = var.microsoft_defender_enabled
+
+  # VNet Integration
+  aks_subnet_id = var.enable_vnet_integration ? module.vnet[0].aks_subnet_id : null
+
   # Node Pool Configuration
   system_node_pool_vm_size    = var.system_node_pool_vm_size
   system_node_pool_node_count = var.system_node_pool_node_count
   system_node_pool_min_count  = var.system_node_pool_min_count
   system_node_pool_max_count  = var.system_node_pool_max_count
 
+  # User Node Pool (for production workloads)
+  create_user_node_pool     = var.create_user_node_pool
+  user_node_pool_vm_size    = var.user_node_pool_vm_size
+  user_node_pool_node_count = var.user_node_pool_node_count
+  user_node_pool_min_count  = var.user_node_pool_min_count
+  user_node_pool_max_count  = var.user_node_pool_max_count
+
   # Networking
-  network_plugin      = var.network_plugin
-  network_policy      = var.network_policy
-  dns_service_ip      = var.dns_service_ip
-  service_cidr        = var.service_cidr
-  load_balancer_sku   = var.load_balancer_sku
+  network_plugin    = var.network_plugin
+  network_policy    = var.network_policy
+  dns_service_ip    = var.dns_service_ip
+  service_cidr      = var.service_cidr
+  load_balancer_sku = var.load_balancer_sku
 
   # Integrations
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
@@ -162,6 +202,62 @@ module "aks" {
   depends_on = [
     module.monitoring,
     module.container_registry,
-    module.keyvault
+    module.keyvault,
+    module.vnet
   ]
+}
+
+# -----------------------------------------------------------------------------
+# Kubernetes Add-ons (Ingress, Cert-Manager, External-DNS)
+# -----------------------------------------------------------------------------
+
+module "kubernetes_addons" {
+  count  = var.install_kubernetes_addons ? 1 : 0
+  source = "../../modules/kubernetes-addons"
+
+  # NGINX Ingress
+  install_nginx_ingress       = var.install_nginx_ingress
+  nginx_ingress_replica_count = local.is_production ? 3 : 2
+  nginx_ingress_internal_only = var.private_cluster_enabled
+
+  # Cert-Manager
+  install_cert_manager   = var.install_cert_manager
+  create_cluster_issuers = var.install_cert_manager
+  letsencrypt_email      = var.letsencrypt_email
+
+  # External DNS
+  install_external_dns      = var.install_external_dns
+  dns_resource_group        = var.dns_resource_group
+  azure_tenant_id           = data.azurerm_client_config.current.tenant_id
+  azure_subscription_id     = var.subscription_id
+  domain_filter             = var.domain_filter
+  external_dns_txt_owner_id = "${var.project_name}-${var.environment}"
+
+  depends_on = [module.aks]
+}
+
+# -----------------------------------------------------------------------------
+# Velero Backup (Production: disaster recovery)
+# -----------------------------------------------------------------------------
+
+module "velero" {
+  count  = var.install_velero ? 1 : 0
+  source = "../../modules/velero"
+
+  resource_group_name = azurerm_resource_group.main.name
+  resource_group_id   = azurerm_resource_group.main.id
+  location            = var.location
+  project_name        = var.project_name
+  environment         = var.environment
+  tags                = local.common_tags
+  subscription_id     = var.subscription_id
+
+  oidc_issuer_url = module.aks.oidc_issuer_url
+
+  create_storage_account   = true
+  storage_replication_type = local.is_production ? "GRS" : "LRS"
+  backup_schedule          = var.velero_backup_schedule
+  backup_retention_days    = var.velero_backup_retention_days
+
+  depends_on = [module.aks]
 }

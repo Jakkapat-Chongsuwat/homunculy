@@ -177,3 +177,167 @@ variable "elevenlabs_api_key" {
   sensitive   = true
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Production Security Features
+# -----------------------------------------------------------------------------
+
+variable "enable_vnet_integration" {
+  type        = bool
+  description = "Enable VNet integration with dedicated subnets"
+  default     = false
+}
+
+variable "private_cluster_enabled" {
+  type        = bool
+  description = "Enable private cluster (API server not publicly accessible)"
+  default     = false
+}
+
+variable "azure_policy_enabled" {
+  type        = bool
+  description = "Enable Azure Policy addon for pod security and compliance"
+  default     = false
+}
+
+variable "microsoft_defender_enabled" {
+  type        = bool
+  description = "Enable Microsoft Defender for Containers"
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# VNet Configuration
+# -----------------------------------------------------------------------------
+
+variable "vnet_address_space" {
+  type        = list(string)
+  description = "Address space for the virtual network"
+  default     = ["10.0.0.0/8"]
+}
+
+variable "aks_subnet_address_prefix" {
+  type        = list(string)
+  description = "Address prefix for AKS subnet"
+  default     = ["10.1.0.0/16"]
+}
+
+variable "database_subnet_address_prefix" {
+  type        = list(string)
+  description = "Address prefix for database subnet"
+  default     = ["10.2.0.0/24"]
+}
+
+variable "private_endpoints_subnet_address_prefix" {
+  type        = list(string)
+  description = "Address prefix for private endpoints subnet"
+  default     = ["10.3.0.0/24"]
+}
+
+variable "bastion_subnet_address_prefix" {
+  type        = list(string)
+  description = "Address prefix for bastion subnet"
+  default     = ["10.4.0.0/24"]
+}
+
+# -----------------------------------------------------------------------------
+# User Node Pool Configuration
+# -----------------------------------------------------------------------------
+
+variable "create_user_node_pool" {
+  type        = bool
+  description = "Whether to create a user node pool for workloads"
+  default     = false
+}
+
+variable "user_node_pool_vm_size" {
+  type        = string
+  description = "VM size for user node pool"
+  default     = "Standard_B2s"
+}
+
+variable "user_node_pool_node_count" {
+  type        = number
+  description = "Initial node count for user node pool"
+  default     = 1
+}
+
+variable "user_node_pool_min_count" {
+  type        = number
+  description = "Minimum node count for user node pool"
+  default     = 0
+}
+
+variable "user_node_pool_max_count" {
+  type        = number
+  description = "Maximum node count for user node pool"
+  default     = 5
+}
+
+# -----------------------------------------------------------------------------
+# Kubernetes Add-ons
+# -----------------------------------------------------------------------------
+
+variable "install_kubernetes_addons" {
+  type        = bool
+  description = "Whether to install Kubernetes add-ons (Ingress, Cert-Manager, External-DNS)"
+  default     = false
+}
+
+variable "install_nginx_ingress" {
+  type        = bool
+  description = "Whether to install NGINX Ingress Controller"
+  default     = true
+}
+
+variable "install_cert_manager" {
+  type        = bool
+  description = "Whether to install cert-manager for TLS"
+  default     = true
+}
+
+variable "letsencrypt_email" {
+  type        = string
+  description = "Email for Let's Encrypt registration"
+  default     = ""
+}
+
+variable "install_external_dns" {
+  type        = bool
+  description = "Whether to install external-dns"
+  default     = false
+}
+
+variable "dns_resource_group" {
+  type        = string
+  description = "Resource group containing DNS zone"
+  default     = ""
+}
+
+variable "domain_filter" {
+  type        = string
+  description = "Domain to manage with external-dns"
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Velero Backup Configuration
+# -----------------------------------------------------------------------------
+
+variable "install_velero" {
+  type        = bool
+  description = "Whether to install Velero for backup"
+  default     = false
+}
+
+variable "velero_backup_schedule" {
+  type        = string
+  description = "Cron schedule for automatic backups"
+  default     = "0 2 * * *"
+}
+
+variable "velero_backup_retention_days" {
+  type        = number
+  description = "Number of days to retain backups"
+  default     = 30
+}

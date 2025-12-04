@@ -56,3 +56,18 @@ output "identity_principal_id" {
   description = "Principal ID of AKS managed identity"
   value       = azurerm_user_assigned_identity.aks.principal_id
 }
+
+output "private_fqdn" {
+  description = "Private FQDN of the AKS cluster (when private cluster is enabled)"
+  value       = azurerm_kubernetes_cluster.main.private_fqdn
+}
+
+output "azure_policy_enabled" {
+  description = "Whether Azure Policy is enabled"
+  value       = azurerm_kubernetes_cluster.main.azure_policy_enabled
+}
+
+output "identity_client_id" {
+  description = "Client ID of AKS managed identity"
+  value       = azurerm_user_assigned_identity.aks.client_id
+}

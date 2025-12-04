@@ -39,8 +39,15 @@ variables {
 
   log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.OperationalInsights/workspaces/log-test"
   
+  # Empty to skip role assignments (mock provider can't provide kubelet_identity)
   container_registry_id = ""
   keyvault_id           = ""
+
+  # Production security features (disabled by default for tests)
+  private_cluster_enabled    = false
+  azure_policy_enabled       = false
+  microsoft_defender_enabled = false
+  aks_subnet_id              = null
 
   tags = {
     test = "true"
@@ -348,5 +355,117 @@ run "user_node_pool_created_when_enabled" {
   assert {
     condition     = length([for np in azurerm_kubernetes_cluster_node_pool.user : np]) == 1
     error_message = "User node pool should be created when create_user_node_pool is true"
+  }
+}
+
+# =============================================================================
+# Production Security Feature Tests
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Test: Azure Policy disabled by default
+# -----------------------------------------------------------------------------
+run "azure_policy_disabled_by_default" {
+  command = plan
+
+  module {
+    source = "./modules/aks"
+  }
+
+  assert {
+    condition     = azurerm_kubernetes_cluster.main.azure_policy_enabled == false
+    error_message = "Azure Policy should be disabled by default"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Azure Policy enabled when set
+# -----------------------------------------------------------------------------
+run "azure_policy_enabled_when_set" {
+  command = plan
+
+  variables {
+    azure_policy_enabled = true
+  }
+
+  module {
+    source = "./modules/aks"
+  }
+
+  assert {
+    condition     = azurerm_kubernetes_cluster.main.azure_policy_enabled == true
+    error_message = "Azure Policy should be enabled when azure_policy_enabled is true"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Private cluster disabled by default
+# -----------------------------------------------------------------------------
+run "private_cluster_disabled_by_default" {
+  command = plan
+
+  module {
+    source = "./modules/aks"
+  }
+
+  assert {
+    condition     = azurerm_kubernetes_cluster.main.private_cluster_enabled == false
+    error_message = "Private cluster should be disabled by default"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Private cluster enabled when set
+# -----------------------------------------------------------------------------
+run "private_cluster_enabled_when_set" {
+  command = plan
+
+  variables {
+    private_cluster_enabled = true
+  }
+
+  module {
+    source = "./modules/aks"
+  }
+
+  assert {
+    condition     = azurerm_kubernetes_cluster.main.private_cluster_enabled == true
+    error_message = "Private cluster should be enabled when private_cluster_enabled is true"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Microsoft Defender disabled by default
+# -----------------------------------------------------------------------------
+run "microsoft_defender_disabled_by_default" {
+  command = plan
+
+  module {
+    source = "./modules/aks"
+  }
+
+  assert {
+    condition     = length(azurerm_kubernetes_cluster.main.microsoft_defender) == 0
+    error_message = "Microsoft Defender should be disabled by default"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Microsoft Defender enabled when set
+# -----------------------------------------------------------------------------
+run "microsoft_defender_enabled_when_set" {
+  command = plan
+
+  variables {
+    microsoft_defender_enabled = true
+  }
+
+  module {
+    source = "./modules/aks"
+  }
+
+  assert {
+    condition     = length(azurerm_kubernetes_cluster.main.microsoft_defender) == 1
+    error_message = "Microsoft Defender should be enabled when microsoft_defender_enabled is true"
   }
 }

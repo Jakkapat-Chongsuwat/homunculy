@@ -184,3 +184,37 @@ variable "keyvault_id" {
   description = "Key Vault ID for secrets access"
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Production Security Features
+# -----------------------------------------------------------------------------
+
+variable "private_cluster_enabled" {
+  type        = bool
+  description = "Enable private cluster (API server not publicly accessible)"
+  default     = false
+}
+
+variable "private_dns_zone_id" {
+  type        = string
+  description = "Private DNS zone ID for private cluster"
+  default     = null
+}
+
+variable "azure_policy_enabled" {
+  type        = bool
+  description = "Enable Azure Policy addon for pod security and compliance"
+  default     = false
+}
+
+variable "microsoft_defender_enabled" {
+  type        = bool
+  description = "Enable Microsoft Defender for Containers"
+  default     = false
+}
+
+variable "aks_subnet_id" {
+  type        = string
+  description = "Subnet ID for AKS nodes (for VNet integration)"
+  default     = null
+}
