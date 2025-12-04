@@ -12,6 +12,7 @@
 variable "subscription_id" {
   type        = string
   description = "Azure subscription ID for deployment"
+  default     = "" 
 }
 
 variable "environment" {
@@ -112,10 +113,12 @@ variable "openai_api_key" {
   type        = string
   description = "OpenAI API key for LLM integration"
   sensitive   = true
+  default     = "" 
 }
 
 variable "elevenlabs_api_key" {
   type        = string
   description = "ElevenLabs API key for TTS"
   sensitive   = true
+  default     = ""  
 }

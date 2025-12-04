@@ -1,10 +1,6 @@
 {
 	"folders": [
 		{
-			"name": "homunculy",
-			"path": "homunculy"
-		},
-		{
 			"name": "management-service",
 			"path": "management-service"
 		},
@@ -25,8 +21,8 @@
 			"path": "aspire"
 		},
 		{
-			"name": "Homunculy",
-			"path": "."
+			"name": "homunculy",
+			"path": "homunculy"
 		},
 		{
 			"name": "infra",
@@ -35,6 +31,10 @@
 		{
 			"name": "rag-service",
 			"path": "rag-service"
+		},
+		{
+			"name": "Homunculy",
+			"path": "."
 		}
 	],
 	"settings": {
