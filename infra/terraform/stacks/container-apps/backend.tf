@@ -9,11 +9,12 @@ terraform {
     organization = "Homunculy"
 
     workspaces {
-      name = "homunculy-dev"
+      tags = ["container-apps"]
     }
   }
 }
 
-# Note: Set execution mode to "Local" in Terraform Cloud workspace settings
-# This allows using local var files while storing state remotely
-# Go to: app.terraform.io > Homunculy > homunculy-dev > Settings > General > Execution Mode > Local
+# Note: Create workspaces in Terraform Cloud with tags:
+# - homunculy-container-apps-dev (tags: container-apps, dev)
+# - homunculy-container-apps-prod (tags: container-apps, prod)
+# Set execution mode to "Local" in workspace settings

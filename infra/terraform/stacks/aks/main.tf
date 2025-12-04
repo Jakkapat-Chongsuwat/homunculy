@@ -1,7 +1,7 @@
 # =============================================================================
-# Root Module - Main Configuration
+# AKS Stack - Main Configuration
 # =============================================================================
-# Purpose: Orchestrate all infrastructure modules for Homunculy
+# Purpose: Orchestrate all infrastructure modules for Homunculy on AKS
 # Following: Clean Architecture - composition root pattern
 # =============================================================================
 
@@ -14,9 +14,10 @@ locals {
     project     = var.project_name
     environment = var.environment
     managed_by  = "terraform"
+    stack       = "aks"
   })
 
-  resource_group_name = "rg-${var.project_name}-${var.environment}"
+  resource_group_name = "rg-${var.project_name}-aks-${var.environment}"
 }
 
 # -----------------------------------------------------------------------------
@@ -51,7 +52,7 @@ resource "random_password" "db_password" {
 # -----------------------------------------------------------------------------
 
 module "monitoring" {
-  source = "./modules/monitoring"
+  source = "../../modules/monitoring"
 
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -66,7 +67,7 @@ module "monitoring" {
 # -----------------------------------------------------------------------------
 
 module "container_registry" {
-  source = "./modules/container-registry"
+  source = "../../modules/container-registry"
 
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -82,7 +83,7 @@ module "container_registry" {
 # -----------------------------------------------------------------------------
 
 module "database" {
-  source = "./modules/database"
+  source = "../../modules/database"
 
   resource_group_name   = azurerm_resource_group.main.name
   location              = var.location
@@ -101,7 +102,7 @@ module "database" {
 # -----------------------------------------------------------------------------
 
 module "keyvault" {
-  source = "./modules/keyvault"
+  source = "../../modules/keyvault"
 
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -121,50 +122,46 @@ module "keyvault" {
 }
 
 # -----------------------------------------------------------------------------
-# Container Apps Module
+# AKS Module
 # -----------------------------------------------------------------------------
 
-module "container_apps" {
-  source = "./modules/container-apps"
+module "aks" {
+  source = "../../modules/aks"
 
-  resource_group_name        = azurerm_resource_group.main.name
-  location                   = var.location
-  project_name               = var.project_name
-  environment                = var.environment
-  tags                       = local.common_tags
+  resource_group_name = azurerm_resource_group.main.name
+  resource_group_id   = azurerm_resource_group.main.id
+  location            = var.location
+  project_name        = var.project_name
+  environment         = var.environment
+  tags                = local.common_tags
+
+  # Cluster Configuration
+  kubernetes_version      = var.kubernetes_version
+  sku_tier                = var.aks_sku_tier
+  automatic_upgrade       = var.aks_automatic_upgrade
+  node_os_upgrade_channel = var.node_os_upgrade_channel
+
+  # Node Pool Configuration
+  system_node_pool_vm_size    = var.system_node_pool_vm_size
+  system_node_pool_node_count = var.system_node_pool_node_count
+  system_node_pool_min_count  = var.system_node_pool_min_count
+  system_node_pool_max_count  = var.system_node_pool_max_count
+
+  # Networking
+  network_plugin      = var.network_plugin
+  network_policy      = var.network_policy
+  dns_service_ip      = var.dns_service_ip
+  service_cidr        = var.service_cidr
+  load_balancer_sku   = var.load_balancer_sku
+
+  # Integrations
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
-
-  # Key Vault (for secrets)
-  keyvault_id  = module.keyvault.vault_id
-  keyvault_uri = module.keyvault.vault_uri
-
-  # Container Registry
-  container_registry_login_server   = module.container_registry.login_server
-  container_registry_admin_username = module.container_registry.admin_username
-  container_registry_admin_password = module.container_registry.admin_password
-
-  # Homunculy App
-  homunculy_image_tag    = var.homunculy_image_tag
-  homunculy_min_replicas = var.homunculy_min_replicas
-  homunculy_max_replicas = var.homunculy_max_replicas
-
-  # Chat Client
-  chat_client_image_tag    = var.chat_client_image_tag
-  chat_client_min_replicas = var.chat_client_min_replicas
-  chat_client_max_replicas = var.chat_client_max_replicas
-
-  # Database
-  database_host     = module.database.server_fqdn
-  database_name     = module.database.database_name
-  database_username = module.database.admin_username
-
-  # Monitoring
-  application_insights_connection_string = module.monitoring.application_insights_connection_string
+  container_registry_id      = module.container_registry.registry_id
+  keyvault_id                = module.keyvault.vault_id
 
   depends_on = [
     module.monitoring,
     module.container_registry,
-    module.database,
     module.keyvault
   ]
 }

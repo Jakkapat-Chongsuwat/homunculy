@@ -1,5 +1,5 @@
 # =============================================================================
-# Root Module Outputs
+# Container Apps Stack Outputs
 # =============================================================================
 # Purpose: Export key resource information for downstream consumers
 # Following: Clean Code - meaningful outputs, clear descriptions
