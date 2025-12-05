@@ -367,3 +367,62 @@ variable "velero_backup_retention_days" {
   description = "Number of days to retain backups"
   default     = 30
 }
+
+# -----------------------------------------------------------------------------
+# ArgoCD Configuration
+# -----------------------------------------------------------------------------
+
+variable "install_argocd" {
+  type        = bool
+  description = "Whether to install ArgoCD for GitOps"
+  default     = true
+}
+
+variable "argocd_version" {
+  type        = string
+  description = "ArgoCD Helm chart version"
+  default     = "5.51.6"
+}
+
+variable "argocd_admin_password" {
+  type        = string
+  description = "ArgoCD admin password"
+  sensitive   = true
+  default     = ""
+}
+
+variable "argocd_enable_ingress" {
+  type        = bool
+  description = "Enable ingress for ArgoCD UI"
+  default     = true
+}
+
+variable "argocd_hostname" {
+  type        = string
+  description = "Hostname for ArgoCD UI"
+  default     = "argocd.homunculy.io"
+}
+
+variable "argocd_create_root_app" {
+  type        = bool
+  description = "Create the root ArgoCD Application for GitOps bootstrap"
+  default     = true
+}
+
+variable "argocd_git_repo_url" {
+  type        = string
+  description = "Git repository URL for ArgoCD to sync"
+  default     = "https://github.com/Jakkapat-Chongsuwat/homunculy.git"
+}
+
+variable "argocd_git_target_revision" {
+  type        = string
+  description = "Git branch/tag/commit to sync"
+  default     = "main"
+}
+
+variable "argocd_git_apps_path" {
+  type        = string
+  description = "Path to Kubernetes manifests in the repo"
+  default     = "infra/k8s/overlays/prod"
+}

@@ -1,0 +1,102 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "homunculy/**"
+      - "management-service/**"
+      - "rag-service/**"
+      - "chat-client/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  ACR_NAME: acrhomunculyprod
+  ACR_LOGIN_SERVER: acrhomunculyprod.azurecr.io
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      homunculy: ${{ steps.changes.outputs.homunculy }}
+      management: ${{ steps.changes.outputs.management }}
+      rag: ${{ steps.changes.outputs.rag }}
+      chat: ${{ steps.changes.outputs.chat }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: changes
+        run: |
+          echo "homunculy=${{ contains(github.event.head_commit.modified, 'homunculy/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
+          echo "management=${{ contains(github.event.head_commit.modified, 'management-service/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
+          echo "rag=${{ contains(github.event.head_commit.modified, 'rag-service/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
+          echo "chat=${{ contains(github.event.head_commit.modified, 'chat-client/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: homunculy
+            path: homunculy
+            dockerfile: homunculy/Dockerfile
+            context: homunculy
+          - name: management-service
+            path: management-service
+            dockerfile: management-service/Dockerfile
+            context: management-service
+          - name: rag-service
+            path: rag-service
+            dockerfile: rag-service/Dockerfile
+            context: rag-service
+          - name: chat-client
+            path: chat-client
+            dockerfile: chat-client/Dockerfile
+            context: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push ${{ matrix.name }}
+        run: |
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }} \
+            -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest \
+            -f ${{ matrix.dockerfile }} ${{ matrix.context }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest
+
+  update-manifests:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tags
+        run: |
+          sed -i "s/newTag: .*/newTag: ${{ github.sha }}/" infra/k8s/overlays/prod/kustomization.yaml
+
+      - name: Commit changes
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -A
+          git diff --staged --quiet || git commit -m "chore(k8s): update image tags to ${{ github.sha }}"
+          git push

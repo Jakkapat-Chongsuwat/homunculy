@@ -98,3 +98,17 @@ output "key_vault_name" {
   description = "Name of the Key Vault"
   value       = module.keyvault.vault_name
 }
+
+# -----------------------------------------------------------------------------
+# ArgoCD
+# -----------------------------------------------------------------------------
+
+output "argocd_url" {
+  description = "ArgoCD UI URL"
+  value       = var.install_argocd ? module.argocd[0].argocd_url : null
+}
+
+output "argocd_namespace" {
+  description = "ArgoCD namespace"
+  value       = var.install_argocd ? module.argocd[0].argocd_namespace : null
+}

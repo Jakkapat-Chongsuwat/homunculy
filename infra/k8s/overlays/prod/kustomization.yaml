@@ -1,0 +1,81 @@
+# =============================================================================
+# Production Overlay
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: homunculy
+
+resources:
+  - ../../base
+
+# Production-specific labels
+commonLabels:
+  environment: prod
+
+# Replace image tags with production versions
+images:
+  - name: acrhomunculyprod.azurecr.io/homunculy
+    newTag: latest  # Updated by CI/CD with git SHA
+  - name: acrhomunculyprod.azurecr.io/management-service
+    newTag: latest
+  - name: acrhomunculyprod.azurecr.io/rag-service
+    newTag: latest
+  - name: acrhomunculyprod.azurecr.io/chat-client
+    newTag: latest
+
+# Production patches
+patches:
+  # SecretProviderClass with production Key Vault values
+  - path: secret-provider-patch.yaml
+  
+  # Ingress with production domains and TLS
+  - path: ingress-patch.yaml
+  
+  # Scale up replicas for production
+  - target:
+      kind: Deployment
+      name: homunculy
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: management-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: chat-client
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # Higher resource limits for production
+  - target:
+      kind: Deployment
+      name: homunculy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+configMapGenerator:
+  - name: env-config
+    literals:
+      - KEYVAULT_NAME=kv-homunculy-prod
+      - AZURE_TENANT_ID=d52cd61e-40d3-463c-a422-f4aa5017abd5
+      - AZURE_CLIENT_ID=d191a594-7919-48f1-b2e9-44e61cf01d24
+      - DATABASE_HOST=psql-homunculy-prod.postgres.database.azure.com
+      - DATABASE_NAME=homunculy
+

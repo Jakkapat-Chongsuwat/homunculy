@@ -38,7 +38,7 @@ variables {
   load_balancer_sku = "standard"
 
   log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.OperationalInsights/workspaces/log-test"
-  
+
   # Empty to skip role assignments (mock provider can't provide kubelet_identity)
   container_registry_id = ""
   keyvault_id           = ""

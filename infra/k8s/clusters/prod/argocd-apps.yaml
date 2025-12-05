@@ -1,0 +1,67 @@
+# =============================================================================
+# ArgoCD Application - Homunculy Apps
+# =============================================================================
+# App-of-Apps pattern: This Application manages the prod overlay
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homunculy-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Jakkapat-Chongsuwat/homunculy.git
+    targetRevision: main
+    path: infra/k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homunculy
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# =============================================================================
+# ArgoCD AppProject - Homunculy
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: homunculy
+  namespace: argocd
+spec:
+  description: Homunculy AI Agent Platform
+  sourceRepos:
+    - https://github.com/Jakkapat-Chongsuwat/homunculy.git
+  destinations:
+    - namespace: homunculy
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: networking.k8s.io
+      kind: Ingress
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: "*"
+    - group: networking.k8s.io
+      kind: "*"
+    - group: secrets-store.csi.x-k8s.io
+      kind: "*"

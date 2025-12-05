@@ -245,3 +245,28 @@ module "velero" {
 
   depends_on = [module.aks]
 }
+
+# -----------------------------------------------------------------------------
+# ArgoCD Module (GitOps continuous deployment)
+# NOTE: For private clusters, ArgoCD is installed via Helm provider
+# which uses the Terraform's authenticated connection.
+# -----------------------------------------------------------------------------
+
+module "argocd" {
+  count  = var.install_argocd ? 1 : 0
+  source = "../../modules/argocd"
+
+  environment     = var.environment
+  argocd_version  = var.argocd_version
+  admin_password  = var.argocd_admin_password
+  enable_ingress  = var.argocd_enable_ingress
+  argocd_hostname = var.argocd_hostname
+
+  # GitOps Configuration
+  create_root_app     = var.argocd_create_root_app
+  git_repo_url        = var.argocd_git_repo_url
+  git_target_revision = var.argocd_git_target_revision
+  git_apps_path       = var.argocd_git_apps_path
+
+  depends_on = [module.aks]
+}

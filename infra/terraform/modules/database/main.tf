@@ -26,7 +26,7 @@ resource "azurerm_postgresql_flexible_server" "main" {
   })
 
   lifecycle {
-    prevent_destroy = false # Set to true in production
+    prevent_destroy = false  # Set to true in production
     ignore_changes  = [zone] # Zone cannot be changed after creation
   }
 }

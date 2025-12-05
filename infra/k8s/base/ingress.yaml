@@ -1,0 +1,67 @@
+# =============================================================================
+# Ingress - Azure Application Routing (Managed NGINX)
+# =============================================================================
+# This uses the Azure-managed NGINX ingress controller
+# Annotations configure Azure-specific features
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homunculy-ingress
+  labels:
+    app.kubernetes.io/name: homunculy
+  annotations:
+    # Azure Application Routing annotations
+    kubernetes.azure.com/use-managed-ingress-class: "true"
+    # TLS from Key Vault (optional - configure in overlay)
+    # kubernetes.azure.com/tls-cert-keyvault-uri: "https://kv-homunculy-prod.vault.azure.net/certificates/tls-cert"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+    # Chat Client - main web interface
+    - host: chat.homunculy.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-client
+                port:
+                  number: 8080
+
+    # Management API
+    - host: api.homunculy.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: management-service
+                port:
+                  number: 8080
+
+    # Homunculy AI Agent API
+    - host: agent.homunculy.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: homunculy
+                port:
+                  number: 8000
+
+    # RAG Service API
+    - host: rag.homunculy.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rag-service
+                port:
+                  number: 8001

@@ -1,0 +1,87 @@
+# =============================================================================
+# Development Overlay
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: homunculy-dev
+
+resources:
+  - ../../base
+
+# Override namespace for dev
+nameSuffix: ""
+
+# Dev-specific labels
+commonLabels:
+  environment: dev
+
+# Use dev ACR (or same ACR with dev tag)
+images:
+  - name: acrhomunculyprod.azurecr.io/homunculy
+    newName: acrhomunculydev.azurecr.io/homunculy
+    newTag: dev
+  - name: acrhomunculyprod.azurecr.io/management-service
+    newName: acrhomunculydev.azurecr.io/management-service
+    newTag: dev
+  - name: acrhomunculyprod.azurecr.io/rag-service
+    newName: acrhomunculydev.azurecr.io/rag-service
+    newTag: dev
+  - name: acrhomunculyprod.azurecr.io/chat-client
+    newName: acrhomunculydev.azurecr.io/chat-client
+    newTag: dev
+
+# Dev patches - minimal resources
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Lower resource limits for dev
+  - target:
+      kind: Deployment
+      name: homunculy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+
+  - target:
+      kind: Deployment
+      name: management-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "25m"
+            memory: "32Mi"
+          limits:
+            cpu: "100m"
+            memory: "64Mi"
+
+  # Debug logging for dev
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: "DEBUG"
+
+configMapGenerator:
+  - name: env-config
+    literals:
+      - KEYVAULT_NAME=kv-homunculy-dev
+      - AZURE_TENANT_ID=<YOUR_TENANT_ID>
+      - AZURE_CLIENT_ID=<YOUR_DEV_CLIENT_ID>
+      - DATABASE_HOST=psql-homunculy-dev.postgres.database.azure.com
+      - DATABASE_NAME=homunculy
