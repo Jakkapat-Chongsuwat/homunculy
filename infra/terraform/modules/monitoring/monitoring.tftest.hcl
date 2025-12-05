@@ -2,7 +2,7 @@
 # Monitoring Module - Unit Tests
 # =============================================================================
 # Purpose: Validate Log Analytics and Application Insights configuration
-# Run: terraform test -filter=tests/monitoring.tftest.hcl
+# Run: terraform test (from modules/monitoring directory)
 # =============================================================================
 
 # Mock provider to avoid real Azure calls
@@ -26,7 +26,7 @@ run "log_analytics_name" {
   command = plan
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {
@@ -42,7 +42,7 @@ run "log_analytics_sku" {
   command = plan
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {
@@ -58,7 +58,7 @@ run "log_analytics_retention" {
   command = plan
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {
@@ -79,7 +79,7 @@ run "prod_retention" {
   }
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {
@@ -95,7 +95,7 @@ run "app_insights_name" {
   command = plan
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {
@@ -111,7 +111,7 @@ run "app_insights_type" {
   command = plan
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {
@@ -127,7 +127,7 @@ run "monitoring_tags" {
   command = plan
 
   module {
-    source = "./modules/monitoring"
+    source = "./."
   }
 
   assert {

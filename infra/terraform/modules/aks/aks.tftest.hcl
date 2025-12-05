@@ -2,7 +2,7 @@
 # AKS Module - Unit Tests
 # =============================================================================
 # Purpose: Validate AKS cluster configuration and settings
-# Run: terraform test -filter=tests/aks.tftest.hcl
+# Run: terraform test (from modules/aks directory)
 # =============================================================================
 
 # Mock providers to avoid real Azure calls
@@ -61,7 +61,7 @@ run "cluster_name_convention" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -77,7 +77,7 @@ run "cluster_dns_prefix" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -93,7 +93,7 @@ run "kubernetes_version" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -109,7 +109,7 @@ run "dev_sku_tier" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -130,7 +130,7 @@ run "prod_sku_tier" {
   }
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -146,7 +146,7 @@ run "oidc_issuer_enabled" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -162,7 +162,7 @@ run "workload_identity_enabled" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -178,7 +178,7 @@ run "system_node_pool_name" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -194,7 +194,7 @@ run "system_node_pool_autoscaling" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -210,7 +210,7 @@ run "system_node_pool_scaling_limits" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -231,7 +231,7 @@ run "network_plugin_azure" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -247,7 +247,7 @@ run "network_policy_azure" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -263,7 +263,7 @@ run "load_balancer_sku_standard" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -279,7 +279,7 @@ run "keyvault_secrets_provider" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -295,7 +295,7 @@ run "identity_name_convention" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -311,7 +311,7 @@ run "automatic_upgrade_channel" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -327,7 +327,7 @@ run "no_user_node_pool_by_default" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   # When create_user_node_pool is false, the count should be 0
@@ -349,7 +349,7 @@ run "user_node_pool_created_when_enabled" {
   }
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -369,7 +369,7 @@ run "azure_policy_disabled_by_default" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -389,7 +389,7 @@ run "azure_policy_enabled_when_set" {
   }
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -405,7 +405,7 @@ run "private_cluster_disabled_by_default" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -425,7 +425,7 @@ run "private_cluster_enabled_when_set" {
   }
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -441,7 +441,7 @@ run "microsoft_defender_disabled_by_default" {
   command = plan
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {
@@ -461,7 +461,7 @@ run "microsoft_defender_enabled_when_set" {
   }
 
   module {
-    source = "./modules/aks"
+    source = "./."
   }
 
   assert {

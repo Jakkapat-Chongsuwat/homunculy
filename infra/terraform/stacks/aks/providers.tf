@@ -29,7 +29,7 @@ provider "random" {}
 # -----------------------------------------------------------------------------
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = try(module.aks.cluster_fqdn, "https://localhost")
     cluster_ca_certificate = try(base64decode(module.aks.kube_config[0].cluster_ca_certificate), "")
     client_certificate     = try(base64decode(module.aks.kube_config[0].client_certificate), "")

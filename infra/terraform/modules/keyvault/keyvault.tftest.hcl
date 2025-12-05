@@ -2,7 +2,7 @@
 # Key Vault Module - Unit Tests
 # =============================================================================
 # Purpose: Validate Key Vault configuration and security settings
-# Run: terraform test -filter=tests/keyvault.tftest.hcl
+# Run: terraform test (from modules/keyvault directory)
 # =============================================================================
 
 # Mock provider with data source override for valid UUIDs
@@ -39,7 +39,7 @@ run "keyvault_name" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -55,7 +55,7 @@ run "keyvault_sku" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -71,7 +71,7 @@ run "dev_purge_protection" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -91,7 +91,7 @@ run "prod_purge_protection" {
   }
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -107,7 +107,7 @@ run "soft_delete_retention" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -123,7 +123,7 @@ run "deployment_enabled" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -139,7 +139,7 @@ run "keyvault_tags" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -155,7 +155,7 @@ run "rbac_authorization_enabled" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {
@@ -171,7 +171,7 @@ run "terraform_role_assignment" {
   command = plan
 
   module {
-    source = "./modules/keyvault"
+    source = "./."
   }
 
   assert {

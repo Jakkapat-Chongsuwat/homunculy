@@ -2,7 +2,7 @@
 # Database Module - Unit Tests
 # =============================================================================
 # Purpose: Validate PostgreSQL Flexible Server configuration
-# Run: terraform test -filter=tests/database.tftest.hcl
+# Run: terraform test (from modules/database directory)
 # =============================================================================
 
 # Mock provider to avoid real Azure calls
@@ -30,7 +30,7 @@ run "server_name_convention" {
   command = plan
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {
@@ -46,7 +46,7 @@ run "server_version" {
   command = plan
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {
@@ -62,7 +62,7 @@ run "dev_backup_settings" {
   command = plan
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {
@@ -82,7 +82,7 @@ run "prod_backup_settings" {
   }
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {
@@ -98,7 +98,7 @@ run "database_name_check" {
   command = plan
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {
@@ -119,7 +119,7 @@ run "azure_services_firewall" {
   command = plan
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {
@@ -135,7 +135,7 @@ run "server_timezone_config" {
   command = plan
 
   module {
-    source = "./modules/database"
+    source = "./."
   }
 
   assert {

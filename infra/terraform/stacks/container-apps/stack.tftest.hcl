@@ -1,8 +1,8 @@
 # =============================================================================
-# AKS Stack - Integration Tests
+# Container Apps Stack - Integration Tests
 # =============================================================================
-# Purpose: Validate the complete AKS stack configuration
-# Run: cd stacks/aks && terraform test
+# Purpose: Validate the complete Container Apps stack configuration
+# Run: terraform test (from stacks/container-apps directory)
 # =============================================================================
 
 # Mock providers to avoid real Azure calls
@@ -19,6 +19,7 @@ mock_provider "azurerm" {
 }
 mock_provider "azapi" {}
 mock_provider "random" {}
+mock_provider "time" {}
 
 variables {
   subscription_id = "00000000-0000-0000-0000-000000000000"
@@ -26,21 +27,12 @@ variables {
   location        = "eastus"
   project_name    = "homunculy"
 
-  kubernetes_version      = "1.29"
-  aks_sku_tier            = "Free"
-  aks_automatic_upgrade   = "patch"
-  node_os_upgrade_channel = "NodeImage"
-
-  system_node_pool_vm_size    = "Standard_B2s"
-  system_node_pool_node_count = 1
-  system_node_pool_min_count  = 1
-  system_node_pool_max_count  = 3
-
-  network_plugin    = "azure"
-  network_policy    = "azure"
-  dns_service_ip    = "10.0.0.10"
-  service_cidr      = "10.0.0.0/16"
-  load_balancer_sku = "standard"
+  homunculy_image_tag      = "latest"
+  homunculy_min_replicas   = 0
+  homunculy_max_replicas   = 2
+  chat_client_image_tag    = "latest"
+  chat_client_min_replicas = 0
+  chat_client_max_replicas = 2
 
   db_sku_name              = "B_Standard_B1ms"
   db_storage_mb            = 32768
@@ -55,19 +47,19 @@ variables {
 }
 
 # -----------------------------------------------------------------------------
-# Test: Resource group name follows AKS convention
+# Test: Resource group name follows convention
 # -----------------------------------------------------------------------------
 run "resource_group_naming" {
   command = plan
 
   assert {
-    condition     = azurerm_resource_group.main.name == "rg-homunculy-aks-dev"
-    error_message = "Resource group should follow pattern: rg-{project}-aks-{environment}"
+    condition     = azurerm_resource_group.main.name == "rg-homunculy-dev"
+    error_message = "Resource group should follow pattern: rg-{project}-{environment}"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Test: Common tags are applied with AKS stack
+# Test: Common tags are applied
 # -----------------------------------------------------------------------------
 run "common_tags_applied" {
   command = plan
@@ -88,8 +80,8 @@ run "common_tags_applied" {
   }
 
   assert {
-    condition     = azurerm_resource_group.main.tags["stack"] == "aks"
-    error_message = "Stack tag should be 'aks'"
+    condition     = azurerm_resource_group.main.tags["stack"] == "container-apps"
+    error_message = "Stack tag should be 'container-apps'"
   }
 }
 
@@ -123,24 +115,24 @@ run "all_modules_instantiated" {
     error_message = "Key Vault module should be instantiated"
   }
 
-  # Verify AKS module
+  # Verify container apps module
   assert {
-    condition     = module.aks != null
-    error_message = "AKS module should be instantiated"
+    condition     = module.container_apps != null
+    error_message = "Container Apps module should be instantiated"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Test: Production uses Standard SKU tier
+# Test: Production uses higher retention
 # -----------------------------------------------------------------------------
-run "prod_standard_tier" {
+run "prod_higher_retention" {
   command = plan
 
   variables {
-    environment  = "prod"
-    aks_sku_tier = "Standard"
+    environment = "prod"
   }
 
+  # Prod should use 90 days retention (set in main.tf via ternary)
   assert {
     condition     = azurerm_resource_group.main.tags["environment"] == "prod"
     error_message = "Production environment should be set"

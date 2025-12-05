@@ -15,6 +15,18 @@ variable "subscription_id" {
   default     = ""
 }
 
+variable "enable_acr_pull" {
+  type        = bool
+  description = "Enable ACR pull role assignment for AKS"
+  default     = true
+}
+
+variable "enable_keyvault_access" {
+  type        = bool
+  description = "Enable Key Vault secrets user role assignment for AKS"
+  default     = true
+}
+
 variable "environment" {
   type        = string
   description = "Environment name (dev, staging, prod)"

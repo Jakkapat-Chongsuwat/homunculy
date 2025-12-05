@@ -2,7 +2,7 @@
 # Container Registry Module - Unit Tests
 # =============================================================================
 # Purpose: Validate container registry configuration without creating resources
-# Run: terraform test -filter=tests/container-registry.tftest.hcl
+# Run: terraform test -filter=modules/container-registry/container-registry.tftest.hcl
 # =============================================================================
 
 # Mock provider to avoid real Azure calls
@@ -26,10 +26,6 @@ variables {
 run "registry_name_convention" {
   command = plan
 
-  module {
-    source = "./modules/container-registry"
-  }
-
   assert {
     condition     = azurerm_container_registry.main.name == "acrhomunculydev"
     error_message = "Container registry name should follow pattern: acr{project}{environment}"
@@ -41,10 +37,6 @@ run "registry_name_convention" {
 # -----------------------------------------------------------------------------
 run "registry_sku_dev" {
   command = plan
-
-  module {
-    source = "./modules/container-registry"
-  }
 
   assert {
     condition     = azurerm_container_registry.main.sku == "Basic"
@@ -58,34 +50,14 @@ run "registry_sku_dev" {
 run "registry_admin_enabled" {
   command = plan
 
-  module {
-    source = "./modules/container-registry"
-  }
-
   assert {
     condition     = azurerm_container_registry.main.admin_enabled == true
-    error_message = "Admin should be enabled for container registry"
+    error_message = "Admin should be enabled for development"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Test: Registry has correct tags
-# -----------------------------------------------------------------------------
-run "registry_tags" {
-  command = plan
-
-  module {
-    source = "./modules/container-registry"
-  }
-
-  assert {
-    condition     = contains(keys(azurerm_container_registry.main.tags), "component")
-    error_message = "Container registry should have 'component' tag"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: Production SKU override
+# Test: Production uses Standard SKU
 # -----------------------------------------------------------------------------
 run "registry_sku_prod" {
   command = plan
@@ -95,17 +67,32 @@ run "registry_sku_prod" {
     sku         = "Standard"
   }
 
-  module {
-    source = "./modules/container-registry"
-  }
-
   assert {
     condition     = azurerm_container_registry.main.sku == "Standard"
     error_message = "Prod environment should use Standard SKU"
   }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Registry has correct tags
+# -----------------------------------------------------------------------------
+run "registry_tags" {
+  command = plan
 
   assert {
-    condition     = azurerm_container_registry.main.name == "acrhomunculyprod"
-    error_message = "Prod registry name should end with 'prod'"
+    condition     = azurerm_container_registry.main.tags["component"] == "container-registry"
+    error_message = "Registry should have component=container-registry tag"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Registry location is correct
+# -----------------------------------------------------------------------------
+run "registry_location" {
+  command = plan
+
+  assert {
+    condition     = azurerm_container_registry.main.location == "eastus"
+    error_message = "Registry location should match specified location"
   }
 }

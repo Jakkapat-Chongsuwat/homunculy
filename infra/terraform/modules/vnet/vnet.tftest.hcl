@@ -2,7 +2,7 @@
 # VNet Module - Unit Tests
 # =============================================================================
 # Purpose: Validate VNet and subnet configuration
-# Run: terraform test -filter=tests/vnet.tftest.hcl
+# Run: terraform test (from modules/vnet directory)
 # =============================================================================
 
 mock_provider "azurerm" {}
@@ -34,7 +34,7 @@ run "vnet_name_convention" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -50,7 +50,7 @@ run "vnet_address_space" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -66,7 +66,7 @@ run "aks_subnet_name" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -82,7 +82,7 @@ run "aks_subnet_address" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -98,7 +98,7 @@ run "database_subnet_name" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -114,7 +114,7 @@ run "private_endpoints_subnet_name" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -130,7 +130,7 @@ run "nsg_name_convention" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -146,7 +146,7 @@ run "bastion_subnet_not_created_by_default" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -162,7 +162,7 @@ run "bastion_subnet_created_when_enabled" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   variables {
@@ -182,7 +182,7 @@ run "bastion_subnet_exact_name" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   variables {
@@ -202,7 +202,7 @@ run "postgresql_dns_zone_created" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -215,7 +215,7 @@ run "keyvault_dns_zone_created" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -228,7 +228,7 @@ run "acr_dns_zone_created" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {
@@ -244,7 +244,7 @@ run "dns_zones_not_created_when_disabled" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   variables {
@@ -264,7 +264,7 @@ run "vnet_tags" {
   command = plan
 
   module {
-    source = "./modules/vnet"
+    source = "./."
   }
 
   assert {

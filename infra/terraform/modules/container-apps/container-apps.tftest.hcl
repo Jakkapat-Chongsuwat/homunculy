@@ -2,7 +2,7 @@
 # Container Apps Module - Unit Tests
 # =============================================================================
 # Purpose: Validate Container Apps environment and app configurations
-# Run: terraform test -filter=tests/container-apps.tftest.hcl
+# Run: terraform test -filter=modules/container-apps/container-apps.tftest.hcl
 # =============================================================================
 
 # Mock providers to avoid real Azure calls
@@ -50,10 +50,6 @@ variables {
 run "environment_name" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = azurerm_container_app_environment.main.name == "cae-homunculy-dev"
     error_message = "Container Apps Environment name should follow pattern: cae-{project}-{environment}"
@@ -65,10 +61,6 @@ run "environment_name" {
 # -----------------------------------------------------------------------------
 run "homunculy_app_name" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = azurerm_container_app.homunculy.name == "ca-homunculy-dev"
@@ -82,10 +74,6 @@ run "homunculy_app_name" {
 run "chat_client_name" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = azurerm_container_app.chat_client.name == "ca-chat-client-dev"
     error_message = "Chat client name should follow pattern: ca-chat-client-{environment}"
@@ -98,10 +86,6 @@ run "chat_client_name" {
 run "homunculy_image_tag" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = can(regex("homunculy-app:v1.0.0", azurerm_container_app.homunculy.template[0].container[0].image))
     error_message = "Homunculy should use image tag v1.0.0"
@@ -113,10 +97,6 @@ run "homunculy_image_tag" {
 # -----------------------------------------------------------------------------
 run "homunculy_scaling" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = azurerm_container_app.homunculy.template[0].min_replicas == 0
@@ -141,10 +121,6 @@ run "prod_minimum_replicas" {
     chat_client_min_replicas = 1
   }
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = azurerm_container_app.homunculy.template[0].min_replicas == 1
     error_message = "Prod should have minimum 1 replica"
@@ -156,10 +132,6 @@ run "prod_minimum_replicas" {
 # -----------------------------------------------------------------------------
 run "ingress_enabled" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = azurerm_container_app.homunculy.ingress[0].external_enabled == true
@@ -178,10 +150,6 @@ run "ingress_enabled" {
 run "target_ports" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = azurerm_container_app.homunculy.ingress[0].target_port == 8000
     error_message = "Homunculy target port should be 8000"
@@ -198,10 +166,6 @@ run "target_ports" {
 # -----------------------------------------------------------------------------
 run "app_tags" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = azurerm_container_app.homunculy.tags["component"] == "homunculy-app"
@@ -220,10 +184,6 @@ run "app_tags" {
 run "revision_mode" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = azurerm_container_app.homunculy.revision_mode == "Single"
     error_message = "Homunculy revision mode should be Single"
@@ -241,10 +201,6 @@ run "revision_mode" {
 run "managed_identity_created" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = azurerm_user_assigned_identity.container_apps.name == "id-homunculy-containerapp-dev"
     error_message = "Managed Identity name should follow pattern: id-{project}-containerapp-{environment}"
@@ -256,10 +212,6 @@ run "managed_identity_created" {
 # -----------------------------------------------------------------------------
 run "keyvault_role_assignment" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = azurerm_role_assignment.keyvault_secrets_user.role_definition_name == "Key Vault Secrets User"
@@ -278,10 +230,6 @@ run "keyvault_role_assignment" {
 run "rbac_propagation_delay" {
   command = plan
 
-  module {
-    source = "./modules/container-apps"
-  }
-
   assert {
     condition     = time_sleep.rbac_propagation.create_duration == "60s"
     error_message = "RBAC propagation delay should be 60 seconds"
@@ -293,10 +241,6 @@ run "rbac_propagation_delay" {
 # -----------------------------------------------------------------------------
 run "homunculy_keyvault_secrets" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = length([for s in azurerm_container_app.homunculy.secret : s if s.name == "db-password"]) == 1
@@ -319,10 +263,6 @@ run "homunculy_keyvault_secrets" {
 # -----------------------------------------------------------------------------
 run "homunculy_managed_identity" {
   command = plan
-
-  module {
-    source = "./modules/container-apps"
-  }
 
   assert {
     condition     = azurerm_container_app.homunculy.identity[0].type == "UserAssigned"

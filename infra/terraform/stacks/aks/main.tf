@@ -197,9 +197,9 @@ module "aks" {
   # Integrations
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
   container_registry_id      = module.container_registry.registry_id
-  enable_acr_pull            = true
+  enable_acr_pull            = var.enable_acr_pull
   keyvault_id                = module.keyvault.vault_id
-  enable_keyvault_access     = true
+  enable_keyvault_access     = var.enable_keyvault_access
 
   # ==========================================================================
   # Azure Application Routing (Managed NGINX Ingress)

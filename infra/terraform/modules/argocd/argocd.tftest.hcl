@@ -2,7 +2,7 @@
 # ArgoCD Module - Unit Tests
 # =============================================================================
 # Purpose: Validate ArgoCD GitOps configuration and settings
-# Run: terraform test -filter=tests/argocd.tftest.hcl
+# Run: terraform test -filter=modules/argocd/argocd.tftest.hcl
 # =============================================================================
 
 # Mock providers to avoid real Kubernetes/Helm calls
@@ -27,10 +27,6 @@ variables {
 run "argocd_helm_release_name" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   assert {
     condition     = helm_release.argocd.name == "argocd"
     error_message = "ArgoCD Helm release should be named 'argocd'"
@@ -42,10 +38,6 @@ run "argocd_helm_release_name" {
 # -----------------------------------------------------------------------------
 run "argocd_helm_repository" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   assert {
     condition     = helm_release.argocd.repository == "https://argoproj.github.io/argo-helm"
@@ -59,10 +51,6 @@ run "argocd_helm_repository" {
 run "argocd_helm_chart" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   assert {
     condition     = helm_release.argocd.chart == "argo-cd"
     error_message = "ArgoCD should use 'argo-cd' chart"
@@ -74,10 +62,6 @@ run "argocd_helm_chart" {
 # -----------------------------------------------------------------------------
 run "argocd_namespace" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   assert {
     condition     = helm_release.argocd.namespace == "argocd"
@@ -91,10 +75,6 @@ run "argocd_namespace" {
 run "argocd_creates_namespace" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   assert {
     condition     = helm_release.argocd.create_namespace == true
     error_message = "ArgoCD should create the namespace if it doesn't exist"
@@ -106,10 +86,6 @@ run "argocd_creates_namespace" {
 # -----------------------------------------------------------------------------
 run "argocd_helm_version" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   assert {
     condition     = helm_release.argocd.version == "5.51.6"
@@ -123,10 +99,6 @@ run "argocd_helm_version" {
 run "argocd_wait_enabled" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   assert {
     condition     = helm_release.argocd.wait == true
     error_message = "ArgoCD should wait for deployment to complete"
@@ -138,10 +110,6 @@ run "argocd_wait_enabled" {
 # -----------------------------------------------------------------------------
 run "argocd_timeout" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   assert {
     condition     = helm_release.argocd.timeout >= 300
@@ -155,10 +123,6 @@ run "argocd_timeout" {
 run "argocd_app_created" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   assert {
     condition     = length(kubectl_manifest.argocd_app) == 1
     error_message = "ArgoCD root Application should be created when create_root_app is true"
@@ -170,10 +134,6 @@ run "argocd_app_created" {
 # -----------------------------------------------------------------------------
 run "argocd_app_not_created" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   variables {
     create_root_app = false
@@ -190,10 +150,6 @@ run "argocd_app_not_created" {
 # -----------------------------------------------------------------------------
 run "prod_environment_config" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   variables {
     environment = "prod"
@@ -214,10 +170,6 @@ run "prod_environment_config" {
 run "custom_git_repo" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   variables {
     git_repo_url = "https://github.com/custom-org/custom-repo.git"
   }
@@ -234,10 +186,6 @@ run "custom_git_repo" {
 # -----------------------------------------------------------------------------
 run "ingress_disabled" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   variables {
     enable_ingress = false
@@ -256,10 +204,6 @@ run "ingress_disabled" {
 run "custom_argocd_version" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   variables {
     argocd_version = "6.0.0"
   }
@@ -275,10 +219,6 @@ run "custom_argocd_version" {
 # -----------------------------------------------------------------------------
 run "custom_hostname" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   variables {
     argocd_hostname = "gitops.custom-domain.io"
@@ -297,10 +237,6 @@ run "custom_hostname" {
 run "feature_branch_revision" {
   command = plan
 
-  module {
-    source = "./modules/argocd"
-  }
-
   variables {
     git_target_revision = "feature/new-feature"
   }
@@ -316,10 +252,6 @@ run "feature_branch_revision" {
 # -----------------------------------------------------------------------------
 run "kustomize_overlay_path" {
   command = plan
-
-  module {
-    source = "./modules/argocd"
-  }
 
   variables {
     git_apps_path = "infra/k8s/overlays/staging"
