@@ -197,7 +197,18 @@ module "aks" {
   # Integrations
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
   container_registry_id      = module.container_registry.registry_id
+  enable_acr_pull            = true
   keyvault_id                = module.keyvault.vault_id
+  enable_keyvault_access     = true
+
+  # ==========================================================================
+  # Azure Application Routing (Managed NGINX Ingress)
+  # ==========================================================================
+  # Enables Azure-managed NGINX Ingress - NO bastion/helm needed!
+  # Single terraform apply provisions everything including ingress
+  # ==========================================================================
+  enable_app_routing       = var.enable_app_routing
+  app_routing_dns_zone_ids = var.app_routing_dns_zone_ids
 
   depends_on = [
     module.monitoring,
@@ -208,40 +219,13 @@ module "aks" {
 }
 
 # -----------------------------------------------------------------------------
-# Kubernetes Add-ons (Ingress, Cert-Manager, External-DNS)
-# -----------------------------------------------------------------------------
-
-module "kubernetes_addons" {
-  count  = var.install_kubernetes_addons ? 1 : 0
-  source = "../../modules/kubernetes-addons"
-
-  # NGINX Ingress
-  install_nginx_ingress       = var.install_nginx_ingress
-  nginx_ingress_replica_count = local.is_production ? 3 : 2
-  nginx_ingress_internal_only = var.private_cluster_enabled
-
-  # Cert-Manager
-  install_cert_manager   = var.install_cert_manager
-  create_cluster_issuers = var.install_cert_manager
-  letsencrypt_email      = var.letsencrypt_email
-
-  # External DNS
-  install_external_dns      = var.install_external_dns
-  dns_resource_group        = var.dns_resource_group
-  azure_tenant_id           = data.azurerm_client_config.current.tenant_id
-  azure_subscription_id     = var.subscription_id
-  domain_filter             = var.domain_filter
-  external_dns_txt_owner_id = "${var.project_name}-${var.environment}"
-
-  depends_on = [module.aks]
-}
-
-# -----------------------------------------------------------------------------
 # Velero Backup (Production: disaster recovery)
+# NOTE: For private clusters, Velero Helm install is skipped.
+# Azure Backup for AKS can be used as an alternative.
 # -----------------------------------------------------------------------------
 
 module "velero" {
-  count  = var.install_velero ? 1 : 0
+  count  = var.install_velero && !var.private_cluster_enabled ? 1 : 0
   source = "../../modules/velero"
 
   resource_group_name = azurerm_resource_group.main.name

@@ -58,7 +58,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     vnet_subnet_id              = var.aks_subnet_id
 
     upgrade_settings {
-      max_surge                     = "10%"
+      max_surge                     = "1"
       drain_timeout_in_minutes      = 0
       node_soak_duration_in_minutes = 0
     }
@@ -97,6 +97,22 @@ resource "azurerm_kubernetes_cluster" "main" {
     }
   }
 
+  # ==========================================================================
+  # Azure Application Routing Add-on (Managed NGINX Ingress)
+  # ==========================================================================
+  # This is Azure's managed ingress solution - no need for bastion/helm!
+  # Features:
+  # - Fully managed NGINX Ingress controller
+  # - Automatic TLS with Azure Key Vault integration
+  # - Azure DNS integration for automatic DNS record management
+  # ==========================================================================
+  dynamic "web_app_routing" {
+    for_each = var.enable_app_routing ? [1] : []
+    content {
+      dns_zone_ids = var.app_routing_dns_zone_ids
+    }
+  }
+
   tags = var.tags
 
   lifecycle {
@@ -111,12 +127,14 @@ resource "azurerm_kubernetes_cluster" "main" {
 # -----------------------------------------------------------------------------
 
 resource "azurerm_role_assignment" "aks_acr_pull" {
-  count = var.container_registry_id != "" ? 1 : 0
+  count = var.enable_acr_pull ? 1 : 0
 
-  principal_id                     = try(azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id, null)
+  principal_id                     = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
   role_definition_name             = "AcrPull"
   scope                            = var.container_registry_id
   skip_service_principal_aad_check = true
+
+  depends_on = [azurerm_kubernetes_cluster.main]
 }
 
 # -----------------------------------------------------------------------------
@@ -124,12 +142,14 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
 # -----------------------------------------------------------------------------
 
 resource "azurerm_role_assignment" "aks_keyvault_secrets_user" {
-  count = var.keyvault_id != "" ? 1 : 0
+  count = var.enable_keyvault_access ? 1 : 0
 
-  principal_id                     = try(azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].object_id, null)
+  principal_id                     = azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].object_id
   role_definition_name             = "Key Vault Secrets User"
   scope                            = var.keyvault_id
   skip_service_principal_aad_check = true
+
+  depends_on = [azurerm_kubernetes_cluster.main]
 }
 
 # -----------------------------------------------------------------------------
@@ -157,7 +177,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   node_taints = []
 
   upgrade_settings {
-    max_surge                     = "10%"
+    max_surge                     = "1"
     drain_timeout_in_minutes      = 0
     node_soak_duration_in_minutes = 0
   }

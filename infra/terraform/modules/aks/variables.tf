@@ -176,13 +176,27 @@ variable "log_analytics_workspace_id" {
 variable "container_registry_id" {
   type        = string
   description = "Container Registry ID for ACR pull access"
-  default     = ""
+  default     = null
+  nullable    = true
+}
+
+variable "enable_acr_pull" {
+  type        = bool
+  description = "Enable ACR pull role assignment (set to true when container_registry_id is provided)"
+  default     = false
 }
 
 variable "keyvault_id" {
   type        = string
   description = "Key Vault ID for secrets access"
-  default     = ""
+  default     = null
+  nullable    = true
+}
+
+variable "enable_keyvault_access" {
+  type        = bool
+  description = "Enable Key Vault secrets user role assignment (set to true when keyvault_id is provided)"
+  default     = false
 }
 
 # -----------------------------------------------------------------------------
@@ -217,4 +231,20 @@ variable "aks_subnet_id" {
   type        = string
   description = "Subnet ID for AKS nodes (for VNet integration)"
   default     = null
+}
+
+# -----------------------------------------------------------------------------
+# Application Routing Add-on (Managed NGINX Ingress)
+# -----------------------------------------------------------------------------
+
+variable "enable_app_routing" {
+  type        = bool
+  description = "Enable Azure Application Routing add-on (managed NGINX ingress)"
+  default     = false
+}
+
+variable "app_routing_dns_zone_ids" {
+  type        = list(string)
+  description = "List of Azure DNS zone IDs for automatic DNS management"
+  default     = []
 }

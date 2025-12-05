@@ -71,3 +71,8 @@ output "identity_client_id" {
   description = "Client ID of AKS managed identity"
   value       = azurerm_user_assigned_identity.aks.client_id
 }
+
+output "web_app_routing_enabled" {
+  description = "Whether Azure Application Routing (managed NGINX) is enabled"
+  value       = var.enable_app_routing
+}

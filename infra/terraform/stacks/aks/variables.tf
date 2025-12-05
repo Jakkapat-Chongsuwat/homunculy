@@ -278,9 +278,35 @@ variable "user_node_pool_max_count" {
 # Kubernetes Add-ons
 # -----------------------------------------------------------------------------
 
+# =============================================================================
+# Option 1: Azure Application Routing (RECOMMENDED - Managed NGINX)
+# =============================================================================
+# Use this for single `terraform apply` experience
+# No bastion, no helm, no SSH - fully managed by Azure
+# =============================================================================
+
+variable "enable_app_routing" {
+  type        = bool
+  description = "Enable Azure Application Routing add-on (managed NGINX ingress). RECOMMENDED for single terraform apply experience."
+  default     = true
+}
+
+variable "app_routing_dns_zone_ids" {
+  type        = list(string)
+  description = "List of Azure DNS zone IDs for automatic DNS management with App Routing"
+  default     = []
+}
+
+# =============================================================================
+# Option 2: Self-managed Kubernetes Add-ons (via Helm)
+# =============================================================================
+# Use this if you need more control over ingress configuration
+# Requires bastion VM for private cluster access
+# =============================================================================
+
 variable "install_kubernetes_addons" {
   type        = bool
-  description = "Whether to install Kubernetes add-ons (Ingress, Cert-Manager, External-DNS)"
+  description = "Whether to install Kubernetes add-ons via Helm (Ingress, Cert-Manager, External-DNS). Requires bastion for private clusters."
   default     = false
 }
 
