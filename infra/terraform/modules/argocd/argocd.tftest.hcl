@@ -2,263 +2,240 @@
 # ArgoCD Module - Unit Tests
 # =============================================================================
 # Purpose: Validate ArgoCD GitOps configuration and settings
-# Run: terraform test -filter=modules/argocd/argocd.tftest.hcl
+# Supports: public clusters (helm_release) and private clusters (command invoke)
+# Run: terraform test
 # =============================================================================
 
 # Mock providers to avoid real Kubernetes/Helm calls
 mock_provider "helm" {}
 mock_provider "kubectl" {}
-
-variables {
-  environment         = "dev"
-  argocd_version      = "5.51.6"
-  admin_password      = "test-password-123"
-  enable_ingress      = true
-  argocd_hostname     = "argocd.test.example.com"
-  create_root_app     = true
-  git_repo_url        = "https://github.com/test-org/test-repo.git"
-  git_target_revision = "main"
-  git_apps_path       = "infra/k8s/overlays/prod"
-}
+mock_provider "null" {}
 
 # -----------------------------------------------------------------------------
-# Test: ArgoCD Helm release name
+# Test: Public Cluster - Helm Release Created
 # -----------------------------------------------------------------------------
-run "argocd_helm_release_name" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.name == "argocd"
-    error_message = "ArgoCD Helm release should be named 'argocd'"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD uses official Helm repository
-# -----------------------------------------------------------------------------
-run "argocd_helm_repository" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.repository == "https://argoproj.github.io/argo-helm"
-    error_message = "ArgoCD should use official Argo Helm repository"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD uses correct chart
-# -----------------------------------------------------------------------------
-run "argocd_helm_chart" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.chart == "argo-cd"
-    error_message = "ArgoCD should use 'argo-cd' chart"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD installed in correct namespace
-# -----------------------------------------------------------------------------
-run "argocd_namespace" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.namespace == "argocd"
-    error_message = "ArgoCD should be installed in 'argocd' namespace"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD creates namespace
-# -----------------------------------------------------------------------------
-run "argocd_creates_namespace" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.create_namespace == true
-    error_message = "ArgoCD should create the namespace if it doesn't exist"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD Helm chart version
-# -----------------------------------------------------------------------------
-run "argocd_helm_version" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.version == "5.51.6"
-    error_message = "ArgoCD Helm chart version should match the specified version"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD waits for deployment
-# -----------------------------------------------------------------------------
-run "argocd_wait_enabled" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.wait == true
-    error_message = "ArgoCD should wait for deployment to complete"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD has reasonable timeout
-# -----------------------------------------------------------------------------
-run "argocd_timeout" {
-  command = plan
-
-  assert {
-    condition     = helm_release.argocd.timeout >= 300
-    error_message = "ArgoCD should have a timeout of at least 300 seconds"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD Application created when enabled
-# -----------------------------------------------------------------------------
-run "argocd_app_created" {
-  command = plan
-
-  assert {
-    condition     = length(kubectl_manifest.argocd_app) == 1
-    error_message = "ArgoCD root Application should be created when create_root_app is true"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: ArgoCD Application not created when disabled
-# -----------------------------------------------------------------------------
-run "argocd_app_not_created" {
+run "test_public_cluster_helm_release" {
   command = plan
 
   variables {
-    create_root_app = false
+    environment        = "dev"
+    admin_password     = "test-password"
+    use_command_invoke = false
+    argocd_version     = "5.51.6"
+  }
+
+  assert {
+    condition     = length(helm_release.argocd) == 1
+    error_message = "Should create helm_release for public cluster"
+  }
+
+  assert {
+    condition     = helm_release.argocd[0].namespace == "argocd"
+    error_message = "Should install in argocd namespace"
+  }
+
+  assert {
+    condition     = helm_release.argocd[0].version == "5.51.6"
+    error_message = "Should use specified chart version"
+  }
+
+  assert {
+    condition     = helm_release.argocd[0].chart == "argo-cd"
+    error_message = "Should use argo-cd chart"
+  }
+
+  assert {
+    condition     = helm_release.argocd[0].repository == "https://argoproj.github.io/argo-helm"
+    error_message = "Should use official Argo Helm repository"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Private Cluster - Command Invoke Created
+# -----------------------------------------------------------------------------
+run "test_private_cluster_command_invoke" {
+  command = plan
+
+  variables {
+    environment         = "prod"
+    admin_password      = "test-password"
+    use_command_invoke  = true
+    resource_group_name = "rg-test"
+    aks_cluster_name    = "aks-test"
+    aks_cluster_id      = "/subscriptions/xxx/aks"
+  }
+
+  assert {
+    condition     = length(null_resource.argocd_install) == 1
+    error_message = "Should create null_resource for private cluster"
+  }
+
+  assert {
+    condition     = length(helm_release.argocd) == 0
+    error_message = "Should NOT create helm_release for private cluster"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Root App - Public Cluster
+# -----------------------------------------------------------------------------
+run "test_root_app_public_cluster" {
+  command = plan
+
+  variables {
+    environment        = "dev"
+    admin_password     = "test-password"
+    use_command_invoke = false
+    create_root_app    = true
+    git_repo_url       = "https://github.com/test/repo.git"
+  }
+
+  assert {
+    condition     = length(kubectl_manifest.argocd_app) == 1
+    error_message = "Should create kubectl_manifest for root app on public cluster"
+  }
+
+  assert {
+    condition     = length(null_resource.argocd_root_app) == 0
+    error_message = "Should NOT create null_resource root app for public cluster"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Root App - Private Cluster
+# -----------------------------------------------------------------------------
+run "test_root_app_private_cluster" {
+  command = plan
+
+  variables {
+    environment         = "prod"
+    admin_password      = "test-password"
+    use_command_invoke  = true
+    resource_group_name = "rg-test"
+    aks_cluster_name    = "aks-test"
+    aks_cluster_id      = "/subscriptions/xxx/aks"
+    create_root_app     = true
+    git_repo_url        = "https://github.com/test/repo.git"
+  }
+
+  assert {
+    condition     = length(null_resource.argocd_root_app) == 1
+    error_message = "Should create null_resource root app for private cluster"
   }
 
   assert {
     condition     = length(kubectl_manifest.argocd_app) == 0
-    error_message = "ArgoCD root Application should not be created when create_root_app is false"
+    error_message = "Should NOT create kubectl_manifest for private cluster"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Test: Production environment - higher replicas
+# Test: Root App Disabled
 # -----------------------------------------------------------------------------
-run "prod_environment_config" {
+run "test_root_app_disabled" {
   command = plan
 
   variables {
-    environment = "prod"
-  }
-
-  # Production should have 2 replicas for server and repoServer
-  # This is validated through the Helm values, which we can't easily assert
-  # The test passes if the plan succeeds with prod environment
-  assert {
-    condition     = helm_release.argocd.namespace == "argocd"
-    error_message = "Production ArgoCD should be in argocd namespace"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: Custom Git repo URL
-# -----------------------------------------------------------------------------
-run "custom_git_repo" {
-  command = plan
-
-  variables {
-    git_repo_url = "https://github.com/custom-org/custom-repo.git"
-  }
-
-  # The git repo URL is used in kubectl_manifest, which we verify is created
-  assert {
-    condition     = length(kubectl_manifest.argocd_app) == 1
-    error_message = "ArgoCD should create application with custom git repo"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: Ingress disabled
-# -----------------------------------------------------------------------------
-run "ingress_disabled" {
-  command = plan
-
-  variables {
-    enable_ingress = false
-  }
-
-  # When ingress is disabled, Helm release should still be created
-  assert {
-    condition     = helm_release.argocd.name == "argocd"
-    error_message = "ArgoCD should be installed even when ingress is disabled"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: Custom ArgoCD version
-# -----------------------------------------------------------------------------
-run "custom_argocd_version" {
-  command = plan
-
-  variables {
-    argocd_version = "6.0.0"
+    environment        = "dev"
+    admin_password     = "test-password"
+    use_command_invoke = false
+    create_root_app    = false
   }
 
   assert {
-    condition     = helm_release.argocd.version == "6.0.0"
-    error_message = "ArgoCD should use the specified custom version"
+    condition     = length(kubectl_manifest.argocd_app) == 0
+    error_message = "Should NOT create root app when disabled"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Test: Custom hostname
+# Test: Outputs - Public Cluster
 # -----------------------------------------------------------------------------
-run "custom_hostname" {
+run "test_outputs_public" {
   command = plan
 
   variables {
-    argocd_hostname = "gitops.custom-domain.io"
-  }
-
-  # Hostname is passed to Helm values, release should still be created
-  assert {
-    condition     = helm_release.argocd.name == "argocd"
-    error_message = "ArgoCD should accept custom hostname"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Test: Git target revision - feature branch
-# -----------------------------------------------------------------------------
-run "feature_branch_revision" {
-  command = plan
-
-  variables {
-    git_target_revision = "feature/new-feature"
+    environment        = "dev"
+    admin_password     = "test-password"
+    use_command_invoke = false
+    enable_ingress     = true
+    argocd_hostname    = "argocd.test.io"
   }
 
   assert {
-    condition     = length(kubectl_manifest.argocd_app) == 1
-    error_message = "ArgoCD should accept feature branch as target revision"
+    condition     = output.argocd_namespace == "argocd"
+    error_message = "Output namespace should be argocd"
+  }
+
+  assert {
+    condition     = output.argocd_server_service == "argocd-server"
+    error_message = "Output service should be argocd-server"
+  }
+
+  assert {
+    condition     = output.installation_method == "helm-release"
+    error_message = "Installation method should be helm-release for public cluster"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Test: Git apps path - Kustomize overlay
+# Test: Outputs - Private Cluster
 # -----------------------------------------------------------------------------
-run "kustomize_overlay_path" {
+run "test_outputs_private" {
   command = plan
 
   variables {
-    git_apps_path = "infra/k8s/overlays/staging"
+    environment         = "prod"
+    admin_password      = "test-password"
+    use_command_invoke  = true
+    resource_group_name = "rg-test"
+    aks_cluster_name    = "aks-test"
+    aks_cluster_id      = "/subscriptions/xxx/aks"
+  }
+
+  assert {
+    condition     = output.installation_method == "az-aks-command-invoke"
+    error_message = "Installation method should be az-aks-command-invoke for private cluster"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Custom ArgoCD Version
+# -----------------------------------------------------------------------------
+run "test_custom_version" {
+  command = plan
+
+  variables {
+    environment        = "dev"
+    admin_password     = "test-password"
+    use_command_invoke = false
+    argocd_version     = "6.0.0"
+  }
+
+  assert {
+    condition     = helm_release.argocd[0].version == "6.0.0"
+    error_message = "Should use custom ArgoCD version"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Custom Git Configuration
+# -----------------------------------------------------------------------------
+run "test_custom_git_config" {
+  command = plan
+
+  variables {
+    environment         = "dev"
+    admin_password      = "test-password"
+    use_command_invoke  = false
+    create_root_app     = true
+    git_repo_url        = "https://github.com/custom/repo.git"
+    git_target_revision = "feature/branch"
+    git_apps_path       = "k8s/overlays/staging"
   }
 
   assert {
     condition     = length(kubectl_manifest.argocd_app) == 1
-    error_message = "ArgoCD should accept Kustomize overlay path"
+    error_message = "Should create app with custom git config"
   }
 }

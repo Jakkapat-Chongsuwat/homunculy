@@ -1,183 +1,58 @@
 # =============================================================================
-# ArgoCD Module - GitOps Deployment
+# ArgoCD Installation via AKS k8s-extension (Microsoft.ArgoCD)
 # =============================================================================
-# Purpose: Install and configure ArgoCD on AKS cluster
+# Uses native AKS extension (no Azure Arc required)
+# Supports workload identity for private repo access and SSO
+# Reference: https://learn.microsoft.com/en-us/azure/aks/deploy-extensions-az-cli
 # =============================================================================
 
-resource "helm_release" "argocd" {
-  name             = "argocd"
-  repository       = "https://argoproj.github.io/argo-helm"
-  chart            = "argo-cd"
-  version          = var.argocd_version
-  namespace        = "argocd"
-  create_namespace = true
+resource "null_resource" "argocd_extension" {
 
-  # Wait for deployment to complete
-  wait    = true
-  timeout = 600
+  triggers = {
+    argocd_version = var.argocd_version
+    cluster_id     = var.aks_cluster_id
+  }
 
-  # Core settings
-  values = [
-    yamlencode({
-      global = {
-        logging = {
-          level = var.environment == "prod" ? "info" : "debug"
-        }
-      }
-
-      configs = {
-        params = {
-          # Enable insecure mode for internal access (use ingress TLS instead)
-          "server.insecure" = true
-        }
-        cm = {
-          # Enable Kustomize
-          "kustomize.buildOptions" = "--enable-helm"
-          # Application resync period
-          "timeout.reconciliation" = "180s"
-        }
-        rbac = {
-          "policy.default" = "role:readonly"
-          "policy.csv"     = <<-EOT
-            p, role:admin, applications, *, */*, allow
-            p, role:admin, clusters, *, *, allow
-            p, role:admin, repositories, *, *, allow
-            g, admin, role:admin
-          EOT
-        }
-      }
-
-      # Server configuration
-      server = {
-        replicas = var.environment == "prod" ? 2 : 1
-
-        resources = {
-          requests = {
-            cpu    = "100m"
-            memory = "128Mi"
-          }
-          limits = {
-            cpu    = "500m"
-            memory = "512Mi"
-          }
-        }
-
-        # Ingress for ArgoCD UI
-        ingress = {
-          enabled          = var.enable_ingress
-          ingressClassName = "webapprouting.kubernetes.azure.com"
-          hostname         = var.argocd_hostname
-          annotations = {
-            "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
-            "nginx.ingress.kubernetes.io/ssl-redirect"     = "false"
-          }
-        }
-      }
-
-      # Repo Server
-      repoServer = {
-        replicas = var.environment == "prod" ? 2 : 1
-        resources = {
-          requests = {
-            cpu    = "100m"
-            memory = "128Mi"
-          }
-          limits = {
-            cpu    = "500m"
-            memory = "512Mi"
-          }
-        }
-      }
-
-      # Application Controller
-      controller = {
-        replicas = 1
-        resources = {
-          requests = {
-            cpu    = "100m"
-            memory = "256Mi"
-          }
-          limits = {
-            cpu    = "500m"
-            memory = "512Mi"
-          }
-        }
-      }
-
-      # Redis (HA for prod)
-      redis = {
-        resources = {
-          requests = {
-            cpu    = "50m"
-            memory = "64Mi"
-          }
-          limits = {
-            cpu    = "200m"
-            memory = "128Mi"
-          }
-        }
-      }
-
-      # Dex (SSO) - disabled by default
-      dex = {
-        enabled = false
-      }
-
-      # Notifications - disabled by default
-      notifications = {
-        enabled = false
-      }
-    })
-  ]
-
-  set_sensitive = [
-    {
-      name  = "configs.secret.argocdServerAdminPassword"
-      value = bcrypt(var.admin_password)
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    environment = {
+      PYTHONUTF8 = "1"
     }
-  ]
-}
+    command = <<-EOT
+      set -e
 
-# =============================================================================
-# ArgoCD Application - Bootstrap the GitOps apps
-# =============================================================================
+      echo "Installing Microsoft.ArgoCD k8s-extension on AKS (no Arc)..."
 
-resource "kubectl_manifest" "argocd_app" {
-  count = var.create_root_app ? 1 : 0
+      EXTRA_CONFIGS=""
+      if [ -n "${var.workload_identity_client_id}" ]; then
+        EXTRA_CONFIGS="$EXTRA_CONFIGS --config workloadIdentity.enable=true"
+        EXTRA_CONFIGS="$EXTRA_CONFIGS --config workloadIdentity.clientId=${var.workload_identity_client_id}"
+      fi
+      if [ -n "${var.workload_identity_sso_client_id}" ]; then
+        EXTRA_CONFIGS="$EXTRA_CONFIGS --config workloadIdentity.entraSSOClientId=${var.workload_identity_sso_client_id}"
+      fi
 
-  yaml_body = yamlencode({
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = "homunculy-apps"
-      namespace = "argocd"
-      finalizers = [
-        "resources-finalizer.argocd.argoproj.io"
-      ]
-    }
-    spec = {
-      project = "default"
-      source = {
-        repoURL        = var.git_repo_url
-        targetRevision = var.git_target_revision
-        path           = var.git_apps_path
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = "homunculy"
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
-        }
-        syncOptions = [
-          "CreateNamespace=true"
-          , "PruneLast=true"
-        ]
-      }
-    }
-  })
+      PYTHONIOENCODING=utf-8 az k8s-extension create \
+        --resource-group "${var.resource_group_name}" \
+        --cluster-name "${var.aks_cluster_name}" \
+        --cluster-type managedClusters \
+        --name argocd \
+        --extension-type Microsoft.ArgoCD \
+        --release-train stable \
+        --config deployWithHighAvailability=false \
+        --config namespaceInstall=false \
+        --config "config-maps.argocd-cmd-params-cm.data.application\.namespaces=default,argocd" \
+        $EXTRA_CONFIGS \
+        --no-wait 2>&1 | tr -d '\u2388' || true
 
-  depends_on = [helm_release.argocd]
+      echo "Waiting for extension provisioning..."
+      PYTHONIOENCODING=utf-8 az k8s-extension show \
+        --resource-group "${var.resource_group_name}" \
+        --cluster-name "${var.aks_cluster_name}" \
+        --cluster-type managedClusters \
+        --name argocd --query provisioningState -o tsv 2>/dev/null || true
+    EOT
+  }
+
+  depends_on = []
 }

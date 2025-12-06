@@ -2,6 +2,12 @@
 
 GitOps deployment controller for Kubernetes using ArgoCD.
 
+## Features
+
+- **Public Clusters**: Uses Helm provider directly
+- **Private Clusters**: Uses `az aks command invoke` for installation
+- Single `terraform apply` for complete GitOps setup
+
 ## Architecture
 
 ```
@@ -52,12 +58,40 @@ GitOps deployment controller for Kubernetes using ArgoCD.
 
 ## Usage
 
+### Public Cluster
+
 ```hcl
 module "argocd" {
   source = "./modules/argocd"
 
   environment    = "prod"
   admin_password = var.argocd_admin_password
+
+  # Ingress configuration
+  enable_ingress  = true
+  argocd_hostname = "argocd.homunculy.io"
+
+  # GitOps repository
+  git_repo_url        = "https://github.com/Jakkapat-Chongsuwat/homunculy.git"
+  git_target_revision = "main"
+  git_apps_path       = "infra/k8s/overlays/prod"
+}
+```
+
+### Private Cluster (uses az aks command invoke)
+
+```hcl
+module "argocd" {
+  source = "./modules/argocd"
+
+  environment    = "prod"
+  admin_password = var.argocd_admin_password
+
+  # Private cluster configuration
+  use_command_invoke  = true
+  resource_group_name = azurerm_resource_group.main.name
+  aks_cluster_name    = module.aks.cluster_name
+  aks_cluster_id      = module.aks.cluster_id
 
   # Ingress configuration
   enable_ingress  = true
@@ -83,6 +117,10 @@ module "argocd" {
 | `git_repo_url` | Git repository URL for syncing | `string` | `"https://github.com/..."` | ❌ |
 | `git_target_revision` | Git branch/tag/commit to sync | `string` | `"main"` | ❌ |
 | `git_apps_path` | Path to K8s manifests in repo | `string` | `"infra/k8s/overlays/prod"` | ❌ |
+| `use_command_invoke` | Use az aks command invoke for private clusters | `bool` | `false` | ❌ |
+| `resource_group_name` | Azure Resource Group (required for private cluster) | `string` | `""` | ❌ |
+| `aks_cluster_name` | AKS cluster name (required for private cluster) | `string` | `""` | ❌ |
+| `aks_cluster_id` | AKS cluster ID (for triggers) | `string` | `""` | ❌ |
 
 ## Outputs
 
@@ -90,6 +128,18 @@ module "argocd" {
 |------|-------------|
 | `argocd_namespace` | Namespace where ArgoCD is installed |
 | `argocd_url` | URL to access ArgoCD UI |
+| `installation_method` | How ArgoCD was installed (helm-release or az-aks-command-invoke) |
+
+## How Private Cluster Installation Works
+
+For private AKS clusters, the Terraform Helm provider cannot reach the private API server.
+This module uses Azure's `az aks command invoke` feature which:
+
+1. Sends the Helm/kubectl commands to Azure's control plane
+2. Azure executes them inside the cluster using a pod
+3. No direct network access to the private API is needed
+
+This allows a single `terraform apply` to deploy everything including ArgoCD!
 
 ## Environment-Specific Configuration
 

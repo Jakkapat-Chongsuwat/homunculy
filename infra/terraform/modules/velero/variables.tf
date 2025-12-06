@@ -95,13 +95,25 @@ variable "install_velero" {
 variable "velero_version" {
   type        = string
   description = "Velero Helm chart version"
-  default     = "5.2.0"
+  default     = "8.3.0"
 }
 
 variable "velero_azure_plugin_version" {
   type        = string
   description = "Velero Azure plugin version"
-  default     = "v1.9.0"
+  default     = "v1.10.0"
+}
+
+variable "velero_init_container_image" {
+  type        = string
+  description = "Velero init container image for the Azure plugin"
+  default     = "velero/velero-plugin-for-microsoft-azure:v1.10.0"
+}
+
+variable "velero_kubectl_image" {
+  type        = string
+  description = "kubectl image for Velero (supports Kubernetes 1.29+)"
+  default     = "bitnami/kubectl:1.31"
 }
 
 # -----------------------------------------------------------------------------
@@ -118,4 +130,20 @@ variable "backup_retention_days" {
   type        = number
   description = "Number of days to retain backups"
   default     = 30
+}
+
+# -----------------------------------------------------------------------------
+# AKS Cluster Configuration
+# -----------------------------------------------------------------------------
+
+variable "aks_cluster_name" {
+  description = "AKS cluster name (required for private cluster)"
+  type        = string
+  default     = ""
+}
+
+variable "aks_cluster_id" {
+  description = "AKS cluster resource ID (used for trigger)"
+  type        = string
+  default     = ""
 }

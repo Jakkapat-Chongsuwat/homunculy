@@ -2,12 +2,14 @@
 # Velero Module - Unit Tests
 # =============================================================================
 # Purpose: Validate Velero backup configuration
-# Run: terraform test (from modules/velero directory)
+# Supports: public clusters (helm_release) and private clusters (command invoke)
+# Run: terraform test
 # =============================================================================
 
 # Mock providers to avoid real Azure/Helm calls
 mock_provider "azurerm" {}
 mock_provider "helm" {}
+mock_provider "null" {}
 
 variables {
   resource_group_name = "rg-test"
@@ -18,13 +20,14 @@ variables {
   subscription_id     = "00000000-0000-0000-0000-000000000000"
   oidc_issuer_url     = "https://eastus.oic.prod-aks.azure.com/00000000-0000-0000-0000-000000000000/00000000-0000-0000-0000-000000000000/"
 
-  create_storage_account   = true
-  storage_replication_type = "LRS"
-  backup_retention_days    = 30
-  backup_schedule          = "0 2 * * *"
-  install_velero           = true
-  velero_version           = "5.2.0"
+  create_storage_account      = true
+  storage_replication_type    = "LRS"
+  backup_retention_days       = 30
+  backup_schedule             = "0 2 * * *"
+  install_velero              = true
+  velero_version              = "5.2.0"
   velero_azure_plugin_version = "v1.8.2"
+  use_command_invoke          = false
 
   tags = {
     test = "true"
@@ -352,5 +355,57 @@ run "tags_applied" {
   assert {
     condition     = azurerm_user_assigned_identity.velero.tags["test"] == "true"
     error_message = "Tags should be applied to managed identity"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Private Cluster - Command Invoke Created
+# -----------------------------------------------------------------------------
+run "private_cluster_command_invoke" {
+  command = plan
+
+  variables {
+    use_command_invoke = true
+    aks_cluster_name   = "aks-test"
+    aks_cluster_id     = "/subscriptions/xxx/aks"
+  }
+
+  module {
+    source = "./."
+  }
+
+  assert {
+    condition     = length(null_resource.velero_install) == 1
+    error_message = "Should create null_resource for private cluster"
+  }
+
+  assert {
+    condition     = length(helm_release.velero) == 0
+    error_message = "Should NOT create helm_release for private cluster"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Test: Public Cluster - Helm Release Created
+# -----------------------------------------------------------------------------
+run "public_cluster_helm_release" {
+  command = plan
+
+  variables {
+    use_command_invoke = false
+  }
+
+  module {
+    source = "./."
+  }
+
+  assert {
+    condition     = length(helm_release.velero) == 1
+    error_message = "Should create helm_release for public cluster"
+  }
+
+  assert {
+    condition     = length(null_resource.velero_install) == 0
+    error_message = "Should NOT create null_resource for public cluster"
   }
 }

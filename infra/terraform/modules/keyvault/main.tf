@@ -48,6 +48,10 @@ resource "azurerm_key_vault_secret" "secrets" {
   # Ensure Terraform has permission before creating secrets
   depends_on = [azurerm_role_assignment.terraform_secrets_officer]
 
+  lifecycle {
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     component = "secret"
   })

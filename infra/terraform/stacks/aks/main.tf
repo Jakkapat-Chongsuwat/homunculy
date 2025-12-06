@@ -219,13 +219,11 @@ module "aks" {
 }
 
 # -----------------------------------------------------------------------------
-# Velero Backup (Production: disaster recovery)
-# NOTE: For private clusters, Velero Helm install is skipped.
-# Azure Backup for AKS can be used as an alternative.
+# Velero Backup (disaster recovery with node readiness check)
 # -----------------------------------------------------------------------------
 
 module "velero" {
-  count  = var.install_velero && !var.private_cluster_enabled ? 1 : 0
+  count  = var.install_velero ? 1 : 0
   source = "../../modules/velero"
 
   resource_group_name = azurerm_resource_group.main.name
@@ -243,13 +241,15 @@ module "velero" {
   backup_schedule          = var.velero_backup_schedule
   backup_retention_days    = var.velero_backup_retention_days
 
+  # AKS cluster configuration
+  aks_cluster_name = module.aks.cluster_name
+  aks_cluster_id   = module.aks.cluster_id
+
   depends_on = [module.aks]
 }
 
 # -----------------------------------------------------------------------------
-# ArgoCD Module (GitOps continuous deployment)
-# NOTE: For private clusters, ArgoCD is installed via Helm provider
-# which uses the Terraform's authenticated connection.
+# ArgoCD Module (GitOps continuous deployment via AKS extension)
 # -----------------------------------------------------------------------------
 
 module "argocd" {
@@ -267,6 +267,11 @@ module "argocd" {
   git_repo_url        = var.argocd_git_repo_url
   git_target_revision = var.argocd_git_target_revision
   git_apps_path       = var.argocd_git_apps_path
+
+  # AKS extension configuration
+  resource_group_name = azurerm_resource_group.main.name
+  aks_cluster_name    = module.aks.cluster_name
+  aks_cluster_id      = module.aks.cluster_id
 
   depends_on = [module.aks]
 }

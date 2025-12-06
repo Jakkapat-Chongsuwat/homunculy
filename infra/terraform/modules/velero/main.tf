@@ -2,7 +2,7 @@
 # Velero Backup Module - Main Configuration
 # =============================================================================
 # Purpose: Install Velero for Kubernetes backup and disaster recovery
-# Following: Clean Architecture - single responsibility module
+# Supports both public clusters (helm_release) and private clusters (az aks command invoke)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -84,74 +84,105 @@ resource "azurerm_federated_identity_credential" "velero" {
 }
 
 # -----------------------------------------------------------------------------
-# Velero Helm Release
+# Local values for Velero configuration
 # -----------------------------------------------------------------------------
 
-resource "helm_release" "velero" {
+locals {
+  storage_account_name = var.create_storage_account ? azurerm_storage_account.velero[0].name : var.storage_account_name
+  container_name       = var.create_storage_account ? azurerm_storage_container.velero[0].name : var.storage_container_name
+}
+
+# =============================================================================
+# Node Readiness Check
+# =============================================================================
+
+resource "null_resource" "wait_for_nodes" {
   count = var.install_velero ? 1 : 0
 
-  name             = "velero"
-  repository       = "https://vmware-tanzu.github.io/helm-charts"
-  chart            = "velero"
-  version          = var.velero_version
-  namespace        = "velero"
-  create_namespace = true
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    environment = {
+      PYTHONUTF8 = "1"
+    }
+    command = "${path.module}/check_node_readiness.sh '${var.resource_group_name}' '${var.aks_cluster_name}' 30"
+  }
+}
 
-  values = [yamlencode({
-    initContainers = [{
-      name  = "velero-plugin-for-microsoft-azure"
-      image = "velero/velero-plugin-for-microsoft-azure:${var.velero_azure_plugin_version}"
-      volumeMounts = [{
-        mountPath = "/target"
-        name      = "plugins"
-      }]
-    }]
-    configuration = {
-      backupStorageLocation = [{
-        name     = "azure"
-        provider = "azure"
-        bucket   = var.create_storage_account ? azurerm_storage_container.velero[0].name : var.storage_container_name
-        config = {
-          resourceGroup  = var.resource_group_name
-          storageAccount = var.create_storage_account ? azurerm_storage_account.velero[0].name : var.storage_account_name
-          subscriptionId = var.subscription_id
-        }
-      }]
-      volumeSnapshotLocation = [{
-        name     = "azure"
-        provider = "azure"
-        config = {
-          resourceGroup  = var.resource_group_name
-          subscriptionId = var.subscription_id
-        }
-      }]
+# =============================================================================
+# Velero Helm Chart Installation via az aks command invoke
+# =============================================================================
+# For private clusters, we cannot use helm_release directly
+# Instead, use az aks command invoke to install Helm chart
+
+resource "null_resource" "velero_install" {
+  count = var.install_velero ? 1 : 0
+
+  triggers = {
+    velero_version   = var.velero_version
+    azure_plugin     = var.velero_azure_plugin_version
+    storage_account  = local.storage_account_name
+    container_name   = local.container_name
+    client_id        = azurerm_user_assigned_identity.velero.client_id
+    kubectl_image    = var.velero_kubectl_image
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    environment = {
+      PYTHONUTF8 = "1"
     }
-    serviceAccount = {
-      server = {
-        annotations = {
-          "azure.workload.identity/client-id" = azurerm_user_assigned_identity.velero.client_id
-        }
-      }
-    }
-    podLabels = {
-      "azure.workload.identity/use" = "true"
-    }
-    credentials = {
-      useSecret = false
-    }
-    schedules = {
-      "daily-backup" = {
-        disabled = false
-        schedule = var.backup_schedule
-        template = {
-          ttl                = "${var.backup_retention_days * 24}h"
-          includedNamespaces = ["*"]
-        }
-      }
-    }
-  })]
+    command = <<-EOT
+      set -e
+      
+      echo "Installing Velero ${var.velero_version} on private AKS cluster..."
+      
+      # Install Helm via az aks command invoke
+      PYTHONIOENCODING=utf-8 az aks command invoke \
+        --resource-group "${var.resource_group_name}" \
+        --name "${var.aks_cluster_name}" \
+        --command "helm repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts && \
+                   helm repo update && \
+                   helm upgrade --install velero vmware-tanzu/velero \
+                     --version ${var.velero_version} \
+                     --namespace velero \
+                     --create-namespace \
+                     --set image.repository=velero/velero \
+                     --set image.tag=v1.15.0 \
+                     --set kubectl.image.repository=bitnami/kubectl \
+                     --set kubectl.image.tag=${var.velero_kubectl_image} \
+                     --set initContainers[0].name=velero-plugin-for-microsoft-azure \
+                     --set initContainers[0].image=${var.velero_init_container_image} \
+                     --set initContainers[0].volumeMounts[0].mountPath=/target \
+                     --set initContainers[0].volumeMounts[0].name=plugins \
+                     --set podLabels.azure\\.workload\\.identity/use=true \
+                     --set serviceAccount.server.annotations.azure\\.workload\\.identity/client-id=${azurerm_user_assigned_identity.velero.client_id} \
+                     --set credentials.useSecret=false \
+                     --set resources.requests.cpu=10m \
+                     --set resources.requests.memory=64Mi \
+                     --set resources.limits.cpu=50m \
+                     --set resources.limits.memory=128Mi \
+                     --set configuration.backupStorageLocation[0].name=default \
+                     --set configuration.backupStorageLocation[0].provider=azure \
+                     --set configuration.backupStorageLocation[0].bucket=${local.container_name} \
+                     --set configuration.backupStorageLocation[0].config.resourceGroup=${var.resource_group_name} \
+                     --set configuration.backupStorageLocation[0].config.storageAccount=${local.storage_account_name} \
+                     --set configuration.backupStorageLocation[0].config.subscriptionId=${var.subscription_id} \
+                     --set configuration.volumeSnapshotLocation[0].name=default \
+                     --set configuration.volumeSnapshotLocation[0].provider=azure \
+                     --set configuration.volumeSnapshotLocation[0].config.resourceGroup=${var.resource_group_name} \
+                     --set configuration.volumeSnapshotLocation[0].config.subscriptionId=${var.subscription_id} \
+                     --set schedules.daily-backup.disabled=false \
+                     --set schedules.daily-backup.schedule='${var.backup_schedule}' \
+                     --set schedules.daily-backup.template.ttl='${var.backup_retention_days * 24}h' \
+                     --set schedules.daily-backup.template.includedNamespaces[0]='*' \
+                     --wait --timeout 10m" 2>&1 | tr -d '\u2388' || true
+      
+      echo "Velero installation completed"
+    EOT
+  }
 
   depends_on = [
+    null_resource.wait_for_nodes,
     azurerm_federated_identity_credential.velero,
     azurerm_role_assignment.velero_storage,
     azurerm_role_assignment.velero_rg

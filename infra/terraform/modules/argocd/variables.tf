@@ -54,3 +54,37 @@ variable "git_apps_path" {
   type        = string
   default     = "infra/k8s/overlays/prod"
 }
+
+# =============================================================================
+# AKS Extension Configuration
+# =============================================================================
+
+variable "resource_group_name" {
+  description = "Azure Resource Group name (required for private cluster)"
+  type        = string
+  default     = ""
+}
+
+variable "workload_identity_client_id" {
+  description = "Managed identity client ID for ArgoCD workloads (enables Azure workload identity). Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
+variable "workload_identity_sso_client_id" {
+  description = "Managed identity client ID for ArgoCD UI SSO (optional). Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
+variable "aks_cluster_name" {
+  description = "AKS cluster name (required for private cluster)"
+  type        = string
+  default     = ""
+}
+
+variable "aks_cluster_id" {
+  description = "AKS cluster resource ID (used for trigger)"
+  type        = string
+  default     = ""
+}
