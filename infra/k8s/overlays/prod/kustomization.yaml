@@ -32,43 +32,43 @@ patches:
   # Ingress with production domains and TLS
   - path: ingress-patch.yaml
   
-  # Scale up replicas for production
+  # Scale up replicas for production (only enabled apps)
   - target:
       kind: Deployment
       name: homunculy
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
-  - target:
-      kind: Deployment
-      name: management-service
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
+        value: 1
+  # - target:
+  #     kind: Deployment
+  #     name: management-service
+  #   patch: |-
+  #     - op: replace
+  #       path: /spec/replicas
+  #       value: 2
   - target:
       kind: Deployment
       name: chat-client
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
+        value: 1
 
-  # Higher resource limits for production
-  - target:
-      kind: Deployment
-      name: homunculy
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/resources
-        value:
-          requests:
-            cpu: "200m"
-            memory: "512Mi"
-          limits:
-            cpu: "1000m"
-            memory: "1Gi"
+  # Higher resource limits for production (disabled to fit quota)
+  # - target:
+  #     kind: Deployment
+  #     name: homunculy
+  #   patch: |-
+  #     - op: replace
+  #       path: /spec/template/spec/containers/0/resources
+  #       value:
+  #         requests:
+  #           cpu: "200m"
+  #           memory: "512Mi"
+  #         limits:
+  #           cpu: "1000m"
+  #           memory: "1Gi"
 
 configMapGenerator:
   - name: env-config

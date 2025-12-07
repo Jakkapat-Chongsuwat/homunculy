@@ -11,13 +11,12 @@ resources:
   - ingress.yaml
   - apps/homunculy/deployment.yaml
   - apps/homunculy/service.yaml
-  - apps/management-service/deployment.yaml
-  - apps/management-service/service.yaml
-  - apps/rag-service/deployment.yaml
-  - apps/rag-service/service.yaml
+  # - apps/management-service/deployment.yaml  # Disabled for initial deployment
+  # - apps/management-service/service.yaml     # Disabled for initial deployment
+  # - apps/rag-service/deployment.yaml         # Disabled for initial deployment
+  # - apps/rag-service/service.yaml            # Disabled for initial deployment
   - apps/chat-client/deployment.yaml
   - apps/chat-client/service.yaml
-  - apps/argocd/ingress.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: homunculy
