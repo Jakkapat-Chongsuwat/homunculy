@@ -11,11 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Poetry
 RUN pip install poetry
 
-# Copy dependency files
-COPY pyproject.toml poetry.lock ./
+# Copy dependency file (lock will be generated in-image if absent)
+COPY pyproject.toml ./
 
-# Install dependencies (production only)
-RUN poetry config virtualenvs.create false \
+# Resolve and install dependencies (production only)
+RUN poetry lock --no-interaction --no-ansi \
+    && poetry config virtualenvs.create false \
     && poetry install --only main --no-interaction --no-ansi
 
 # Copy source code
