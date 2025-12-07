@@ -88,3 +88,9 @@ variable "aks_cluster_id" {
   type        = string
   default     = ""
 }
+
+variable "argocd_manifest_url" {
+  description = "Argo CD manifest URL to apply (defaults to stable install.yaml)"
+  type        = string
+  default     = ""
+}

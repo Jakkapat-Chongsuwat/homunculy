@@ -8,6 +8,7 @@ on:
       - "management-service/**"
       - "rag-service/**"
       - "chat-client/**"
+      - "infra/k8s/**"
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -24,45 +25,91 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      homunculy: ${{ steps.changes.outputs.homunculy }}
-      management: ${{ steps.changes.outputs.management }}
-      rag: ${{ steps.changes.outputs.rag }}
-      chat: ${{ steps.changes.outputs.chat }}
+      homunculy: ${{ steps.set-flags.outputs.homunculy }}
+      management: ${{ steps.set-flags.outputs.management }}
+      rag: ${{ steps.set-flags.outputs.rag }}
+      chat: ${{ steps.set-flags.outputs.chat }}
+      any: ${{ steps.set-flags.outputs.any }}
     steps:
       - uses: actions/checkout@v4
-      - id: changes
+        with:
+          fetch-depth: 0
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            homunculy:
+              - 'homunculy/**'
+            management:
+              - 'management-service/**'
+            rag:
+              - 'rag-service/**'
+            chat:
+              - 'chat-client/**'
+      - id: set-flags
+        env:
+          FILTER_HOMUNCULY: ${{ steps.filter.outputs['homunculy'] }}
+          FILTER_MANAGEMENT: ${{ steps.filter.outputs['management'] }}
+          FILTER_RAG: ${{ steps.filter.outputs['rag'] }}
+          FILTER_CHAT: ${{ steps.filter.outputs['chat'] }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          echo "homunculy=${{ contains(github.event.head_commit.modified, 'homunculy/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
-          echo "management=${{ contains(github.event.head_commit.modified, 'management-service/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
-          echo "rag=${{ contains(github.event.head_commit.modified, 'rag-service/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
-          echo "chat=${{ contains(github.event.head_commit.modified, 'chat-client/') || github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
+          flag() {
+            if [ "$IS_DISPATCH" = "true" ] || [ "$1" = "true" ]; then
+              echo "true"
+            else
+              echo "false"
+            fi
+          }
+
+          echo "homunculy=$(flag "$FILTER_HOMUNCULY")" >> $GITHUB_OUTPUT
+          echo "management=$(flag "$FILTER_MANAGEMENT")" >> $GITHUB_OUTPUT
+          echo "rag=$(flag "$FILTER_RAG")" >> $GITHUB_OUTPUT
+          echo "chat=$(flag "$FILTER_CHAT")" >> $GITHUB_OUTPUT
+
+          if [ "$IS_DISPATCH" = "true" ] || [ "$FILTER_HOMUNCULY" = "true" ] || [ "$FILTER_MANAGEMENT" = "true" ] || [ "$FILTER_RAG" = "true" ] || [ "$FILTER_CHAT" = "true" ]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+          fi
 
   build:
     needs: detect-changes
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: homunculy
             path: homunculy
             dockerfile: homunculy/Dockerfile
             context: homunculy
+            changed: ${{ needs.detect-changes.outputs.homunculy }}
           - name: management-service
             path: management-service
             dockerfile: management-service/Dockerfile
             context: management-service
+            changed: ${{ needs.detect-changes.outputs.management }}
           - name: rag-service
             path: rag-service
             dockerfile: rag-service/Dockerfile
             context: rag-service
+            changed: ${{ needs.detect-changes.outputs.rag }}
           - name: chat-client
             path: chat-client
             dockerfile: chat-client/Dockerfile
             context: .
+            changed: ${{ needs.detect-changes.outputs.chat }}
     steps:
+      - name: Skip unchanged service
+        if: ${{ matrix.changed != 'true' && github.event_name != 'workflow_dispatch' }}
+        run: echo "No changes for ${{ matrix.name }}; skipping build and push."
+
       - uses: actions/checkout@v4
+        if: ${{ matrix.changed == 'true' || github.event_name == 'workflow_dispatch' }}
 
       - name: Azure Login (OIDC)
+        if: ${{ matrix.changed == 'true' || github.event_name == 'workflow_dispatch' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -70,9 +117,11 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: ACR Login
+        if: ${{ matrix.changed == 'true' || github.event_name == 'workflow_dispatch' }}
         run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Build and Push ${{ matrix.name }}
+        if: ${{ matrix.changed == 'true' || github.event_name == 'workflow_dispatch' }}
         run: |
           docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }} \
             -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest \
@@ -81,8 +130,10 @@ jobs:
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest
 
   update-manifests:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - detect-changes
+      - build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +142,11 @@ jobs:
 
       - name: Update image tags
         run: |
-          sed -i "s/newTag: .*/newTag: ${{ github.sha }}/" infra/k8s/overlays/prod/kustomization.yaml
+          sha=${GITHUB_SHA}
+          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/homunculy\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
+          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/management-service\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
+          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/rag-service\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
+          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/chat-client\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
 
       - name: Commit changes
         run: |

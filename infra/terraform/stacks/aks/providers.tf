@@ -48,3 +48,4 @@ provider "kubectl" {
   client_key             = try(base64decode(module.aks.kube_config[0].client_key), "")
   load_config_file       = false
 }
+

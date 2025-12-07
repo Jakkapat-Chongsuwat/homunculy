@@ -1,16 +1,18 @@
 # =============================================================================
-# ArgoCD Installation via AKS k8s-extension (Microsoft.ArgoCD)
+# Argo CD Installation for Private AKS (manifest-based via az aks command invoke)
 # =============================================================================
-# Uses native AKS extension (no Azure Arc required)
-# Supports workload identity for private repo access and SSO
-# Reference: https://learn.microsoft.com/en-us/azure/aks/deploy-extensions-az-cli
+# Rationale: k8s-extension is preview; manifest install is upstream-supported and
+# works in private clusters by running kubectl inside the cluster via command invoke.
 # =============================================================================
 
-resource "null_resource" "argocd_extension" {
+locals {
+  argocd_manifest_url = coalesce(var.argocd_manifest_url, "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml")
+}
+
+resource "null_resource" "wait_for_nodes" {
 
   triggers = {
-    argocd_version = var.argocd_version
-    cluster_id     = var.aks_cluster_id
+    cluster_id = var.aks_cluster_id
   }
 
   provisioner "local-exec" {
@@ -18,41 +20,26 @@ resource "null_resource" "argocd_extension" {
     environment = {
       PYTHONUTF8 = "1"
     }
-    command = <<-EOT
-      set -e
+    command = "${path.module}/wait_for_nodes.sh '${var.resource_group_name}' '${var.aks_cluster_name}' 30"
+  }
+}
 
-      echo "Installing Microsoft.ArgoCD k8s-extension on AKS (no Arc)..."
+resource "null_resource" "argocd_install" {
 
-      EXTRA_CONFIGS=""
-      if [ -n "${var.workload_identity_client_id}" ]; then
-        EXTRA_CONFIGS="$EXTRA_CONFIGS --config workloadIdentity.enable=true"
-        EXTRA_CONFIGS="$EXTRA_CONFIGS --config workloadIdentity.clientId=${var.workload_identity_client_id}"
-      fi
-      if [ -n "${var.workload_identity_sso_client_id}" ]; then
-        EXTRA_CONFIGS="$EXTRA_CONFIGS --config workloadIdentity.entraSSOClientId=${var.workload_identity_sso_client_id}"
-      fi
-
-      PYTHONIOENCODING=utf-8 az k8s-extension create \
-        --resource-group "${var.resource_group_name}" \
-        --cluster-name "${var.aks_cluster_name}" \
-        --cluster-type managedClusters \
-        --name argocd \
-        --extension-type Microsoft.ArgoCD \
-        --release-train stable \
-        --config deployWithHighAvailability=false \
-        --config namespaceInstall=false \
-        --config "config-maps.argocd-cmd-params-cm.data.application\.namespaces=default,argocd" \
-        $EXTRA_CONFIGS \
-        --no-wait 2>&1 | tr -d '\u2388' || true
-
-      echo "Waiting for extension provisioning..."
-      PYTHONIOENCODING=utf-8 az k8s-extension show \
-        --resource-group "${var.resource_group_name}" \
-        --cluster-name "${var.aks_cluster_name}" \
-        --cluster-type managedClusters \
-        --name argocd --query provisioningState -o tsv 2>/dev/null || true
-    EOT
+  triggers = {
+    argocd_manifest_url = local.argocd_manifest_url
+    cluster_id          = var.aks_cluster_id
   }
 
-  depends_on = []
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    environment = {
+      PYTHONUTF8 = "1"
+    }
+    command = "${path.module}/install_argocd.sh '${var.resource_group_name}' '${var.aks_cluster_name}' '${local.argocd_manifest_url}'"
+  }
+
+  depends_on = [
+    null_resource.wait_for_nodes
+  ]
 }

@@ -275,3 +275,4 @@ module "argocd" {
 
   depends_on = [module.aks]
 }
+

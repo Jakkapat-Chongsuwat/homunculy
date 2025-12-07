@@ -137,7 +137,7 @@ resource "null_resource" "velero_install" {
       echo "Installing Velero ${var.velero_version} on private AKS cluster..."
       
       # Install Helm via az aks command invoke
-      PYTHONIOENCODING=utf-8 az aks command invoke \
+      PYTHONIOENCODING=utf-8 PYTHONUTF8=1 az aks command invoke \
         --resource-group "${var.resource_group_name}" \
         --name "${var.aks_cluster_name}" \
         --command "helm repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts && \
@@ -149,7 +149,7 @@ resource "null_resource" "velero_install" {
                      --set image.repository=velero/velero \
                      --set image.tag=v1.15.0 \
                      --set kubectl.image.repository=bitnami/kubectl \
-                     --set kubectl.image.tag=${var.velero_kubectl_image} \
+                     --set kubectl.image.tag=${replace(var.velero_kubectl_image, "bitnami/kubectl:", "")} \
                      --set initContainers[0].name=velero-plugin-for-microsoft-azure \
                      --set initContainers[0].image=${var.velero_init_container_image} \
                      --set initContainers[0].volumeMounts[0].mountPath=/target \
