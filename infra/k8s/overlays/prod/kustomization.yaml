@@ -16,13 +16,13 @@ commonLabels:
 # Replace image tags with production versions
 images:
   - name: acrhomunculyprod.azurecr.io/homunculy
-    newTag: latest
+    newTag: a04e5c68bcadcc939d85935e313860389b19130c
   - name: acrhomunculyprod.azurecr.io/management-service
-    newTag: latest
+    newTag: a04e5c68bcadcc939d85935e313860389b19130c
   - name: acrhomunculyprod.azurecr.io/rag-service
-    newTag: latest
+    newTag: a04e5c68bcadcc939d85935e313860389b19130c
   - name: acrhomunculyprod.azurecr.io/chat-client
-    newTag: latest
+    newTag: a04e5c68bcadcc939d85935e313860389b19130c
 
 # Production patches
 patches:
