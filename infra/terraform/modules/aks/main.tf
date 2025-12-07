@@ -6,18 +6,6 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# User Assigned Identity for AKS
-# -----------------------------------------------------------------------------
-
-resource "azurerm_user_assigned_identity" "aks" {
-  name                = "id-${var.project_name}-aks-${var.environment}"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-
-  tags = var.tags
-}
-
-# -----------------------------------------------------------------------------
 # AKS Cluster
 # -----------------------------------------------------------------------------
 
@@ -66,8 +54,7 @@ resource "azurerm_kubernetes_cluster" "main" {
 
   # Identity
   identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.aks.id]
+    type = "SystemAssigned"
   }
 
   # Network configuration
@@ -138,13 +125,13 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
 }
 
 # -----------------------------------------------------------------------------
-# Key Vault Access for AKS
+# Key Vault Access for AKS (using kubelet identity)
 # -----------------------------------------------------------------------------
 
 resource "azurerm_role_assignment" "aks_keyvault_secrets_user" {
   count = var.enable_keyvault_access ? 1 : 0
 
-  principal_id                     = azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].object_id
+  principal_id                     = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
   role_definition_name             = "Key Vault Secrets User"
   scope                            = var.keyvault_id
   skip_service_principal_aad_check = true

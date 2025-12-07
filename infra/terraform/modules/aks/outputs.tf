@@ -53,8 +53,8 @@ output "node_resource_group" {
 }
 
 output "identity_principal_id" {
-  description = "Principal ID of AKS managed identity"
-  value       = azurerm_user_assigned_identity.aks.principal_id
+  description = "Principal ID of kubelet managed identity (for ACR and Key Vault access)"
+  value       = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
 }
 
 output "private_fqdn" {
@@ -68,8 +68,8 @@ output "azure_policy_enabled" {
 }
 
 output "identity_client_id" {
-  description = "Client ID of AKS managed identity"
-  value       = azurerm_user_assigned_identity.aks.client_id
+  description = "Client ID of kubelet managed identity (for SecretProviderClass)"
+  value       = azurerm_kubernetes_cluster.main.kubelet_identity[0].client_id
 }
 
 output "web_app_routing_enabled" {
