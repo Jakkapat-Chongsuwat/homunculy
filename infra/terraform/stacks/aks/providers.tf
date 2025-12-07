@@ -24,6 +24,10 @@ provider "azapi" {}
 
 provider "random" {}
 
+provider "azuread" {
+  tenant_id = var.tenant_id != "" ? var.tenant_id : null
+}
+
 # -----------------------------------------------------------------------------
 # Helm Provider (for Kubernetes add-ons)
 # -----------------------------------------------------------------------------

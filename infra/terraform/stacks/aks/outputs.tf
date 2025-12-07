@@ -112,3 +112,17 @@ output "argocd_namespace" {
   description = "ArgoCD namespace"
   value       = var.install_argocd ? module.argocd[0].argocd_namespace : null
 }
+
+# -----------------------------------------------------------------------------
+# GitHub Actions OIDC
+# -----------------------------------------------------------------------------
+
+output "github_actions_client_id" {
+  description = "Client ID used for GitHub Actions OIDC app"
+  value       = local.gha_client_id
+}
+
+output "github_actions_service_principal_object_id" {
+  description = "Service principal object ID for GitHub Actions OIDC app"
+  value       = local.gha_sp_object_id
+}

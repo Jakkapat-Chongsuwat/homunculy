@@ -19,6 +19,8 @@ locals {
 
   resource_group_name = "rg-${var.project_name}-aks-${var.environment}"
   is_production       = var.environment == "prod"
+
+  github_oidc_subject = "repo:${var.github_repo_owner}/${var.github_repo_name}:ref:refs/heads/${var.github_branch}"
 }
 
 # -----------------------------------------------------------------------------
@@ -26,6 +28,47 @@ locals {
 # -----------------------------------------------------------------------------
 
 data "azurerm_client_config" "current" {}
+
+# -----------------------------------------------------------------------------
+# GitHub Actions OIDC App Registration (conditional create or reuse)
+# -----------------------------------------------------------------------------
+
+resource "azuread_application" "gha" {
+  count                   = var.github_actions_app_id == "" ? 1 : 0
+  display_name            = var.github_actions_app_display_name
+  sign_in_audience        = "AzureADMyOrg"
+  prevent_duplicate_names = true
+}
+
+data "azuread_application" "gha" {
+  count    = var.github_actions_app_id != "" ? 1 : 0
+  client_id = var.github_actions_app_id
+}
+
+resource "azuread_service_principal" "gha" {
+  count     = var.github_actions_app_id == "" ? 1 : 0
+  client_id = azuread_application.gha[0].client_id
+}
+
+data "azuread_service_principal" "gha" {
+  count     = var.github_actions_app_id != "" ? 1 : 0
+  client_id = var.github_actions_app_id
+}
+
+locals {
+  gha_app_object_id  = var.github_actions_app_id != "" ? data.azuread_application.gha[0].object_id : azuread_application.gha[0].object_id
+  gha_sp_object_id   = var.github_actions_app_id != "" ? data.azuread_service_principal.gha[0].object_id : azuread_service_principal.gha[0].object_id
+  gha_client_id      = var.github_actions_app_id != "" ? var.github_actions_app_id : azuread_application.gha[0].client_id
+}
+
+resource "azuread_application_federated_identity_credential" "gha" {
+  application_id = "/applications/${local.gha_app_object_id}"
+  display_name   = "github-${var.github_branch}"
+  description    = "GitHub Actions OIDC for ${var.github_repo_owner}/${var.github_repo_name}:${var.github_branch}"
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = local.github_oidc_subject
+  audiences      = [var.github_oidc_audience]
+}
 
 # -----------------------------------------------------------------------------
 # Resource Group
@@ -101,6 +144,24 @@ module "container_registry" {
   tags                = local.common_tags
   sku                 = local.is_production ? "Standard" : "Basic"
   admin_enabled       = true
+}
+
+# -----------------------------------------------------------------------------
+# GitHub Actions OIDC - Role Assignments
+# -----------------------------------------------------------------------------
+
+resource "azurerm_role_assignment" "gha_subscription_reader" {
+  scope                = "/subscriptions/${var.subscription_id}"
+  role_definition_name = "Reader"
+  principal_id         = local.gha_sp_object_id
+}
+
+resource "azurerm_role_assignment" "gha_acr_push" {
+  scope                = module.container_registry.registry_id
+  role_definition_name = "AcrPush"
+  principal_id         = local.gha_sp_object_id
+
+  depends_on = [module.container_registry]
 }
 
 # -----------------------------------------------------------------------------

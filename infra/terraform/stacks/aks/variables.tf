@@ -15,6 +15,48 @@ variable "subscription_id" {
   default     = ""
 }
 
+variable "tenant_id" {
+  type        = string
+  description = "Azure tenant ID override (optional). Defaults to credentials' tenant."
+  default     = ""
+}
+
+variable "github_actions_app_id" {
+  type        = string
+  description = "Existing GitHub Actions OIDC application (client) ID. Leave empty to let Terraform create one."
+  default     = ""
+}
+
+variable "github_actions_app_display_name" {
+  type        = string
+  description = "Display name for the GitHub Actions OIDC app registration when created by Terraform."
+  default     = "github-actions-homunculy-oidc"
+}
+
+variable "github_repo_owner" {
+  type        = string
+  description = "GitHub organization or user that owns the repository."
+  default     = "Jakkapat-Chongsuwat"
+}
+
+variable "github_repo_name" {
+  type        = string
+  description = "GitHub repository name for federated credential subject."
+  default     = "homunculy"
+}
+
+variable "github_branch" {
+  type        = string
+  description = "Branch to authorize for OIDC (refs/heads/<branch>)."
+  default     = "main"
+}
+
+variable "github_oidc_audience" {
+  type        = string
+  description = "OIDC audience for GitHub Actions federated credential."
+  default     = "api://AzureADTokenExchange"
+}
+
 variable "enable_acr_pull" {
   type        = bool
   description = "Enable ACR pull role assignment for AKS"

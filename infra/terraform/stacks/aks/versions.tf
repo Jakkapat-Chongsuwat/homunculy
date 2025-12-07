@@ -38,5 +38,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14"
     }
+
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
   }
 }
