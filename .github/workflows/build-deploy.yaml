@@ -25,11 +25,11 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      homunculy: ${{ steps.set-flags.outputs.homunculy }}
-      management: ${{ steps.set-flags.outputs.management }}
-      rag: ${{ steps.set-flags.outputs.rag }}
-      chat: ${{ steps.set-flags.outputs.chat }}
-      any: ${{ steps.set-flags.outputs.any }}
+      homunculy: ${{ steps.flags.outputs.homunculy }}
+      management: ${{ steps.flags.outputs.management }}
+      rag: ${{ steps.flags.outputs.rag }}
+      chat: ${{ steps.flags.outputs.chat }}
+      any: ${{ steps.flags.outputs.any }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,7 +46,7 @@ jobs:
               - 'rag-service/**'
             chat:
               - 'chat-client/**'
-      - id: set-flags
+      - id: flags
         env:
           FILTER_HOMUNCULY: ${{ steps.filter.outputs['homunculy'] }}
           FILTER_MANAGEMENT: ${{ steps.filter.outputs['management'] }}
@@ -81,22 +81,18 @@ jobs:
       matrix:
         include:
           - name: homunculy
-            path: homunculy
             dockerfile: homunculy/Dockerfile
             context: homunculy
             changed: ${{ needs.detect-changes.outputs.homunculy }}
           - name: management-service
-            path: management-service
             dockerfile: management-service/Dockerfile
             context: management-service
             changed: ${{ needs.detect-changes.outputs.management }}
           - name: rag-service
-            path: rag-service
             dockerfile: rag-service/Dockerfile
             context: rag-service
             changed: ${{ needs.detect-changes.outputs.rag }}
           - name: chat-client
-            path: chat-client
             dockerfile: chat-client/Dockerfile
             context: .
             changed: ${{ needs.detect-changes.outputs.chat }}
