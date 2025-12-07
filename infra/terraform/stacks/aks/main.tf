@@ -112,25 +112,13 @@ data "azurerm_public_ip" "app_routing" {
   depends_on = [data.azurerm_resources.app_routing_ips]
 }
 
-# Get the NSG attached to the AKS node pool
-# WHAT: Finds the auto-created Network Security Group for AKS nodes
-# WHY: Need to add inbound rules for HTTP/HTTPS traffic to reach ingress
-# DEFAULT: AKS only allows Azure LB health probes (port 10256), blocks all other inbound
-data "azurerm_resources" "aks_nsg" {
-  count               = var.enable_app_routing ? 1 : 0
-  resource_group_name = module.aks.node_resource_group
-  type                = "Microsoft.Network/networkSecurityGroups"
-
-  depends_on = [module.aks]
-}
-
 # Allow HTTP traffic for ingress
 # WHAT: NSG rule permitting internet → public IP:80
 # WHY: Users need to access apps via HTTP (will redirect to HTTPS)
 # SECURITY: Ingress controller handles rate limiting, not wide open
-# REF: README.md#ref-nsg-http
+# NOTE: Rules applied to custom NSG (attached to AKS subnet), not managed NSG
 resource "azurerm_network_security_rule" "allow_http" {
-  count                       = var.enable_app_routing ? 1 : 0
+  count                       = var.enable_app_routing && var.enable_vnet_integration ? 1 : 0
   name                        = "AllowHTTPInbound"
   priority                    = 1000
   direction                   = "Inbound"
@@ -140,19 +128,19 @@ resource "azurerm_network_security_rule" "allow_http" {
   destination_port_range      = "80"
   source_address_prefix       = "*"
   destination_address_prefix  = "*"
-  resource_group_name         = module.aks.node_resource_group
-  network_security_group_name = [for nsg in data.azurerm_resources.aks_nsg[0].resources : nsg.name][0]
+  resource_group_name         = azurerm_resource_group.main.name
+  network_security_group_name = split("/", module.vnet[0].nsg_aks_id)[8]
 
-  depends_on = [data.azurerm_resources.aks_nsg]
+  depends_on = [module.vnet]
 }
 
 # Allow HTTPS traffic for ingress
 # WHAT: NSG rule permitting internet → public IP:443
 # WHY: Users access apps securely via HTTPS (TLS terminated at ingress)
 # SECURITY: TLS 1.2+, managed by Azure App Routing, auto-renewed certs
-# REF: README.md#ref-nsg-https
+# NOTE: Rules applied to custom NSG (attached to AKS subnet), not managed NSG
 resource "azurerm_network_security_rule" "allow_https" {
-  count                       = var.enable_app_routing ? 1 : 0
+  count                       = var.enable_app_routing && var.enable_vnet_integration ? 1 : 0
   name                        = "AllowHTTPSInbound"
   priority                    = 1001
   direction                   = "Inbound"
@@ -162,10 +150,10 @@ resource "azurerm_network_security_rule" "allow_https" {
   destination_port_range      = "443"
   source_address_prefix       = "*"
   destination_address_prefix  = "*"
-  resource_group_name         = module.aks.node_resource_group
-  network_security_group_name = [for nsg in data.azurerm_resources.aks_nsg[0].resources : nsg.name][0]
+  resource_group_name         = azurerm_resource_group.main.name
+  network_security_group_name = split("/", module.vnet[0].nsg_aks_id)[8]
 
-  depends_on = [data.azurerm_resources.aks_nsg]
+  depends_on = [module.vnet]
 }
 
 # -----------------------------------------------------------------------------

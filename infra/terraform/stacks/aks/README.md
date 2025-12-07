@@ -153,22 +153,24 @@ graph TD
 
 ### [1] Network Security Group (NSG) Rules
 
-**File**: [`main.tf#L126-L140`](./main.tf#L126-L140)
+**File**: [`main.tf#L128-L144`](./main.tf#L128-L144)
 
 ```terraform
 resource "azurerm_network_security_rule" "allow_http" {
   # Allows internet → public IP on port 80
   # Required for: HTTP ingress traffic
+  # Applied to: Custom NSG (nsg-aks-homunculy-prod) attached to AKS subnet
   # Without: Cannot access apps via http://
 }
 ```
 
-**File**: [`main.tf#L142-L156`](./main.tf#L142-L156)
+**File**: [`main.tf#L146-L162`](./main.tf#L146-L162)
 
 ```terraform
 resource "azurerm_network_security_rule" "allow_https" {
   # Allows internet → public IP on port 443
   # Required for: HTTPS ingress traffic
+  # Applied to: Custom NSG (nsg-aks-homunculy-prod) attached to AKS subnet
   # Without: Cannot access apps via https://
 }
 ```
@@ -352,8 +354,8 @@ KubePodInventory
 
 ```bash
 az network nsg rule list \
-  --resource-group MC_rg-homunculy-aks-prod_aks-homunculy-prod_southeastasia \
-  --nsg-name aks-agentpool-*-nsg \
+  --resource-group rg-homunculy-aks-prod \
+  --nsg-name nsg-aks-homunculy-prod \
   --query "[?direction=='Inbound'].{name:name,port:destinationPortRange}" -o table
 # Should show: AllowHTTPInbound (80), AllowHTTPSInbound (443)
 ```
