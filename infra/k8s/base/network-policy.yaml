@@ -127,6 +127,8 @@ spec:
       ports:
         - port: 53
           protocol: UDP
+        - port: 53
+          protocol: TCP
     # External APIs (HTTPS)
     - to:
         - ipBlock:
@@ -146,6 +148,8 @@ spec:
       ports:
         - port: 53
           protocol: UDP
+        - port: 53
+          protocol: TCP
 ---
 # RAG Service → External APIs (OpenAI)
 apiVersion: networking.k8s.io/v1
