@@ -47,3 +47,30 @@ resource "null_resource" "argocd_install" {
     null_resource.wait_for_nodes
   ]
 }
+
+# -----------------------------------------------------------------------------
+# Root Application (GitOps Bootstrap)
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "root_app" {
+  count = var.create_root_app ? 1 : 0
+
+  triggers = {
+    cluster_id   = var.aks_cluster_id
+    git_repo_url = var.git_repo_url
+    git_revision = var.git_target_revision
+    git_path     = var.git_apps_path
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    environment = {
+      PYTHONUTF8 = "1"
+    }
+    command = "${path.module}/create_root_app.sh '${var.resource_group_name}' '${var.aks_cluster_name}' 'homunculy-${var.environment}' '${var.git_repo_url}' '${var.git_target_revision}' '${var.git_apps_path}'"
+  }
+
+  depends_on = [
+    null_resource.argocd_install
+  ]
+}
