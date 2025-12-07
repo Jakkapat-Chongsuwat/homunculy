@@ -30,6 +30,8 @@ resource "null_resource" "argocd_install" {
     argocd_manifest_url = local.argocd_manifest_url
     cluster_id          = var.aks_cluster_id
     ilb_manifest_hash   = filemd5("${path.module}/argocd-ilb.yaml")
+    ingress_hash        = filemd5("${path.module}/argocd-ingress.yaml")
+    public_ip           = var.public_ip
     force_redeploy      = timestamp()
   }
 
@@ -38,7 +40,7 @@ resource "null_resource" "argocd_install" {
     environment = {
       PYTHONUTF8 = "1"
     }
-    command = "${path.module}/install_argocd.sh '${var.resource_group_name}' '${var.aks_cluster_name}' '${local.argocd_manifest_url}'"
+    command = "${path.module}/install_argocd.sh '${var.resource_group_name}' '${var.aks_cluster_name}' '${local.argocd_manifest_url}' '${var.public_ip}'"
   }
 
   depends_on = [

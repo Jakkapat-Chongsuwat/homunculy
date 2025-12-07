@@ -104,13 +104,18 @@ output "key_vault_name" {
 # -----------------------------------------------------------------------------
 
 output "argocd_url" {
-  description = "ArgoCD UI URL"
-  value       = var.install_argocd ? module.argocd[0].argocd_url : null
+  description = "ArgoCD UI URL (using nip.io for automatic DNS)"
+  value       = var.install_argocd && var.enable_app_routing ? "https://argocd.${data.azurerm_public_ip.app_routing[0].ip_address}.nip.io" : null
 }
 
 output "argocd_namespace" {
   description = "ArgoCD namespace"
   value       = var.install_argocd ? module.argocd[0].argocd_namespace : null
+}
+
+output "argocd_public_ip" {
+  description = "Public IP address for ArgoCD ingress"
+  value       = var.enable_app_routing ? try(data.azurerm_public_ip.app_routing[0].ip_address, null) : null
 }
 
 # -----------------------------------------------------------------------------

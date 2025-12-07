@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: webapprouting.kubernetes.azure.com
   rules:
-    - host: argocd.57.158.185.178.nip.io
+    - host: argocd.${PUBLIC_IP}.nip.io
       http:
         paths:
           - path: /

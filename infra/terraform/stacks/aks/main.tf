@@ -75,12 +75,97 @@ resource "azuread_application_federated_identity_credential" "gha" {
 # -----------------------------------------------------------------------------
 # Resource Group
 # -----------------------------------------------------------------------------
+# WHAT: Container for all AKS-related resources
+# WHY: Logical grouping for billing, RBAC, and lifecycle management
+# SECURITY: All resources inherit common tags for governance
 
 resource "azurerm_resource_group" "main" {
   name     = local.resource_group_name
   location = var.location
 
   tags = local.common_tags
+}
+
+# -----------------------------------------------------------------------------
+# App Routing Public IP Data Source (for nip.io DNS)
+# -----------------------------------------------------------------------------
+# WHAT: Discovers the auto-created public IP for Azure App Routing ingress
+# WHY: App Routing creates a random-named IP (kubernetes-<hash>), we need to find it
+# USED BY: nip.io DNS (argocd.<IP>.nip.io), NSG rules, outputs
+# REF: README.md#ref-public-ip
+
+# Fetch all public IPs in the AKS node resource group
+data "azurerm_resources" "app_routing_ips" {
+  count               = var.enable_app_routing ? 1 : 0
+  resource_group_name = module.aks.node_resource_group
+  type                = "Microsoft.Network/publicIPAddresses"
+
+  depends_on = [module.aks]
+}
+
+# Get the App Routing public IP (kubernetes-* pattern)
+data "azurerm_public_ip" "app_routing" {
+  count               = var.enable_app_routing ? 1 : 0
+  name                = [for ip in data.azurerm_resources.app_routing_ips[0].resources : ip.name if can(regex("^kubernetes-[a-f0-9]+$", ip.name))][0]
+  resource_group_name = module.aks.node_resource_group
+
+  depends_on = [data.azurerm_resources.app_routing_ips]
+}
+
+# Get the NSG attached to the AKS node pool
+# WHAT: Finds the auto-created Network Security Group for AKS nodes
+# WHY: Need to add inbound rules for HTTP/HTTPS traffic to reach ingress
+# DEFAULT: AKS only allows Azure LB health probes (port 10256), blocks all other inbound
+data "azurerm_resources" "aks_nsg" {
+  count               = var.enable_app_routing ? 1 : 0
+  resource_group_name = module.aks.node_resource_group
+  type                = "Microsoft.Network/networkSecurityGroups"
+
+  depends_on = [module.aks]
+}
+
+# Allow HTTP traffic for ingress
+# WHAT: NSG rule permitting internet → public IP:80
+# WHY: Users need to access apps via HTTP (will redirect to HTTPS)
+# SECURITY: Ingress controller handles rate limiting, not wide open
+# REF: README.md#ref-nsg-http
+resource "azurerm_network_security_rule" "allow_http" {
+  count                       = var.enable_app_routing ? 1 : 0
+  name                        = "AllowHTTPInbound"
+  priority                    = 1000
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "80"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = module.aks.node_resource_group
+  network_security_group_name = [for nsg in data.azurerm_resources.aks_nsg[0].resources : nsg.name][0]
+
+  depends_on = [data.azurerm_resources.aks_nsg]
+}
+
+# Allow HTTPS traffic for ingress
+# WHAT: NSG rule permitting internet → public IP:443
+# WHY: Users access apps securely via HTTPS (TLS terminated at ingress)
+# SECURITY: TLS 1.2+, managed by Azure App Routing, auto-renewed certs
+# REF: README.md#ref-nsg-https
+resource "azurerm_network_security_rule" "allow_https" {
+  count                       = var.enable_app_routing ? 1 : 0
+  name                        = "AllowHTTPSInbound"
+  priority                    = 1001
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = module.aks.node_resource_group
+  network_security_group_name = [for nsg in data.azurerm_resources.aks_nsg[0].resources : nsg.name][0]
+
+  depends_on = [data.azurerm_resources.aks_nsg]
 }
 
 # -----------------------------------------------------------------------------
@@ -96,6 +181,10 @@ resource "random_password" "db_password" {
 # -----------------------------------------------------------------------------
 # VNet Module (Production: dedicated network)
 # -----------------------------------------------------------------------------
+# WHAT: Creates private virtual network with subnets for AKS, database, private endpoints
+# WHY: Network isolation - pods/nodes can't reach internet directly, only via egress firewall
+# SECURITY: Private endpoints for PaaS services (no public IPs)
+# REF: README.md#ref-vnet
 
 module "vnet" {
   count  = var.enable_vnet_integration ? 1 : 0
@@ -118,6 +207,10 @@ module "vnet" {
 }
 
 # Grant AKS control-plane identity network access to the AKS subnet (needed for ILB provisioning)
+# WHAT: Assigns Network Contributor role to AKS managed identity on AKS subnet
+# WHY: AKS needs to create internal load balancers (e.g., argocd-server-ilb)
+# WITHOUT THIS: LoadBalancer services stuck in <pending> state forever
+# SECURITY: Least privilege - only on AKS subnet, not entire VNet
 resource "azurerm_role_assignment" "aks_subnet_network_contributor" {
   count                = var.enable_vnet_integration ? 1 : 0
   scope                = module.vnet[0].aks_subnet_id
@@ -222,6 +315,11 @@ module "keyvault" {
 # -----------------------------------------------------------------------------
 # AKS Module
 # -----------------------------------------------------------------------------
+# WHAT: Managed Kubernetes cluster with private API server
+# WHY: Container orchestration, auto-scaling, self-healing workloads
+# SECURITY: Private cluster (API not exposed), Azure Policy, Defender, RBAC
+# COST: Control plane free, pay only for worker nodes (~$30/month for 2x B2s_v2)
+# REF: README.md section "Architecture Overview"
 
 module "aks" {
   source = "../../modules/aks"
@@ -240,9 +338,9 @@ module "aks" {
   node_os_upgrade_channel = var.node_os_upgrade_channel
 
   # Production Security Features
-  private_cluster_enabled    = var.private_cluster_enabled
-  azure_policy_enabled       = var.azure_policy_enabled
-  microsoft_defender_enabled = var.microsoft_defender_enabled
+  private_cluster_enabled    = var.private_cluster_enabled    # API server = private IP only
+  azure_policy_enabled       = var.azure_policy_enabled       # Enforce pod security standards
+  microsoft_defender_enabled = var.microsoft_defender_enabled # Runtime threat detection
 
   # VNet Integration
   aks_subnet_id = var.enable_vnet_integration ? module.vnet[0].aks_subnet_id : null
@@ -268,6 +366,9 @@ module "aks" {
   load_balancer_sku = var.load_balancer_sku
 
   # Managed ingress (Web App Routing)
+  # WHAT: Microsoft-managed NGINX ingress controller
+  # WHY: Zero config, auto-scaling, auto-updates, free public IP
+  # REF: README.md#ref-app-routing
   enable_app_routing       = var.enable_app_routing
   app_routing_dns_zone_ids = var.app_routing_dns_zone_ids
 
@@ -319,6 +420,11 @@ module "velero" {
 # -----------------------------------------------------------------------------
 # ArgoCD Module (GitOps continuous deployment via AKS extension)
 # -----------------------------------------------------------------------------
+# WHAT: Installs Argo CD (GitOps tool) into argocd namespace
+# WHY: Declarative deployments, auto-sync from Git, rollback capability
+# HOW: Uses `az aks command invoke` to run kubectl (bypasses private API server)
+# PUBLIC ACCESS: Creates ingress with nip.io DNS (argocd.<PUBLIC_IP>.nip.io)
+# REF: README.md section "Network Flow"
 
 module "argocd" {
   count  = var.install_argocd ? 1 : 0
@@ -341,6 +447,12 @@ module "argocd" {
   aks_cluster_name    = module.aks.cluster_name
   aks_cluster_id      = module.aks.cluster_id
 
-  depends_on = [module.aks]
+  # Public ingress configuration
+  # WHAT: Passes discovered public IP to argocd module
+  # WHY: Module generates ingress manifest with argocd.<IP>.nip.io
+  # SECURITY: Argo CD runs in insecure mode, TLS terminated at ingress
+  public_ip = var.enable_app_routing ? try(data.azurerm_public_ip.app_routing[0].ip_address, "") : ""
+
+  depends_on = [module.aks, data.azurerm_public_ip.app_routing]
 }
 

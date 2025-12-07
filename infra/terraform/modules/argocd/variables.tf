@@ -94,3 +94,9 @@ variable "argocd_manifest_url" {
   type        = string
   default     = ""
 }
+
+variable "public_ip" {
+  description = "Public IP address for nip.io ingress (optional, for public access)"
+  type        = string
+  default     = ""
+}
