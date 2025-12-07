@@ -17,6 +17,7 @@ resources:
   - apps/rag-service/service.yaml
   - apps/chat-client/deployment.yaml
   - apps/chat-client/service.yaml
+  - apps/argocd/ingress.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: homunculy

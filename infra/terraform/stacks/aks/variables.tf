@@ -57,6 +57,12 @@ variable "github_oidc_audience" {
   default     = "api://AzureADTokenExchange"
 }
 
+variable "manage_github_federated_identity" {
+  type        = bool
+  description = "Whether to create the GitHub Actions federated identity credential (set false if it already exists)."
+  default     = true
+}
+
 variable "enable_acr_pull" {
   type        = bool
   description = "Enable ACR pull role assignment for AKS"
@@ -349,55 +355,6 @@ variable "app_routing_dns_zone_ids" {
   type        = list(string)
   description = "List of Azure DNS zone IDs for automatic DNS management with App Routing"
   default     = []
-}
-
-# =============================================================================
-# Option 2: Self-managed Kubernetes Add-ons (via Helm)
-# =============================================================================
-# Use this if you need more control over ingress configuration
-# Requires bastion VM for private cluster access
-# =============================================================================
-
-variable "install_kubernetes_addons" {
-  type        = bool
-  description = "Whether to install Kubernetes add-ons via Helm (Ingress, Cert-Manager, External-DNS). Requires bastion for private clusters."
-  default     = false
-}
-
-variable "install_nginx_ingress" {
-  type        = bool
-  description = "Whether to install NGINX Ingress Controller"
-  default     = true
-}
-
-variable "install_cert_manager" {
-  type        = bool
-  description = "Whether to install cert-manager for TLS"
-  default     = true
-}
-
-variable "letsencrypt_email" {
-  type        = string
-  description = "Email for Let's Encrypt registration"
-  default     = ""
-}
-
-variable "install_external_dns" {
-  type        = bool
-  description = "Whether to install external-dns"
-  default     = false
-}
-
-variable "dns_resource_group" {
-  type        = string
-  description = "Resource group containing DNS zone"
-  default     = ""
-}
-
-variable "domain_filter" {
-  type        = string
-  description = "Domain to manage with external-dns"
-  default     = ""
 }
 
 # -----------------------------------------------------------------------------

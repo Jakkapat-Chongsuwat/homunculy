@@ -62,6 +62,8 @@ locals {
 }
 
 resource "azuread_application_federated_identity_credential" "gha" {
+  count = var.manage_github_federated_identity ? 1 : 0
+
   application_id = "/applications/${local.gha_app_object_id}"
   display_name   = "github-${var.github_branch}"
   description    = "GitHub Actions OIDC for ${var.github_repo_owner}/${var.github_repo_name}:${var.github_branch}"
@@ -113,6 +115,16 @@ module "vnet" {
 
   create_bastion_subnet    = var.private_cluster_enabled
   create_private_dns_zones = var.private_cluster_enabled
+}
+
+# Grant AKS control-plane identity network access to the AKS subnet (needed for ILB provisioning)
+resource "azurerm_role_assignment" "aks_subnet_network_contributor" {
+  count                = var.enable_vnet_integration ? 1 : 0
+  scope                = module.vnet[0].aks_subnet_id
+  role_definition_name = "Network Contributor"
+  principal_id         = module.aks.identity_principal_id
+
+  depends_on = [module.vnet, module.aks]
 }
 
 # -----------------------------------------------------------------------------
@@ -255,21 +267,16 @@ module "aks" {
   service_cidr      = var.service_cidr
   load_balancer_sku = var.load_balancer_sku
 
+  # Managed ingress (Web App Routing)
+  enable_app_routing       = var.enable_app_routing
+  app_routing_dns_zone_ids = var.app_routing_dns_zone_ids
+
   # Integrations
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
   container_registry_id      = module.container_registry.registry_id
   enable_acr_pull            = var.enable_acr_pull
   keyvault_id                = module.keyvault.vault_id
   enable_keyvault_access     = var.enable_keyvault_access
-
-  # ==========================================================================
-  # Azure Application Routing (Managed NGINX Ingress)
-  # ==========================================================================
-  # Enables Azure-managed NGINX Ingress - NO bastion/helm needed!
-  # Single terraform apply provisions everything including ingress
-  # ==========================================================================
-  enable_app_routing       = var.enable_app_routing
-  app_routing_dns_zone_ids = var.app_routing_dns_zone_ids
 
   depends_on = [
     module.monitoring,

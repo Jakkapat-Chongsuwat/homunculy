@@ -29,6 +29,8 @@ resource "null_resource" "argocd_install" {
   triggers = {
     argocd_manifest_url = local.argocd_manifest_url
     cluster_id          = var.aks_cluster_id
+    ilb_manifest_hash   = filemd5("${path.module}/argocd-ilb.yaml")
+    force_redeploy      = timestamp()
   }
 
   provisioner "local-exec" {
