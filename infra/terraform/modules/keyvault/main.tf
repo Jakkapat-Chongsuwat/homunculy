@@ -37,6 +37,13 @@ resource "azurerm_role_assignment" "terraform_secrets_officer" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+# Wait for RBAC propagation (Azure can take up to 5 minutes)
+resource "time_sleep" "wait_for_rbac" {
+  depends_on = [azurerm_role_assignment.terraform_secrets_officer]
+
+  create_duration = "60s"
+}
+
 # Secrets
 resource "azurerm_key_vault_secret" "secrets" {
   for_each = toset(var.secret_names)
@@ -45,12 +52,7 @@ resource "azurerm_key_vault_secret" "secrets" {
   value        = var.secret_values[each.value]
   key_vault_id = azurerm_key_vault.main.id
 
-  # Ensure Terraform has permission before creating secrets
-  depends_on = [azurerm_role_assignment.terraform_secrets_officer]
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  depends_on = [time_sleep.wait_for_rbac]
 
   tags = merge(var.tags, {
     component = "secret"

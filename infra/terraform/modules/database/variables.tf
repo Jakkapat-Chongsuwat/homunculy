@@ -54,8 +54,20 @@ variable "database_name" {
 
 variable "admin_password" {
   type        = string
-  description = "Administrator password"
+  description = "Admin password for PostgreSQL"
   sensitive   = true
+}
+
+variable "delegated_subnet_id" {
+  type        = string
+  description = "ID of the subnet delegated for PostgreSQL Flexible Server"
+  default     = null
+}
+
+variable "private_dns_zone_id" {
+  type        = string
+  description = "ID of the private DNS zone for PostgreSQL"
+  default     = null
 }
 
 variable "allowed_subnet_id" {

@@ -274,6 +274,12 @@ module "database" {
   backup_retention_days = var.db_backup_retention_days
   database_name         = "homunculy"
   admin_password        = random_password.db_password.result
+  
+  # VNet integration for private access
+  delegated_subnet_id = var.enable_vnet_integration ? module.vnet[0].database_subnet_id : null
+  private_dns_zone_id = var.enable_vnet_integration ? module.vnet[0].postgresql_private_dns_zone_id : null
+  
+  depends_on = [module.vnet]
 }
 
 # -----------------------------------------------------------------------------
