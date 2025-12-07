@@ -38,7 +38,9 @@ fi
 
 # Add configuration patch and rollout status
 KUBECTL_CMD="${KUBECTL_CMD} && \
+kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n argocd && \
 kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{\"data\":{\"server.insecure\":\"true\"}}' && \
+kubectl rollout restart deployment/argocd-server -n argocd && \
 kubectl rollout status deploy/argocd-server -n argocd --timeout=300s && \
 kubectl get svc -n argocd"
 
