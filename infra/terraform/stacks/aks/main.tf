@@ -290,11 +290,12 @@ module "keyvault" {
   tags                = local.common_tags
   tenant_id           = data.azurerm_client_config.current.tenant_id
 
-  secret_names = ["openai-api-key", "elevenlabs-api-key", "db-password"]
+  secret_names = ["openai-api-key", "elevenlabs-api-key", "db-password", "database-url"]
   secret_values = {
     "openai-api-key"     = var.openai_api_key
     "elevenlabs-api-key" = var.elevenlabs_api_key
     "db-password"        = random_password.db_password.result
+    "database-url"       = "postgresql://homunculyadmin:${random_password.db_password.result}@${module.database.server_fqdn}:5432/${module.database.database_name}?sslmode=require"
   }
 
   depends_on = [module.database]
