@@ -1,4 +1,4 @@
-"""Common utilities and shared abstractions."""
+"""Common utilities and shared abstractions ."""
 
 from common.logger import Logger, configure_logging, get_logger
 

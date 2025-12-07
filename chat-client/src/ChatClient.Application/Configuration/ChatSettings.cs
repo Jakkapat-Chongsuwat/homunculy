@@ -3,7 +3,7 @@ using ChatClient.Domain.Entities;
 namespace ChatClient.Application.Configuration;
 
 /// <summary>
-/// Chat client configuration settings.
+/// Chat client configuration settings .
 /// </summary>
 public sealed class ChatSettings
 {
