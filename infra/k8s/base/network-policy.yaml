@@ -120,6 +120,13 @@ spec:
             cidr: 10.2.0.0/24
       ports:
         - port: 5432
+    # Azure DNS (required for privatelink DNS resolution)
+    - to:
+        - ipBlock:
+            cidr: 168.63.129.16/32
+      ports:
+        - port: 53
+          protocol: UDP
     # External APIs (HTTPS)
     - to:
         - ipBlock:
@@ -130,7 +137,7 @@ spec:
               - 192.168.0.0/16
       ports:
         - port: 443
-    # Allow DNS
+    # Allow DNS to CoreDNS
     - to:
         - namespaceSelector: {}
           podSelector:
