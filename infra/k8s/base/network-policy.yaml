@@ -53,14 +53,11 @@ spec:
       ports:
         - port: 8000
     # Allow DNS
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
+    - ports:
         - port: 53
           protocol: UDP
+        - port: 53
+          protocol: TCP
 ---
 # Management Service → Homunculy + Database
 apiVersion: networking.k8s.io/v1
@@ -87,14 +84,11 @@ spec:
       ports:
         - port: 5432
     # Allow DNS
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
+    - ports:
         - port: 53
           protocol: UDP
+        - port: 53
+          protocol: TCP
 ---
 # Homunculy → RAG Service + External APIs (OpenAI, ElevenLabs)
 apiVersion: networking.k8s.io/v1
@@ -140,16 +134,13 @@ spec:
       ports:
         - port: 443
     # Allow DNS to CoreDNS
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
+    - ports:
         - port: 53
           protocol: UDP
         - port: 53
           protocol: TCP
+        - port: 5353
+          protocol: UDP
 ---
 # RAG Service → External APIs (OpenAI)
 apiVersion: networking.k8s.io/v1
@@ -174,11 +165,8 @@ spec:
       ports:
         - port: 443
     # Allow DNS
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
+    - ports:
         - port: 53
           protocol: UDP
+        - port: 53
+          protocol: TCP

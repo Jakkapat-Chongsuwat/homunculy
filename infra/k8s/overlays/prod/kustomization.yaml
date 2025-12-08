@@ -76,6 +76,6 @@ configMapGenerator:
       - KEYVAULT_NAME=kv-homunculy-prod
       - AZURE_TENANT_ID=d52cd61e-40d3-463c-a422-f4aa5017abd5
       - AZURE_CLIENT_ID=d191a594-7919-48f1-b2e9-44e61cf01d24
-      - DATABASE_HOST=psql-homunculy-prod.postgres.database.azure.com
+      - DATABASE_HOST=psql-homunculy-prod.privatelink.postgres.database.azure.com
       - DATABASE_NAME=homunculy
 
