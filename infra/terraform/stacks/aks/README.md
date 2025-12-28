@@ -55,7 +55,6 @@ graph TB
             LogAnalytics["🗼 Log Analytics<br/>90-day retention"]
             Defender["🛡️ Microsoft Defender<br/>Runtime Protection"]
             Policy["📜 Azure Policy<br/>Pod Security"]
-            Velero["🏺 Velero Backup<br/>Daily Snapshots"]
         end
     end
     
@@ -77,7 +76,6 @@ graph TB
     AKSSubnet -.->|Logs & Metrics| LogAnalytics
     AKSSubnet -.->|Threat Detection| Defender
     AKSSubnet -.->|Policy Enforcement| Policy
-    AKSSubnet -.->|Backup| Velero
     
     classDef public fill:#ff9999,stroke:#cc0000,stroke-width:2px
     classDef private fill:#99ff99,stroke:#00cc00,stroke-width:2px
@@ -86,7 +84,7 @@ graph TB
     
     class User,DNS,PublicIP,NSG,LB,Ingress public
     class PrivateAPI,PostgreSQL,KeyVault,ACR,Services,ArgoCD,Homunculy private
-    class LogAnalytics,Defender,Policy,Velero security
+    class LogAnalytics,Defender,Policy security
     class Internet internet
 ```
 
@@ -103,28 +101,26 @@ graph TB
 
 ```mermaid
 graph LR
-    A[👤 User Browser] -->|HTTPS| B[🌐 nip.io DNS<br/>argocd.57.158.185.178.nip.io]
-    B -->|Resolves to| C[📡 Public IP<br/>57.158.185.178]
-    C -->|NSG Rule: Allow 443| D[🚪 Azure LB]
-    D -->|Port 443| E[NGINX Ingress<br/>app-routing-system]
-    E -->|TLS Termination| F[HTTP :80]
-    F -->|Forward to| G[🎯 argocd-server svc<br/>ClusterIP: 10.0.x.x]
-    G -->|Load Balance| H[🏠 argocd-server pod<br/>Port: 8080]
+    A[👤 User Browser] -->|HTTP| B[📡 Public IP<br/>57.158.185.178]
+    B -->|NSG Rule: Allow 80| C[🚪 Azure LB]
+    C -->|Port 80| D[NGINX Ingress<br/>app-routing-system]
+    D -->|Path /argocd| E[🎯 argocd-server svc<br/>ClusterIP: 10.0.x.x]
+    E -->|Load Balance| F[🏠 argocd-server pod<br/>Port: 8080]
     
     style A fill:#e1f5ff
-    style C fill:#ff9999
-    style E fill:#99ff99
-    style H fill:#ffcc99
+    style B fill:#ff9999
+    style D fill:#99ff99
+    style F fill:#ffcc99
 ```
 
 **Traffic Path:**
 
-1. **DNS Resolution**: `argocd.57.158.185.178.nip.io` → `57.158.185.178` (automatic via nip.io)
-2. **NSG Check**: Azure NSG allows port 443 (ref: allow_https)
+1. **URL**: `http://57.158.185.178/argocd`
+2. **NSG Check**: Azure NSG allows port 80 (ref: allow_http)
 3. **Load Balancer**: Azure public LB forwards to NGINX pods
-4. **Ingress**: NGINX terminates TLS, forwards HTTP to ClusterIP
+4. **Ingress**: NGINX forwards `/argocd` to the Argo CD service
 5. **Service**: ClusterIP routes to healthy pod
-6. **Pod**: Argo CD serves UI on port 8080 (insecure mode, TLS handled by ingress)
+6. **Pod**: Argo CD serves UI on port 8080
 
 ### 🔒 Private Cluster Access (kubectl)
 
@@ -257,23 +253,6 @@ serviceAccount:
 
 **Retention**: 90 days (prod), 30 days (dev)
 
-#### Velero Backup
-
-**File**: [`main.tf#L351-L372`](./main.tf#L351-L372)
-
-**Backs up**:
-
-- All pod definitions (Deployments, StatefulSets)
-- ConfigMaps & Secrets
-- Persistent Volumes (if enabled)
-
-**Disaster Recovery**:
-
-```bash
-# Cluster destroyed? Restore in minutes:
-velero restore create --from-backup daily-backup-20241207
-```
-
 ## Security Layers
 
 | Layer | Technology | What it blocks |
@@ -302,7 +281,7 @@ terraform apply -var-file=../../environments/prod/aks.tfvars
 
 # 4. Get Argo CD URL and password
 terraform output argocd_url
-# → https://argocd.57.158.185.178.nip.io
+# → http://57.158.185.178/argocd
 
 az aks command invoke \
   --resource-group rg-homunculy-aks-prod \
@@ -380,26 +359,3 @@ az aks command invoke ... --command "kubectl get cm argocd-cmd-params-cm -n argo
 
 - ✅ **Use**: `az aks command invoke` (bypasses private endpoint)
 - ❌ **Don't use**: `kubectl` directly (requires VPN)
-
-## Cost Breakdown
-
-| Resource | SKU | Monthly Cost (USD) |
-|----------|-----|-------------------|
-| AKS Control Plane | Free | $0 |
-| Worker Nodes (2x B2s_v2) | 2 vCPU, 4 GB RAM | ~$30 |
-| PostgreSQL | B_Standard_B1ms | ~$12 |
-| Key Vault | Standard | ~$1 |
-| ACR | Standard | ~$5 |
-| Log Analytics | 5 GB/month | ~$10 |
-| Public IP | Static | ~$3 |
-| **Total** | | **~$61/month** |
-
-**Free tier includes**:
-
-- AKS control plane (no charge)
-- First 5 GB logs (included in workspace)
-- Azure Policy (included with AKS)
-
----
-
-**Next Steps**: Deploy workloads → [../../k8s/README.md](../../k8s/README.md)

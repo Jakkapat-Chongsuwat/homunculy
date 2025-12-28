@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: homunculy
+  labels:
+    app.kubernetes.io/name: homunculy
+spec:
+  selector:
+    app.kubernetes.io/name: homunculy
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: http

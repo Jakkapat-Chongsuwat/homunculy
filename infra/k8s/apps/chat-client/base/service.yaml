@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-client
+  labels:
+    app.kubernetes.io/name: chat-client
+spec:
+  selector:
+    app.kubernetes.io/name: chat-client
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: http

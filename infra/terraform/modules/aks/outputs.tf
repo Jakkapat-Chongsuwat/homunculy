@@ -1,10 +1,3 @@
-# =============================================================================
-# AKS Module Outputs
-# =============================================================================
-# Purpose: Export AKS cluster information
-# Following: Clean Code - meaningful outputs
-# =============================================================================
-
 output "cluster_id" {
   description = "ID of the AKS cluster"
   value       = azurerm_kubernetes_cluster.main.id
@@ -54,7 +47,7 @@ output "node_resource_group" {
 
 output "identity_principal_id" {
   description = "Principal ID of kubelet managed identity (for ACR and Key Vault access)"
-  value       = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
+  value       = try(azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id, null)
 }
 
 output "private_fqdn" {
@@ -69,7 +62,7 @@ output "azure_policy_enabled" {
 
 output "identity_client_id" {
   description = "Client ID of kubelet managed identity (for SecretProviderClass)"
-  value       = azurerm_kubernetes_cluster.main.kubelet_identity[0].client_id
+  value       = try(azurerm_kubernetes_cluster.main.kubelet_identity[0].client_id, null)
 }
 
 output "web_app_routing_enabled" {

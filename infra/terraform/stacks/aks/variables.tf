@@ -351,25 +351,31 @@ variable "app_routing_dns_zone_ids" {
 }
 
 # -----------------------------------------------------------------------------
-# Velero Backup Configuration
+# Application Scaling Configuration
 # -----------------------------------------------------------------------------
 
-variable "install_velero" {
-  type        = bool
-  description = "Whether to install Velero for backup"
-  default     = false
-}
-
-variable "velero_backup_schedule" {
-  type        = string
-  description = "Cron schedule for automatic backups"
-  default     = "0 2 * * *"
-}
-
-variable "velero_backup_retention_days" {
+variable "homunculy_min_replicas" {
   type        = number
-  description = "Number of days to retain backups"
-  default     = 30
+  description = "Minimum replicas for Homunculy service"
+  default     = 1
+}
+
+variable "homunculy_max_replicas" {
+  type        = number
+  description = "Maximum replicas for Homunculy service"
+  default     = 10
+}
+
+variable "chat_client_min_replicas" {
+  type        = number
+  description = "Minimum replicas for Chat Client"
+  default     = 1
+}
+
+variable "chat_client_max_replicas" {
+  type        = number
+  description = "Maximum replicas for Chat Client"
+  default     = 10
 }
 
 # -----------------------------------------------------------------------------
@@ -428,5 +434,5 @@ variable "argocd_git_target_revision" {
 variable "argocd_git_apps_path" {
   type        = string
   description = "Path to Kubernetes manifests in the repo"
-  default     = "infra/k8s/overlays/prod"
+  default     = "infra/k8s/clusters/prod"
 }

@@ -7,7 +7,7 @@
 | Aspect | Details |
 |--------|---------|
 | **Language** | Python 3.12+ |
-| **Framework** | FastAPI + Strawberry GraphQL |
+| **Framework** | FastAPI |
 | **AI Engine** | LangGraph + LangChain + OpenAI |
 | **TTS** | ElevenLabs Integration |
 | **Database** | PostgreSQL (async) |
@@ -47,17 +47,3 @@ make run
 # Run tests
 make test
 ```
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `LLM_OPENAI_API_KEY` | OpenAI API key |
-| `ELEVENLABS_API_KEY` | ElevenLabs TTS key |
-| `DB_HOST`, `DB_NAME` | PostgreSQL connection |
-
-## API Endpoints
-
-- `POST /api/v1/chat` - Send chat message
-- `WS /api/v1/ws/chat` - WebSocket streaming chat
-- `GET /graphql` - GraphQL playground

@@ -1,10 +1,3 @@
-# =============================================================================
-# Key Vault Module - Unit Tests
-# =============================================================================
-# Purpose: Validate Key Vault configuration and security settings
-# Run: terraform test (from modules/keyvault directory)
-# =============================================================================
-
 # Mock provider with data source override for valid UUIDs
 mock_provider "azurerm" {
   override_data {
@@ -17,6 +10,8 @@ mock_provider "azurerm" {
     }
   }
 }
+
+mock_provider "time" {}
 
 variables {
   resource_group_name = "rg-test"

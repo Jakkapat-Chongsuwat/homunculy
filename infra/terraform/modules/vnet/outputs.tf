@@ -1,10 +1,3 @@
-# =============================================================================
-# VNet Module Outputs
-# =============================================================================
-# Purpose: Expose VNet resources for use by other modules
-# Following: Clean Architecture - clear interface contracts
-# =============================================================================
-
 output "vnet_id" {
   description = "ID of the virtual network"
   value       = azurerm_virtual_network.main.id
@@ -54,3 +47,9 @@ output "nsg_aks_id" {
   description = "ID of AKS network security group"
   value       = azurerm_network_security_group.aks.id
 }
+
+output "nsg_aks_name" {
+  description = "Name of AKS network security group"
+  value       = azurerm_network_security_group.aks.name
+}
+

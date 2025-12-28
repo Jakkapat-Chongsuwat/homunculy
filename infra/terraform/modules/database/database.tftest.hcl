@@ -1,11 +1,3 @@
-# =============================================================================
-# Database Module - Unit Tests
-# =============================================================================
-# Purpose: Validate PostgreSQL Flexible Server configuration
-# Run: terraform test (from modules/database directory)
-# =============================================================================
-
-# Mock provider to avoid real Azure calls
 mock_provider "azurerm" {}
 
 variables {
@@ -23,9 +15,6 @@ variables {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Server name follows naming convention
-# -----------------------------------------------------------------------------
 run "server_name_convention" {
   command = plan
 
@@ -39,9 +28,6 @@ run "server_name_convention" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Server uses PostgreSQL 16
-# -----------------------------------------------------------------------------
 run "server_version" {
   command = plan
 
@@ -55,9 +41,6 @@ run "server_version" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Dev environment has geo-redundant backup disabled
-# -----------------------------------------------------------------------------
 run "dev_backup_settings" {
   command = plan
 
@@ -71,9 +54,6 @@ run "dev_backup_settings" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Production environment has geo-redundant backup enabled
-# -----------------------------------------------------------------------------
 run "prod_backup_settings" {
   command = plan
 
@@ -91,9 +71,6 @@ run "prod_backup_settings" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Database name is correct
-# -----------------------------------------------------------------------------
 run "database_name_check" {
   command = plan
 
@@ -112,9 +89,6 @@ run "database_name_check" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Firewall rule allows Azure services
-# -----------------------------------------------------------------------------
 run "azure_services_firewall" {
   command = plan
 
@@ -123,14 +97,11 @@ run "azure_services_firewall" {
   }
 
   assert {
-    condition     = azurerm_postgresql_flexible_server_firewall_rule.allow_azure_services.start_ip_address == "0.0.0.0"
+    condition     = azurerm_postgresql_flexible_server_firewall_rule.allow_azure_services[0].start_ip_address == "0.0.0.0"
     error_message = "Firewall should allow Azure services (0.0.0.0)"
   }
 }
 
-# -----------------------------------------------------------------------------
-# Test: Server configuration for timezone
-# -----------------------------------------------------------------------------
 run "server_timezone_config" {
   command = plan
 

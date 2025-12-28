@@ -1,10 +1,3 @@
-# =============================================================================
-# Database Module - Main
-# =============================================================================
-# Purpose: Provision Azure PostgreSQL Flexible Server
-# Following: Clean Architecture - Infrastructure layer
-# =============================================================================
-
 resource "azurerm_postgresql_flexible_server" "main" {
   name                          = "psql-${var.project_name}-${var.environment}"
   resource_group_name           = var.resource_group_name
@@ -16,13 +9,11 @@ resource "azurerm_postgresql_flexible_server" "main" {
   storage_mb                    = var.storage_mb
   backup_retention_days         = var.backup_retention_days
   geo_redundant_backup_enabled  = var.environment == "prod" ? true : false
-  public_network_access_enabled = var.delegated_subnet_id == null ? true : false
-  
-  # VNet integration (private access)
+  public_network_access_enabled = var.public_network_access_enabled
+
   delegated_subnet_id = var.delegated_subnet_id
   private_dns_zone_id = var.private_dns_zone_id
 
-  # Zone redundancy for production
   zone = var.environment == "prod" ? "1" : null
 
   tags = merge(var.tags, {
@@ -30,13 +21,9 @@ resource "azurerm_postgresql_flexible_server" "main" {
   })
 
   lifecycle {
-    prevent_destroy = false  # Set to true in production
-    ignore_changes  = [zone] # Zone cannot be changed after creation
+    prevent_destroy = false
+    ignore_changes  = [zone]
   }
-
-  depends_on = [
-    var.private_dns_zone_id
-  ]
 }
 
 # Database
@@ -49,12 +36,18 @@ resource "azurerm_postgresql_flexible_server_database" "main" {
 
 # Firewall rule to allow Azure services (only when public access is enabled)
 resource "azurerm_postgresql_flexible_server_firewall_rule" "allow_azure_services" {
-  count = var.delegated_subnet_id == null ? 1 : 0
+  count = var.public_network_access_enabled && var.create_allow_azure_services_firewall_rule ? 1 : 0
 
   name             = "AllowAzureServices"
   server_id        = azurerm_postgresql_flexible_server.main.id
   start_ip_address = "0.0.0.0"
   end_ip_address   = "0.0.0.0"
+
+  # Explicit dependency to ensure server is ready
+  depends_on = [
+    azurerm_postgresql_flexible_server.main,
+    azurerm_postgresql_flexible_server_database.main
+  ]
 }
 
 # Server configuration for performance

@@ -29,8 +29,8 @@ resource "null_resource" "argocd_install" {
   triggers = {
     argocd_manifest_url = local.argocd_manifest_url
     cluster_id          = var.aks_cluster_id
-    ilb_manifest_hash   = filemd5("${path.module}/argocd-ilb.yaml")
-    ingress_hash        = filemd5("${path.module}/argocd-ingress.yaml")
+    ilb_manifest_hash   = filemd5("${path.module}/../../../k8s/bootstrap/argocd/argocd-ilb.yaml")
+    ingress_hash        = filemd5("${path.module}/../../../k8s/bootstrap/argocd/argocd-ingress.yaml")
     public_ip           = var.public_ip
     force_redeploy      = timestamp()
   }

@@ -1,194 +1,81 @@
-# 🏰 Homunculy Infrastructure
+# Homunculy Infrastructure
 
-> **GitOps Kingdom**: Where Terraform builds the castle, and ArgoCD guards the gates.
+## Layout
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                           🏰 HOMUNCULY INFRASTRUCTURE KINGDOM                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                          │
-│    👨‍💻 Developer                                                                          │
-│        │                                                                                 │
-│        │ git push                                                                        │
-│        ▼                                                                                 │
-│    ┌──────────────────────────────────────────────────────────────────────────────────┐ │
-│    │  📚 GITHUB CITADEL                                                                │ │
-│    │  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐                   │ │
-│    │  │ 🔧 Terraform   │    │ 🐳 Dockerfiles │    │ ☸️  Kustomize   │                   │ │
-│    │  │    /infra      │    │   /services    │    │   /k8s         │                   │ │
-│    │  └───────┬────────┘    └───────┬────────┘    └───────┬────────┘                   │ │
-│    └──────────┼─────────────────────┼─────────────────────┼────────────────────────────┘ │
-│               │                     │                     │                              │
-│               ▼                     ▼                     │                              │
-│    ┌────────────────────────────────────────────────────┐ │                              │
-│    │  ⚙️  GITHUB ACTIONS FORGE                          │ │                              │
-│    │  ┌──────────────┐    ┌──────────────┐              │ │                              │
-│    │  │ terraform-   │    │ build-       │              │ │                              │
-│    │  │ deploy.yml   │    │ deploy.yaml  │              │ │                              │
-│    │  └──────┬───────┘    └──────┬───────┘              │ │                              │
-│    └─────────┼───────────────────┼──────────────────────┘ │                              │
-│              │                   │                        │                              │
-│              ▼                   ▼                        │                              │
-│    ══════════════════════════════════════════════════════╪══════════════════════════    │
-│                    ☁️  AZURE CLOUD REALM                  │                              │
-│    ══════════════════════════════════════════════════════╪══════════════════════════    │
-│                                                          │                              │
-│    ┌──────────────────┐    ┌──────────────────┐          │                              │
-│    │ 🏗️  Terraform     │    │ 📦 ACR Registry  │          │                              │
-│    │  Creates:        │    │                  │          │                              │
-│    │  • VNet          │───▶│  • homunculy     │◀─────────┘                              │
-│    │  • AKS           │    │  • management    │                                         │
-│    │  • PostgreSQL    │    │  • rag-service   │                                         │
-│    │  • Key Vault     │    │  • chat-client   │                                         │
-│    │  • Monitoring    │    └────────┬─────────┘                                         │
-│    └──────────────────┘             │                                                   │
-│              │                      │                                                   │
-│              ▼                      ▼                                                   │
-│    ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│    │  ☸️  AKS KUBERNETES FORTRESS  (aks-homunculy-prod)                               │  │
-│    │  ┌─────────────────────────────────────────────────────────────────────────┐    │  │
-│    │  │  🔄 ARGOCD WATCHTOWER                                                    │    │  │
-│    │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                       │    │  │
-│    │  │  │ GitOps Sync │  │ Kustomize   │  │ Image       │                       │    │  │
-│    │  │  │ Controller  │  │ Build       │  │ Updater     │                       │    │  │
-│    │  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                       │    │  │
-│    │  └─────────┼────────────────┼────────────────┼──────────────────────────────┘    │  │
-│    │            │                │                │                                   │  │
-│    │            ▼                ▼                ▼                                   │  │
-│    │  ┌─────────────────────────────────────────────────────────────────────────┐    │  │
-│    │  │  🏛️  HOMUNCULY NAMESPACE                                                 │    │  │
-│    │  │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐             │    │  │
-│    │  │  │🤖 Homunculy│ │📊 Mgmt Svc │ │🔍 RAG Svc  │ │💬 Chat     │             │    │  │
-│    │  │  │  (Python)  │ │   (Go)     │ │  (Python)  │ │  (Blazor)  │             │    │  │
-│    │  │  │  :8000     │ │   :8080    │ │   :8001    │ │   :8080    │             │    │  │
-│    │  │  └─────┬──────┘ └─────┬──────┘ └─────┬──────┘ └─────┬──────┘             │    │  │
-│    │  │        └──────────────┴──────────────┴──────────────┘                    │    │  │
-│    │  │                              │                                           │    │  │
-│    │  │                              ▼                                           │    │  │
-│    │  │                    ┌─────────────────┐                                   │    │  │
-│    │  │                    │ 🚪 Ingress      │                                   │    │  │
-│    │  │                    │ (App Routing)   │                                   │    │  │
-│    │  │                    │ *.homunculy.io  │                                   │    │  │
-│    │  │                    └────────┬────────┘                                   │    │  │
-│    │  └─────────────────────────────┼────────────────────────────────────────────┘    │  │
-│    └────────────────────────────────┼─────────────────────────────────────────────────┘  │
-│                                     │                                                    │
-│    ┌──────────────────┐    ┌────────┴───────┐    ┌──────────────────┐                   │
-│    │ 🐘 PostgreSQL    │    │ 🔐 Key Vault   │    │ 📊 Log Analytics │                   │
-│    │ Flexible Server  │    │ Secrets        │    │ App Insights     │                   │
-│    └──────────────────┘    └────────────────┘    └──────────────────┘                   │
-│                                                                                          │
-│    ══════════════════════════════════════════════════════════════════════════════════   │
-│                                     ▼                                                    │
-│                             ☁️  INTERNET                                                 │
-│                                     │                                                    │
-│                                     ▼                                                    │
-│                               👥 Users                                                   │
-│                        chat.homunculy.io                                                 │
-│                        api.homunculy.io                                                  │
-│                                                                                          │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Directory Structure
+Kubernetes (GitOps-ready):
 
 ```
-infra/
-├── k8s/                    # ☸️  Kubernetes GitOps (Kustomize + ArgoCD)
-│   ├── base/               #    Base manifests (environment-agnostic)
-│   ├── overlays/           #    Environment overrides (dev/prod)
-│   ├── infrastructure/     #    ArgoCD sources & configs
-│   └── clusters/           #    Cluster-specific bootstraps
-│
-└── terraform/              # 🏗️  Infrastructure as Code
-    ├── stacks/             #    Deployment architectures
-    │   ├── aks/            #    AKS + full Kubernetes stack
-    │   └── container-apps/ #    Serverless (simpler, cheaper)
-    ├── modules/            #    Reusable components
-    └── environments/       #    Dev/Prod configurations
+infra/k8s/
+  apps/               # one folder per app (base + overlays)
+  platform/           # cluster/platform components (DNS, namespace, secrets, ingress, network policy)
+  clusters/           # one entry per environment (dev/prod) composing apps + platform
 ```
 
----
+Terraform:
 
-## 🚀 Quick Start
-
-### Prerequisites
-```bash
-# Azure CLI + Terraform
-az login
-terraform --version  # >= 1.9.0
+```
+infra/terraform/
+  modules/
+  stacks/
+  environments/
 ```
 
-### Deploy AKS (Production)
+## Deploy (Terraform)
+
 ```bash
 cd infra/terraform/stacks/aks
-
-export TF_VAR_subscription_id=$(az account show --query id -o tsv)
-export TF_VAR_openai_api_key="sk-..."
-export TF_VAR_elevenlabs_api_key="..."
-
 terraform init
-terraform plan -var-file=../../environments/prod/aks.tfvars
 terraform apply -var-file=../../environments/prod/aks.tfvars
 ```
 
-### Connect to AKS
-```bash
-# Get credentials (private cluster - use az aks command invoke)
-az aks get-credentials -g rg-homunculy-aks-prod -n aks-homunculy-prod
+## Argo CD install (best practice)
 
-# Run commands via Azure
-az aks command invoke -g rg-homunculy-aks-prod -n aks-homunculy-prod \
-  --command "kubectl get pods -n homunculy"
+Argo CD should be installed after the cluster exists (i.e., after `terraform apply` completes). The most common best-practice flow is:
+
+1) Terraform provisions cloud + AKS
+2) A bootstrap step (CI job or script) installs/updates Argo CD into the cluster
+3) Argo CD then owns all Kubernetes app/platform manifests via GitOps
+
+Installing Argo CD via Terraform (Helm/Kubernetes providers) can work, but it couples your infra apply to cluster access and often makes troubleshooting upgrades harder. A dedicated post-apply bootstrap step is usually simpler and more reliable.
+
+This repo supports both approaches:
+
+- **Install later (recommended operationally)**: keep Argo CD as a post-apply bootstrap step.
+  - Store bootstrap manifests in `infra/k8s/bootstrap/argocd`.
+  - The root app should point to `infra/k8s/clusters/<env>`.
+- **Terraform-managed install (supported here)**: the `infra/terraform/modules/argocd` module installs Argo CD via `az aks command invoke` (works for private AKS) and can optionally create the root app.
+
+### Apply Argo CD later (two-step)
+
+1) First apply infra without Argo CD (set `install_argocd = false` in your environment tfvars and run `terraform apply`).
+2) Later, enable Argo CD (set `install_argocd = true`) and re-run `terraform apply`.
+
+If you prefer a non-Terraform bootstrap, install Argo CD after the cluster exists and apply the root app from `infra/k8s/bootstrap/argocd/root-app.yaml`.
+
+## Apply manifests (Kustomize)
+
+Dev:
+
+```bash
+kubectl apply -k infra/k8s/clusters/dev
 ```
 
-### Bootstrap ArgoCD
-```bash
-# Install ArgoCD
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+Prod:
 
-# Apply app-of-apps
-kubectl apply -f infra/k8s/clusters/prod/
+```bash
+kubectl apply -k infra/k8s/clusters/prod
 ```
 
----
-
-## 🔑 GitHub Secrets Required
-
-| Secret | Description |
-|--------|-------------|
-| `AZURE_CLIENT_ID` | Service Principal App ID |
-| `AZURE_TENANT_ID` | Azure Tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Subscription ID |
-
----
-
-## 📊 Deployed Resources
-
-| Resource | Name | Purpose |
-|----------|------|---------|
-| AKS | `aks-homunculy-prod` | Kubernetes cluster |
-| ACR | `acrhomunculyprod` | Container images |
-| PostgreSQL | `psql-homunculy-prod` | Database |
-| Key Vault | `kv-homunculy-prod` | Secrets |
-| Log Analytics | `log-homunculy-prod` | Monitoring |
-
----
-
-## 🧪 Testing
+## Terraform checks
 
 ```bash
 cd infra/terraform
-terraform test                                    # All tests
-terraform test -filter=tests/aks.tftest.hcl      # AKS only
+terraform fmt -recursive
+terraform validate
+terraform test -verbose
 ```
 
----
-
-## 💥 Destroy
+## Destroy
 
 ```bash
 cd infra/terraform/stacks/aks

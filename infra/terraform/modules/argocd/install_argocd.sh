@@ -13,11 +13,12 @@ MANIFEST_URL="$3"
 PUBLIC_IP="${4:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ILB_MANIFEST_CONTENT=$(cat "${SCRIPT_DIR}/argocd-ilb.yaml")
+BOOTSTRAP_DIR="${SCRIPT_DIR}/../../../k8s/bootstrap/argocd"
+ILB_MANIFEST_CONTENT=$(cat "${BOOTSTRAP_DIR}/argocd-ilb.yaml")
 
 # Prepare ingress manifest if public IP is provided
 if [ -n "${PUBLIC_IP}" ]; then
-  INGRESS_MANIFEST_CONTENT=$(sed "s/\${PUBLIC_IP}/${PUBLIC_IP}/g" "${SCRIPT_DIR}/argocd-ingress.yaml")
+  INGRESS_MANIFEST_CONTENT=$(sed "s/\${PUBLIC_IP}/${PUBLIC_IP}/g" "${BOOTSTRAP_DIR}/argocd-ingress.yaml")
 fi
 
 echo "Installing Argo CD via manifest using az aks command invoke..."

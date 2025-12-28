@@ -1,14 +1,3 @@
-# =============================================================================
-# VNet Module - Main Configuration
-# =============================================================================
-# Purpose: Create Virtual Network with subnets for AKS and related services
-# Following: Clean Architecture - single responsibility module
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Virtual Network
-# -----------------------------------------------------------------------------
-
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-${var.project_name}-${var.environment}"
   resource_group_name = var.resource_group_name
@@ -17,11 +6,6 @@ resource "azurerm_virtual_network" "main" {
 
   tags = var.tags
 }
-
-# -----------------------------------------------------------------------------
-# AKS Subnet
-# -----------------------------------------------------------------------------
-
 resource "azurerm_subnet" "aks" {
   name                 = "snet-aks"
   resource_group_name  = var.resource_group_name
@@ -34,11 +18,6 @@ resource "azurerm_subnet" "aks" {
     "Microsoft.Sql"
   ]
 }
-
-# -----------------------------------------------------------------------------
-# Database Subnet (for Private Endpoints)
-# -----------------------------------------------------------------------------
-
 resource "azurerm_subnet" "database" {
   name                 = "snet-database"
   resource_group_name  = var.resource_group_name
@@ -60,35 +39,20 @@ resource "azurerm_subnet" "database" {
     }
   }
 }
-
-# -----------------------------------------------------------------------------
-# Private Endpoints Subnet
-# -----------------------------------------------------------------------------
-
 resource "azurerm_subnet" "private_endpoints" {
   name                 = "snet-private-endpoints"
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = var.private_endpoints_subnet_address_prefix
 }
-
-# -----------------------------------------------------------------------------
-# Bastion Subnet (optional - for private cluster access)
-# -----------------------------------------------------------------------------
-
 resource "azurerm_subnet" "bastion" {
   count = var.create_bastion_subnet ? 1 : 0
 
-  name                 = "AzureBastionSubnet" # Must be this exact name
+  name                 = "AzureBastionSubnet"
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = var.bastion_subnet_address_prefix
 }
-
-# -----------------------------------------------------------------------------
-# Network Security Group for AKS
-# -----------------------------------------------------------------------------
-
 resource "azurerm_network_security_group" "aks" {
   name                = "nsg-aks-${var.project_name}-${var.environment}"
   resource_group_name = var.resource_group_name
@@ -101,11 +65,6 @@ resource "azurerm_subnet_network_security_group_association" "aks" {
   subnet_id                 = azurerm_subnet.aks.id
   network_security_group_id = azurerm_network_security_group.aks.id
 }
-
-# -----------------------------------------------------------------------------
-# Private DNS Zone for PostgreSQL
-# -----------------------------------------------------------------------------
-
 resource "azurerm_private_dns_zone" "postgresql" {
   count = var.create_private_dns_zones ? 1 : 0
 
@@ -125,11 +84,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgresql" {
 
   tags = var.tags
 }
-
-# -----------------------------------------------------------------------------
-# Private DNS Zone for Key Vault
-# -----------------------------------------------------------------------------
-
 resource "azurerm_private_dns_zone" "keyvault" {
   count = var.create_private_dns_zones ? 1 : 0
 
@@ -149,11 +103,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "keyvault" {
 
   tags = var.tags
 }
-
-# -----------------------------------------------------------------------------
-# Private DNS Zone for ACR
-# -----------------------------------------------------------------------------
-
 resource "azurerm_private_dns_zone" "acr" {
   count = var.create_private_dns_zones ? 1 : 0
 

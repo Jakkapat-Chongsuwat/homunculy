@@ -1,13 +1,5 @@
-# =============================================================================
-# CoreDNS Custom Stub Domains (Privatelink PostgreSQL)
-# =============================================================================
-# Applies a custom CoreDNS server block that forwards PostgreSQL zones to
-# Azure DNS (168.63.129.16) so pods can resolve the privatelink endpoint.
-# Executed via AKS runCommand to work with private clusters.
-# =============================================================================
-
 locals {
-  coredns_custom_manifest = file("${path.module}/../../../k8s/platform/coredns-custom.yaml")
+  coredns_custom_manifest = file("${path.module}/../../../k8s/platform/coredns/coredns-custom.yaml")
 }
 
 resource "azapi_resource_action" "coredns_custom" {

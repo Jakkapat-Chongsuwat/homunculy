@@ -1,0 +1,67 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-client-ingress
+spec:
+  rules:
+    - host: chat.homunculy.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-client
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: management-service-ingress
+spec:
+  rules:
+    - host: api.homunculy.io
+      http:
+        paths:
+          - path: /api(?:/(.*))?
+            pathType: Prefix
+            backend:
+              service:
+                name: management-service
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homunculy-agent-ingress
+spec:
+  rules:
+    - host: agent.homunculy.io
+      http:
+        paths:
+          - path: /agent(?:/(.*))?
+            pathType: Prefix
+            backend:
+              service:
+                name: homunculy
+                port:
+                  number: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rag-service-ingress
+spec:
+  rules:
+    - host: rag.homunculy.io
+      http:
+        paths:
+          - path: /rag(?:/(.*))?
+            pathType: Prefix
+            backend:
+              service:
+                name: rag-service
+                port:
+                  number: 8001

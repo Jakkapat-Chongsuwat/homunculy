@@ -1,7 +1,3 @@
-# AKS Stack - Main Configuration
-
-# Local Variables
-
 locals {
   common_tags = merge(var.tags, {
     project     = var.project_name
@@ -15,13 +11,7 @@ locals {
 
   github_oidc_subject = "repo:${var.github_repo_owner}/${var.github_repo_name}:ref:refs/heads/${var.github_branch}"
 }
-
-# Data Sources
-
 data "azurerm_client_config" "current" {}
-
-# GitHub Actions OIDC App Registration
-
 resource "azuread_application" "gha" {
   count                   = var.github_actions_app_id == "" ? 1 : 0
   display_name            = var.github_actions_app_display_name
@@ -30,7 +20,7 @@ resource "azuread_application" "gha" {
 }
 
 data "azuread_application" "gha" {
-  count    = var.github_actions_app_id != "" ? 1 : 0
+  count     = var.github_actions_app_id != "" ? 1 : 0
   client_id = var.github_actions_app_id
 }
 
@@ -45,9 +35,9 @@ data "azuread_service_principal" "gha" {
 }
 
 locals {
-  gha_app_object_id  = var.github_actions_app_id != "" ? data.azuread_application.gha[0].object_id : azuread_application.gha[0].object_id
-  gha_sp_object_id   = var.github_actions_app_id != "" ? data.azuread_service_principal.gha[0].object_id : azuread_service_principal.gha[0].object_id
-  gha_client_id      = var.github_actions_app_id != "" ? var.github_actions_app_id : azuread_application.gha[0].client_id
+  gha_app_object_id = var.github_actions_app_id != "" ? data.azuread_application.gha[0].object_id : azuread_application.gha[0].object_id
+  gha_sp_object_id  = var.github_actions_app_id != "" ? data.azuread_service_principal.gha[0].object_id : azuread_service_principal.gha[0].object_id
+  gha_client_id     = var.github_actions_app_id != "" ? var.github_actions_app_id : azuread_application.gha[0].client_id
 }
 
 resource "azuread_application_federated_identity_credential" "gha" {
@@ -69,12 +59,6 @@ resource "azurerm_resource_group" "main" {
 
   tags = local.common_tags
 }
-
-# -----------------------------------------------------------------------------
-# App Routing Public IP Data Source (for nip.io DNS)
-# -----------------------------------------------------------------------------
-
-# Fetch all public IPs in the AKS node resource group
 data "azurerm_resources" "app_routing_ips" {
   count               = var.enable_app_routing ? 1 : 0
   resource_group_name = module.aks.node_resource_group
@@ -82,8 +66,6 @@ data "azurerm_resources" "app_routing_ips" {
 
   depends_on = [module.aks]
 }
-
-# Get the App Routing public IP (kubernetes-* pattern)
 data "azurerm_public_ip" "app_routing" {
   count               = var.enable_app_routing ? 1 : 0
   name                = [for ip in data.azurerm_resources.app_routing_ips[0].resources : ip.name if can(regex("^kubernetes-[a-f0-9]+$", ip.name))][0]
@@ -91,8 +73,6 @@ data "azurerm_public_ip" "app_routing" {
 
   depends_on = [data.azurerm_resources.app_routing_ips]
 }
-
-# Allow HTTP traffic for ingress
 resource "azurerm_network_security_rule" "allow_http" {
   count                       = var.enable_app_routing && var.enable_vnet_integration ? 1 : 0
   name                        = "AllowHTTPInbound"
@@ -105,12 +85,10 @@ resource "azurerm_network_security_rule" "allow_http" {
   source_address_prefix       = "*"
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.main.name
-  network_security_group_name = split("/", module.vnet[0].nsg_aks_id)[8]
+  network_security_group_name = module.vnet[0].nsg_aks_name
 
   depends_on = [module.vnet]
 }
-
-# Allow HTTPS traffic for ingress
 resource "azurerm_network_security_rule" "allow_https" {
   count                       = var.enable_app_routing && var.enable_vnet_integration ? 1 : 0
   name                        = "AllowHTTPSInbound"
@@ -123,24 +101,15 @@ resource "azurerm_network_security_rule" "allow_https" {
   source_address_prefix       = "*"
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.main.name
-  network_security_group_name = split("/", module.vnet[0].nsg_aks_id)[8]
+  network_security_group_name = module.vnet[0].nsg_aks_name
 
   depends_on = [module.vnet]
 }
-
-# -----------------------------------------------------------------------------
-# Random Password for Database
-# -----------------------------------------------------------------------------
-
 resource "random_password" "db_password" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
-
-# -----------------------------------------------------------------------------
-# VNet Module (Production: dedicated network)
-# -----------------------------------------------------------------------------
 module "vnet" {
   count  = var.enable_vnet_integration ? 1 : 0
   source = "../../modules/vnet"
@@ -160,8 +129,6 @@ module "vnet" {
   create_bastion_subnet    = var.private_cluster_enabled
   create_private_dns_zones = var.private_cluster_enabled
 }
-
-# Grant AKS control-plane identity network access to the AKS subnet (needed for ILB provisioning)
 resource "azurerm_role_assignment" "aks_subnet_network_contributor" {
   count                = var.enable_vnet_integration ? 1 : 0
   scope                = module.vnet[0].aks_subnet_id
@@ -237,11 +204,13 @@ module "database" {
   backup_retention_days = var.db_backup_retention_days
   database_name         = "homunculy"
   admin_password        = random_password.db_password.result
-  
+
   # VNet integration for private access
   delegated_subnet_id = var.enable_vnet_integration ? module.vnet[0].database_subnet_id : null
   private_dns_zone_id = var.enable_vnet_integration ? module.vnet[0].postgresql_private_dns_zone_id : null
-  
+
+  public_network_access_enabled = var.enable_vnet_integration ? false : true
+
   depends_on = [module.vnet]
 }
 
@@ -265,7 +234,7 @@ module "keyvault" {
     "elevenlabs-api-key" = var.elevenlabs_api_key
     "db-password"        = random_password.db_password.result
     # Use privatelink FQDN in prod (private endpoint), public FQDN otherwise
-    "database-url"       = "postgresql+asyncpg://homunculyadmin:${random_password.db_password.result}@${local.is_production ? replace(module.database.server_fqdn, ".postgres.database.azure.com", ".privatelink.postgres.database.azure.com") : module.database.server_fqdn}:5432/${module.database.database_name}"
+    "database-url" = "postgresql+asyncpg://homunculyadmin:${random_password.db_password.result}@${local.is_production ? replace(module.database.server_fqdn, ".postgres.database.azure.com", ".privatelink.postgres.database.azure.com") : module.database.server_fqdn}:5432/${module.database.database_name}"
   }
 
   depends_on = [module.database]
@@ -338,36 +307,6 @@ module "aks" {
 }
 
 # -----------------------------------------------------------------------------
-# Velero Backup (disaster recovery with node readiness check)
-# -----------------------------------------------------------------------------
-
-module "velero" {
-  count  = var.install_velero ? 1 : 0
-  source = "../../modules/velero"
-
-  resource_group_name = azurerm_resource_group.main.name
-  resource_group_id   = azurerm_resource_group.main.id
-  location            = var.location
-  project_name        = var.project_name
-  environment         = var.environment
-  tags                = local.common_tags
-  subscription_id     = var.subscription_id
-
-  oidc_issuer_url = module.aks.oidc_issuer_url
-
-  create_storage_account   = true
-  storage_replication_type = local.is_production ? "GRS" : "LRS"
-  backup_schedule          = var.velero_backup_schedule
-  backup_retention_days    = var.velero_backup_retention_days
-
-  # AKS cluster configuration
-  aks_cluster_name = module.aks.cluster_name
-  aks_cluster_id   = module.aks.cluster_id
-
-  depends_on = [module.aks]
-}
-
-# -----------------------------------------------------------------------------
 # ArgoCD Module (GitOps continuous deployment via AKS extension)
 # -----------------------------------------------------------------------------
 module "argocd" {
@@ -396,4 +335,3 @@ module "argocd" {
 
   depends_on = [module.aks, data.azurerm_public_ip.app_routing]
 }
-

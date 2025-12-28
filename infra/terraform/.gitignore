@@ -2,7 +2,11 @@
 .terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl # Consider committing this for team consistency
+
+# Saved plan files (binary output from `terraform plan -out=...`)
+tfplan
+tfplan.*
+
 
 # Sensitive data
 *.tfvars

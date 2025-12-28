@@ -1,10 +1,3 @@
-# =============================================================================
-# Terraform Configuration for Testing
-# =============================================================================
-# This file exists to enable `terraform test` to run module unit tests.
-# For actual deployments, use the stacks/ directory.
-# =============================================================================
-
 terraform {
   required_version = ">= 1.9.0"
 

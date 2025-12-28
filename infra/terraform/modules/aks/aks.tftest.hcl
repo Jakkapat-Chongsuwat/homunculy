@@ -289,7 +289,7 @@ run "keyvault_secrets_provider" {
 }
 
 # -----------------------------------------------------------------------------
-# Test: User assigned identity name convention
+# Test: Identity is SystemAssigned
 # -----------------------------------------------------------------------------
 run "identity_name_convention" {
   command = plan
@@ -299,8 +299,8 @@ run "identity_name_convention" {
   }
 
   assert {
-    condition     = azurerm_user_assigned_identity.aks.name == "id-homunculy-aks-dev"
-    error_message = "AKS identity name should follow pattern: id-{project}-aks-{environment}"
+    condition     = azurerm_kubernetes_cluster.main.identity[0].type == "SystemAssigned"
+    error_message = "AKS cluster identity should be SystemAssigned"
   }
 }
 

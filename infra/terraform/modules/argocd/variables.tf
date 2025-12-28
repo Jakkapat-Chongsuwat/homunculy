@@ -1,7 +1,3 @@
-# =============================================================================
-# ArgoCD Module - Variables
-# =============================================================================
-
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
@@ -52,12 +48,8 @@ variable "git_target_revision" {
 variable "git_apps_path" {
   description = "Path to Kubernetes manifests in the repo"
   type        = string
-  default     = "infra/k8s/overlays/prod"
+  default     = "infra/k8s/clusters/prod"
 }
-
-# =============================================================================
-# AKS Extension Configuration
-# =============================================================================
 
 variable "resource_group_name" {
   description = "Azure Resource Group name (required for private cluster)"
