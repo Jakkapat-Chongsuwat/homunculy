@@ -3,12 +3,6 @@ variable "environment" {
   type        = string
 }
 
-variable "argocd_version" {
-  description = "ArgoCD Helm chart version"
-  type        = string
-  default     = "5.51.6"
-}
-
 variable "admin_password" {
   description = "ArgoCD admin password"
   type        = string

@@ -1,0 +1,36 @@
+flowchart TB
+  %% Argo CD bootstrap + connectivity (private AKS safe)
+
+  subgraph TF["Terraform (Step 2: Bridge)"]
+    TFAPPLY["terraform apply\nmodule.argocd"]
+    AZINVOKE["az aks command invoke\n(run kubectl inside cluster)"]
+    TFAPPLY --> AZINVOKE
+  end
+
+  subgraph AKS["AKS Cluster"]
+    NS["Namespace: argocd"]
+    INSTALL["Apply Argo CD install.yaml\n(argo-cd components)"]
+    INGRESS["Ingress: /argocd\nclass: webapprouting"]
+    SVC["Service: argocd-server (ClusterIP)"]
+    POD["Pod: argocd-server"]
+
+    NS --> INSTALL
+    INGRESS --> SVC --> POD
+  end
+
+  subgraph NET["Network Path"]
+    USER["Browser"]
+    PUBIP["Public IP (AKS Web App Routing)"]
+    IC["Ingress Controller (nginx)\nwebapprouting.kubernetes.azure.com"]
+    USER -->|"GET /argocd"| PUBIP --> IC --> INGRESS
+  end
+
+  subgraph GITOPS["GitOps"]
+    REPO["Git repo\n(manifests/apps)"]
+    ROOTAPP["Argo CD Root App\n(App-of-Apps)"]
+    REPO --> ROOTAPP
+  end
+
+  AZINVOKE -->|"kubectl apply"| NS
+  INSTALL --> SVC
+  ROOTAPP -->|"sync"| AKS

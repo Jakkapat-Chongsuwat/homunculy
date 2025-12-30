@@ -1,0 +1,65 @@
+flowchart LR
+    %% AKS stack connectivity (focus: Argo CD access path)
+    %% Goal: readable layout with minimal crossing lines
+
+    %% Outside entrypoints
+    USER["🧑‍💻 Browser"]
+
+    subgraph Azure["Azure Subscription"]
+        RG["📦 Resource Group<br/>rg-homunculy-aks-ENV"]
+        Auth["🔐 GitHub Actions<br/>OIDC"]
+
+        %% Public entrypoint is provisioned in Azure, but is visually outside the cluster
+        PUBIP["🌍 Public IP<br/>(AKS Web App Routing)"]
+
+        subgraph Network["🌐 Network"]
+            VNET["VNet<br/>AKS subnet + DB subnet + Private EP subnet"]
+            NSG["Network Security Group<br/>HTTP/HTTPS rules"]
+            NSG -. "protects" .-> VNET
+        end
+
+        subgraph Storage["📦 Storage"]
+            ACR["Container Registry (ACR)"]
+        end
+
+        subgraph Data["💾 Data"]
+            DB["PostgreSQL"]
+            KV["Key Vault"]
+        end
+
+        subgraph Monitoring["📊 Monitoring"]
+            LAW["Log Analytics"]
+        end
+
+        %% Cluster contains workloads (including Argo CD)
+        subgraph AKS["🖥️ AKS Cluster"]
+            NODES["Node pools<br/>system + user"]
+
+            subgraph Ingress["Ingress (Web App Routing)"]
+                IC["Ingress Controller (nginx)<br/>webapprouting.kubernetes.azure.com"]
+                INGR["Ingress Rule<br/>/argocd → argocd-server"]
+                IC --> INGR
+            end
+
+            subgraph GitOps["🚀 GitOps (in-cluster)"]
+                ARGOCD["Argo CD<br/>API/UI server"]
+            end
+
+            INGR -->|"routes"| ARGOCD
+        end
+    end
+
+    %% Public access path (outside → Azure → cluster)
+    USER -->|"GET /argocd"| PUBIP --> IC
+
+    %% Core connectivity
+    VNET -->|"hosts"| AKS
+    VNET -->|"private routing"| DB
+    AKS -->|"pulls images"| ACR
+    AKS -->|"reads secrets"| KV
+    AKS -->|"connects"| DB
+    AKS -->|"sends logs"| LAW
+
+    %% CI/CD connectivity
+    Auth -->|"push images"| ACR
+    Auth -->|"sync apps"| ARGOCD

@@ -307,14 +307,13 @@ module "aks" {
 }
 
 # -----------------------------------------------------------------------------
-# ArgoCD Module (GitOps continuous deployment via AKS extension)
+# ArgoCD Module (GitOps bootstrap via upstream manifest applied in-cluster)
 # -----------------------------------------------------------------------------
 module "argocd" {
   count  = var.install_argocd ? 1 : 0
   source = "../../modules/argocd"
 
   environment     = var.environment
-  argocd_version  = var.argocd_version
   admin_password  = var.argocd_admin_password
   enable_ingress  = var.argocd_enable_ingress
   argocd_hostname = var.argocd_hostname
@@ -325,7 +324,7 @@ module "argocd" {
   git_target_revision = var.argocd_git_target_revision
   git_apps_path       = var.argocd_git_apps_path
 
-  # AKS extension configuration
+  # Cluster context for in-cluster install (az aks command invoke)
   resource_group_name = azurerm_resource_group.main.name
   aks_cluster_name    = module.aks.cluster_name
   aks_cluster_id      = module.aks.cluster_id

@@ -388,12 +388,6 @@ variable "install_argocd" {
   default     = true
 }
 
-variable "argocd_version" {
-  type        = string
-  description = "ArgoCD Helm chart version"
-  default     = "5.51.6"
-}
-
 variable "argocd_admin_password" {
   type        = string
   description = "ArgoCD admin password"

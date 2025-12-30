@@ -31,6 +31,7 @@ resource "null_resource" "argocd_install" {
     cluster_id          = var.aks_cluster_id
     ilb_manifest_hash   = filemd5("${path.module}/../../../k8s/bootstrap/argocd/argocd-ilb.yaml")
     ingress_hash        = filemd5("${path.module}/../../../k8s/bootstrap/argocd/argocd-ingress.yaml")
+    enable_ingress      = tostring(var.enable_ingress)
     public_ip           = var.public_ip
     force_redeploy      = timestamp()
   }
@@ -40,7 +41,7 @@ resource "null_resource" "argocd_install" {
     environment = {
       PYTHONUTF8 = "1"
     }
-    command = "${path.module}/install_argocd.sh '${var.resource_group_name}' '${var.aks_cluster_name}' '${local.argocd_manifest_url}' '${var.public_ip}'"
+    command = "${path.module}/install_argocd.sh '${var.resource_group_name}' '${var.aks_cluster_name}' '${local.argocd_manifest_url}' '${var.enable_ingress}' '${var.public_ip}'"
   }
 
   depends_on = [
