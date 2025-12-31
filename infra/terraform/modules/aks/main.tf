@@ -9,6 +9,11 @@
 # AKS Cluster
 # -----------------------------------------------------------------------------
 
+locals {
+  system_node_pool_effective_node_count = max(var.system_node_pool_node_count, var.system_node_pool_min_count)
+  user_node_pool_effective_node_count   = max(var.user_node_pool_node_count, var.user_node_pool_min_count)
+}
+
 resource "azurerm_kubernetes_cluster" "main" {
   name                = "aks-${var.project_name}-${var.environment}"
   resource_group_name = var.resource_group_name
@@ -36,7 +41,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   default_node_pool {
     name                        = "system"
     vm_size                     = var.system_node_pool_vm_size
-    node_count                  = var.system_node_pool_node_count
+    node_count                  = local.system_node_pool_effective_node_count
     auto_scaling_enabled        = true
     min_count                   = var.system_node_pool_min_count
     max_count                   = var.system_node_pool_max_count
@@ -149,7 +154,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   name                  = "user"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
   vm_size               = var.user_node_pool_vm_size
-  node_count            = var.user_node_pool_node_count
+  node_count            = local.user_node_pool_effective_node_count
   auto_scaling_enabled  = true
   min_count             = var.user_node_pool_min_count
   max_count             = var.user_node_pool_max_count

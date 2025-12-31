@@ -7,60 +7,151 @@
 # Applies manifest and waits for argocd-server rollout.
 # =============================================================================
 set -euo pipefail
-RESOURCE_GROUP="$1"
-CLUSTER_NAME="$2"
-MANIFEST_URL="$3"
+RESOURCE_GROUP="${1:-}"
+CLUSTER_NAME="${2:-}"
+MANIFEST_URL="${3:-}"
 ENABLE_INGRESS="${4:-true}"
 PUBLIC_IP="${5:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_DIR="${SCRIPT_DIR}/../../../k8s/bootstrap/argocd"
-ILB_MANIFEST_CONTENT=$(cat "${BOOTSTRAP_DIR}/argocd-ilb.yaml")
 
-# Prepare ingress manifest (optionally substitute a public IP if the template uses it)
-if [ "${ENABLE_INGRESS}" = "true" ]; then
-  if [ -n "${PUBLIC_IP}" ]; then
-    INGRESS_MANIFEST_CONTENT=$(sed "s/\${PUBLIC_IP}/${PUBLIC_IP}/g" "${BOOTSTRAP_DIR}/argocd-ingress.yaml")
-  else
-    INGRESS_MANIFEST_CONTENT=$(cat "${BOOTSTRAP_DIR}/argocd-ingress.yaml")
+require_cmd() {
+  local cmd="$1"
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    echo "Missing required command: ${cmd}" >&2
+    exit 1
   fi
-fi
+}
 
-echo "Installing Argo CD via manifest using az aks command invoke..."
+require_arg() {
+  local value="$1"
+  local name="$2"
+  if [ -z "${value}" ]; then
+    echo "Missing required argument: ${name}" >&2
+    exit 1
+  fi
+}
 
-# Build kubectl command
-KUBECTL_CMD="kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
-kubectl apply -n argocd -f ${MANIFEST_URL} && \
-cat <<'EOF' | kubectl apply -f -
-${ILB_MANIFEST_CONTENT}
-EOF"
+b64_encode_one_line() {
+  if base64 --help 2>/dev/null | grep -q -- "-w"; then
+    base64 -w0
+  else
+    base64 | tr -d '\n'
+  fi
+}
 
-# Add ingress manifest if enabled
-if [ "${ENABLE_INGRESS}" = "true" ]; then
-  KUBECTL_CMD="${KUBECTL_CMD} && cat <<'INGRESSEOF' | kubectl apply -f -
-${INGRESS_MANIFEST_CONTENT}
-INGRESSEOF"
-fi
+read_manifest_file() {
+  local file_path="$1"
+  cat "${file_path}"
+}
 
-# Add configuration patch and rollout status
-PATCH_JSON='{"data":{"server.insecure":"true"}}'
+render_manifest_template_optional_public_ip() {
+  local file_path="$1"
+  local public_ip="$2"
+  if [ -n "${public_ip}" ]; then
+    sed "s/\${PUBLIC_IP}/${public_ip}/g" "${file_path}"
+  else
+    cat "${file_path}"
+  fi
+}
 
-# If exposing Argo CD behind an Ingress subpath (/argocd), configure server rootpath/basehref
-# so the UI doesn't redirect to / (which would bypass the Ingress path rule).
-if [ "${ENABLE_INGRESS}" = "true" ]; then
-  PATCH_JSON='{"data":{"server.insecure":"true","server.rootpath":"/argocd","server.basehref":"/argocd"}}'
-fi
+encode_manifest_for_remote_apply() {
+  local manifest_content="$1"
+  printf '%s' "${manifest_content}" | b64_encode_one_line
+}
 
-KUBECTL_CMD="${KUBECTL_CMD} && \
+build_argocd_cmd_params_patch_json() {
+  local enable_ingress="$1"
+  if [ "${enable_ingress}" = "true" ]; then
+    echo '{"data":{"server.insecure":"true","server.rootpath":"/argocd","server.basehref":"/argocd"}}'
+  else
+    echo '{"data":{"server.insecure":"true"}}'
+  fi
+}
+
+build_remote_kubectl_command() {
+  local manifest_url="$1"
+  local ilb_manifest_b64="$2"
+  local enable_ingress="$3"
+  local ingress_manifest_b64="$4"
+  local patch_json="$5"
+
+  local cmd
+  cmd="kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
+kubectl apply -n argocd -f ${manifest_url} && \
+echo '${ilb_manifest_b64}' | base64 -d | kubectl apply -f -"
+
+  if [ "${enable_ingress}" = "true" ]; then
+    cmd="${cmd} && echo '${ingress_manifest_b64}' | base64 -d | kubectl apply -f -"
+  fi
+
+  cmd="${cmd} && \
 kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n argocd && \
-kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '${PATCH_JSON}' && \
+kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '${patch_json}' && \
 kubectl rollout restart deployment/argocd-server -n argocd && \
 kubectl rollout status deploy/argocd-server -n argocd --timeout=300s && \
 kubectl get svc -n argocd"
 
-PYTHONIOENCODING=utf-8 az aks command invoke \
-  --resource-group "${RESOURCE_GROUP}" \
-  --name "${CLUSTER_NAME}" \
-  --command "${KUBECTL_CMD}" 2>&1 | tr -d '\u2388'
+  printf '%s' "${cmd}"
+}
 
-echo "Argo CD installation invoked."
+run_aks_command_in_cluster() {
+  local resource_group="$1"
+  local cluster_name="$2"
+  local remote_command="$3"
+
+  local invoke_out exit_code
+
+  invoke_out=$(PYTHONIOENCODING=utf-8 az aks command invoke \
+    --resource-group "${resource_group}" \
+    --name "${cluster_name}" \
+    --command "${remote_command}" \
+    -o json)
+
+  printf '%s\n' "${invoke_out}"
+
+  exit_code=$(printf '%s' "${invoke_out}" | tr -d '\r' | sed -n 's/.*"exitCode"[[:space:]]*:[[:space:]]*\(-\{0,1\}[0-9]\+\).*/\1/p' | head -n1)
+  if [ -z "${exit_code}" ]; then
+    echo "Could not read exitCode from az aks command invoke output" >&2
+    exit 1
+  fi
+  if [ "${exit_code}" != "0" ]; then
+    echo "az aks command invoke remote exitCode=${exit_code}" >&2
+    exit "${exit_code}"
+  fi
+}
+
+main() {
+  require_arg "${RESOURCE_GROUP}" "resource_group"
+  require_arg "${CLUSTER_NAME}" "cluster_name"
+  require_arg "${MANIFEST_URL}" "manifest_url"
+
+  require_cmd az
+  require_cmd base64
+  require_cmd sed
+  require_cmd head
+  require_cmd cat
+
+  local ilb_manifest_content ingress_manifest_content
+  local ilb_manifest_b64 ingress_manifest_b64
+  local patch_json remote_kubectl_cmd
+
+  ilb_manifest_content=$(read_manifest_file "${BOOTSTRAP_DIR}/argocd-ilb.yaml")
+  ilb_manifest_b64=$(encode_manifest_for_remote_apply "${ilb_manifest_content}")
+
+  ingress_manifest_b64=""
+  if [ "${ENABLE_INGRESS}" = "true" ]; then
+    ingress_manifest_content=$(render_manifest_template_optional_public_ip "${BOOTSTRAP_DIR}/argocd-ingress.yaml" "${PUBLIC_IP}")
+    ingress_manifest_b64=$(encode_manifest_for_remote_apply "${ingress_manifest_content}")
+  fi
+
+  patch_json=$(build_argocd_cmd_params_patch_json "${ENABLE_INGRESS}")
+  remote_kubectl_cmd=$(build_remote_kubectl_command "${MANIFEST_URL}" "${ilb_manifest_b64}" "${ENABLE_INGRESS}" "${ingress_manifest_b64}" "${patch_json}")
+
+  echo "Installing Argo CD via manifest using az aks command invoke..."
+  run_aks_command_in_cluster "${RESOURCE_GROUP}" "${CLUSTER_NAME}" "${remote_kubectl_cmd}"
+  echo "Argo CD installation completed successfully."
+}
+
+main "$@"

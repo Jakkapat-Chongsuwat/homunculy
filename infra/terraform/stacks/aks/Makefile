@@ -1,4 +1,4 @@
-.PHONY: help init fmt validate test workspace plan plan-noout apply apply-noout show clean
+.PHONY: help init fmt validate test workspace plan plan-noout apply apply-noout show destroy-plan destroy-apply clean
 
 # Usage examples:
 #   make plan ENV=prod
@@ -12,13 +12,14 @@
 ENV ?= prod
 TFVARS ?= ../../environments/$(ENV)/aks.tfvars
 PLANFILE ?= tfplan.$(ENV)
+DESTROYPLAN ?= tfdestroy.$(ENV)
 
 # Workspace naming convention matches backend.tf docs.
 TFC_WORKSPACE ?= homunculy-aks-$(ENV)
 
 help:
-	@echo "Targets: init fmt validate test workspace plan plan-noout apply apply-noout show clean"
-	@echo "Defaults: ENV=$(ENV) TFVARS=$(TFVARS) TFC_WORKSPACE=$(TFC_WORKSPACE) PLANFILE=$(PLANFILE)"
+	@echo "Targets: init fmt validate test workspace plan plan-noout apply apply-noout show destroy-plan destroy-apply clean"
+	@echo "Defaults: ENV=$(ENV) TFVARS=$(TFVARS) TFC_WORKSPACE=$(TFC_WORKSPACE) PLANFILE=$(PLANFILE) DESTROYPLAN=$(DESTROYPLAN)"
 
 init:
 	terraform init
@@ -43,6 +44,13 @@ plan: workspace
 show:
 	terraform show $(PLANFILE)
 
+# Destroy workflow (best practice: create a saved destroy plan, then apply it)
+destroy-plan: workspace
+	terraform plan -destroy -var-file=$(TFVARS) -out=$(DESTROYPLAN)
+
+destroy-apply: workspace
+	terraform apply $(DESTROYPLAN)
+
 apply: workspace
 	terraform apply $(PLANFILE)
 
@@ -54,4 +62,4 @@ apply-noout: workspace
 	terraform apply -var-file=$(TFVARS)
 
 clean:
-	@rm -f $(PLANFILE) tfplan tfplan.*
+	@rm -f $(PLANFILE) $(DESTROYPLAN) tfplan tfplan.* tfdestroy.*

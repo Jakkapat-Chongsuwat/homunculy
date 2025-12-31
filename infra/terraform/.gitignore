@@ -6,7 +6,8 @@
 # Saved plan files (binary output from `terraform plan -out=...`)
 tfplan
 tfplan.*
-
+tfdetroy
+tfdetroy.*
 
 # Sensitive data
 *.tfvars
