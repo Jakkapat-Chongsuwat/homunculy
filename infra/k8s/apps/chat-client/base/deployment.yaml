@@ -30,6 +30,8 @@ spec:
               value: "Production"
             - name: ASPNETCORE_URLS
               value: "http://+:8080"
+            - name: PATH_BASE
+              value: "/homunculy-chat"
             - name: ManagementService__BaseUrl
               value: "http://management-service:8080"
             - name: HomunculyService__BaseUrl

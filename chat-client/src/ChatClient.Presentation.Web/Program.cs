@@ -90,6 +90,17 @@ static void ConfigureServices(WebApplicationBuilder builder)
 static void ConfigurePipeline(WebApplication app)
 {
     app.UseSerilogRequestLogging();
+
+    var pathBase = app.Configuration["PATH_BASE"] ?? Environment.GetEnvironmentVariable("PATH_BASE");
+    if (!string.IsNullOrWhiteSpace(pathBase) && pathBase != "/")
+    {
+        if (!pathBase.StartsWith('/'))
+        {
+            pathBase = "/" + pathBase;
+        }
+
+        app.UsePathBase(pathBase);
+    }
     
     if (!app.Environment.IsDevelopment())
     {
