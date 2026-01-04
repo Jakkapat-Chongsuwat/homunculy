@@ -13,6 +13,6 @@ spec:
             - name: DB_NAME
               value: "homunculy"
             - name: DB_USER
-              value: "homunculy"
+              value: "homunculyadmin"
             - name: DB_SSLMODE
               value: "require"
