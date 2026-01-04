@@ -13,4 +13,4 @@ labels:
 
 images:
   - name: acrhomunculyprod.azurecr.io/chat-client
-    newTag: deb672f5fcdb01f42b21203cdaf20ff467ee3d43
+    newTag: 80b06e3e89aa194559b8b8740e7cd8a44803706e
