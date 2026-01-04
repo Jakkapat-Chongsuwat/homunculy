@@ -1,28 +1,6 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: chat-client-ingress
-  labels:
-    app.kubernetes.io/name: homunculy
-  annotations:
-    kubernetes.azure.com/use-managed-ingress-class: "true"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-spec:
-  ingressClassName: webapprouting.kubernetes.azure.com
-  rules:
-    - http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: chat-client
-                port:
-                  number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: homunculy-agent-ingress
   labels:
     app.kubernetes.io/name: homunculy
@@ -43,3 +21,28 @@ spec:
                 name: homunculy
                 port:
                   number: 8000
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-client-path-ingress
+  labels:
+    app.kubernetes.io/name: homunculy
+  annotations:
+    kubernetes.azure.com/use-managed-ingress-class: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$1"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+    - http:
+        paths:
+          - path: /homunculy-chat(?:/(.*))?
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-client
+                port:
+                  number: 8080

@@ -99,6 +99,11 @@ output "argocd_public_ip" {
   value       = var.enable_app_routing ? try(data.azurerm_public_ip.app_routing[0].ip_address, null) : null
 }
 
+output "app_routing_public_ip" {
+  description = "Public IP address of the AKS Application Routing (managed NGINX) ingress"
+  value       = var.enable_app_routing ? try(data.azurerm_public_ip.app_routing[0].ip_address, null) : null
+}
+
 # -----------------------------------------------------------------------------
 # GitHub Actions OIDC
 # -----------------------------------------------------------------------------

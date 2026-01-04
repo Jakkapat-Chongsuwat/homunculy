@@ -12,4 +12,3 @@ labels:
 
 patches:
   - path: secret-provider-patch.yaml
-  - path: ingress-hosts-patch.yaml
