@@ -18,12 +18,18 @@ env:
   ACR_LOGIN_SERVER: acrhomunculyprod.azurecr.io
 
 permissions:
-  id-token: write
-  contents: write
+  contents: read
+
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   detect-changes:
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       homunculy: ${{ steps.flags.outputs.homunculy }}
       management: ${{ steps.flags.outputs.management }}
@@ -75,7 +81,11 @@ jobs:
 
   build:
     needs: detect-changes
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -131,6 +141,8 @@ jobs:
       - build
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -138,9 +150,41 @@ jobs:
 
       - name: Update image tags
         run: |
+          set -euo pipefail
           sha=${GITHUB_SHA}
-          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/homunculy\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/apps/homunculy/overlays/prod/kustomization.yaml
-          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/chat-client\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/apps/chat-client/overlays/prod/kustomization.yaml
+          update_tag() {
+            local app_name="$1"
+            local file_path="$2"
+
+            local should_update="false"
+            case "$app_name" in
+              homunculy) should_update="${UPDATE_HOMUNCULY:-false}" ;;
+              management-service) should_update="${UPDATE_MANAGEMENT:-false}" ;;
+              rag-service) should_update="${UPDATE_RAG:-false}" ;;
+              chat-client) should_update="${UPDATE_CHAT:-false}" ;;
+              *)
+                echo "Unknown app '$app_name'; skipping."
+                return
+                ;;
+            esac
+
+            if [ "$should_update" != "true" ]; then
+              echo "${app_name} unchanged; not updating tag."
+              return
+            fi
+
+            perl -0777 -i -pe "s|(name: acrhomunculyprod\\.azurecr\\.io/${app_name}\\s+newTag:)\\s*\\S+|\\1 ${sha}|g" "$file_path"
+          }
+
+          update_tag "homunculy" infra/k8s/apps/homunculy/overlays/prod/kustomization.yaml
+          update_tag "management-service" infra/k8s/apps/management-service/overlays/prod/kustomization.yaml
+          update_tag "rag-service" infra/k8s/apps/rag-service/overlays/prod/kustomization.yaml
+          update_tag "chat-client" infra/k8s/apps/chat-client/overlays/prod/kustomization.yaml
+        env:
+          UPDATE_HOMUNCULY: ${{ needs.detect-changes.outputs.homunculy }}
+          UPDATE_MANAGEMENT: ${{ needs.detect-changes.outputs.management }}
+          UPDATE_RAG: ${{ needs.detect-changes.outputs.rag }}
+          UPDATE_CHAT: ${{ needs.detect-changes.outputs.chat }}
 
       - name: Commit changes
         run: |
