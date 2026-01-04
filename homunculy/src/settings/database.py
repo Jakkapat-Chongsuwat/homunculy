@@ -37,6 +37,13 @@ class DatabaseSettings(BaseSettings):
         default="homunculy", alias="DB_PASSWORD", description="PostgreSQL password"
     )
 
+    # SSL mode for cloud databases (Azure PostgreSQL requires SSL)
+    postgres_sslmode: str = Field(
+        default="prefer",
+        alias="DB_SSLMODE",
+        description="PostgreSQL SSL mode (disable, prefer, require)",
+    )
+
     # Connection URI (can be set directly or computed)
     uri_override: Optional[str] = Field(
         default=None,
@@ -51,7 +58,10 @@ class DatabaseSettings(BaseSettings):
         if self.uri_override:
             return self.uri_override
         encoded_password = quote_plus(self.postgres_password)
-        return f"postgresql+asyncpg://{self.postgres_user}:{encoded_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        base_uri = f"postgresql+asyncpg://{self.postgres_user}:{encoded_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        if self.postgres_sslmode != "disable":
+            return f"{base_uri}?ssl={self.postgres_sslmode}"
+        return base_uri
 
     # SQLite specific settings
     sqlite_path: str = Field(default=":memory:", description="SQLite database file path")
