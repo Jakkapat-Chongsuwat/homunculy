@@ -2,9 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../platform/coredns
   - ../../platform/homunculy/overlays/prod
   - ../../apps/homunculy/overlays/prod
-  - ../../apps/management-service/overlays/prod
-  - ../../apps/rag-service/overlays/prod
   - ../../apps/chat-client/overlays/prod

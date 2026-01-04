@@ -6,8 +6,9 @@ namespace: homunculy
 resources:
   - ../../base
 
-commonLabels:
-  environment: prod
+labels:
+  - pairs:
+      environment: prod
 
 images:
   - name: acrhomunculyprod.azurecr.io/homunculy

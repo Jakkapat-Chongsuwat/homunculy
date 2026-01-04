@@ -160,6 +160,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   max_count             = var.user_node_pool_max_count
   os_disk_size_gb       = 30
   os_disk_type          = "Managed"
+  temporary_name_for_rotation = "usertemp"
   mode                  = "User"
 
   node_labels = {

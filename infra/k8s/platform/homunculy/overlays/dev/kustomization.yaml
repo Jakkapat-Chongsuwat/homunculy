@@ -6,8 +6,9 @@ namespace: homunculy-dev
 resources:
   - ../../base
 
-commonLabels:
-  environment: dev
+labels:
+  - pairs:
+      environment: dev
 
 patches:
   - path: namespace-name-patch.yaml

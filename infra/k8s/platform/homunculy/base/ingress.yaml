@@ -23,30 +23,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: management-service-ingress
-  labels:
-    app.kubernetes.io/name: homunculy
-  annotations:
-    kubernetes.azure.com/use-managed-ingress-class: "true"
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: "/$1"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-spec:
-  ingressClassName: webapprouting.kubernetes.azure.com
-  rules:
-    - http:
-        paths:
-          - path: /api(?:/(.*))?
-            pathType: Prefix
-            backend:
-              service:
-                name: management-service
-                port:
-                  number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: homunculy-agent-ingress
   labels:
     app.kubernetes.io/name: homunculy
@@ -67,27 +43,3 @@ spec:
                 name: homunculy
                 port:
                   number: 8000
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: rag-service-ingress
-  labels:
-    app.kubernetes.io/name: homunculy
-  annotations:
-    kubernetes.azure.com/use-managed-ingress-class: "true"
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: "/$1"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-spec:
-  ingressClassName: webapprouting.kubernetes.azure.com
-  rules:
-    - http:
-        paths:
-          - path: /rag(?:/(.*))?
-            pathType: Prefix
-            backend:
-              service:
-                name: rag-service
-                port:
-                  number: 8001

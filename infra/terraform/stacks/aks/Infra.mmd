@@ -16,6 +16,13 @@ flowchart LR
             VNET["VNet<br/>AKS subnet + DB subnet + Private EP subnet"]
             NSG["Network Security Group<br/>HTTP/HTTPS rules"]
             NSG -. "protects" .-> VNET
+
+            subgraph DNS["🔎 DNS (in VNet)"]
+                AZDNS["Azure-provided DNS<br/>168.63.129.16"]
+                PDNS["Private DNS Zone<br/>privatelink.postgres.database.azure.com"]
+                PDNS -. "linked to VNet" .-> VNET
+                AZDNS -->|"resolves private zones"| PDNS
+            end
         end
 
         subgraph Storage["📦 Storage"]
@@ -25,6 +32,7 @@ flowchart LR
         subgraph Data["💾 Data"]
             DB["PostgreSQL"]
             KV["Key Vault"]
+            PE["Private Endpoint<br/>(DB)"]
         end
 
         subgraph Monitoring["📊 Monitoring"]
@@ -34,6 +42,9 @@ flowchart LR
         %% Cluster contains workloads (including Argo CD)
         subgraph AKS["🖥️ AKS Cluster"]
             NODES["Node pools<br/>system + user"]
+
+            PODS["Pods / Workloads"]
+            COREDNS["CoreDNS (cluster DNS)"]
 
             subgraph Ingress["Ingress (Web App Routing)"]
                 IC["Ingress Controller (nginx)<br/>webapprouting.kubernetes.azure.com"]
@@ -46,6 +57,9 @@ flowchart LR
             end
 
             INGR -->|"routes"| ARGOCD
+
+            %% DNS resolution path for DB connectivity
+            PODS -->|"DNS query"| COREDNS -->|"forwards"| AZDNS
         end
     end
 
@@ -54,10 +68,10 @@ flowchart LR
 
     %% Core connectivity
     VNET -->|"hosts"| AKS
-    VNET -->|"private routing"| DB
+    VNET -->|"private routing"| PE --> DB
     AKS -->|"pulls images"| ACR
     AKS -->|"reads secrets"| KV
-    AKS -->|"connects"| DB
+    PODS -->|"connects (TCP 5432)"| PE
     AKS -->|"sends logs"| LAW
 
     %% CI/CD connectivity

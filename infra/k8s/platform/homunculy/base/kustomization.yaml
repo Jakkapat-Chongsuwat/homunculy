@@ -8,6 +8,7 @@ resources:
   - network-policy.yaml
   - ingress.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: homunculy
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: homunculy
+      app.kubernetes.io/managed-by: kustomize

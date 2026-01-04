@@ -6,8 +6,9 @@ namespace: homunculy-dev
 resources:
   - ../../base
 
-commonLabels:
-  environment: dev
+labels:
+  - pairs:
+      environment: dev
 
 images:
   - name: acrhomunculyprod.azurecr.io/chat-client
