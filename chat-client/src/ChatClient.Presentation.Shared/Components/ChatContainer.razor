@@ -4,6 +4,7 @@
 @using ChatClient.Domain.ValueObjects
 @using System.Reactive.Linq
 @using System.Collections.Specialized
+@using ChatClient.Presentation.Shared.Components
 @implements IDisposable
 @inject ChatViewModel ViewModel
 @inject IAudioPlayer AudioPlayer
@@ -39,8 +40,8 @@
         if (firstRender && !_initialized)
         {
             _initialized = true;
-            await AudioPlayer.InitializeAsync();
             await ViewModel.ConnectAsync();
+            await AudioPlayer.InitializeAsync();
         }
     }
 
