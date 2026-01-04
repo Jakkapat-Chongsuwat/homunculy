@@ -36,12 +36,12 @@ spec:
                 secretKeyRef:
                   name: homunculy-secrets
                   key: database-url
-            - name: OPENAI_API_KEY
+            - name: LLM_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: homunculy-secrets
                   key: openai-api-key
-            - name: ELEVENLABS_API_KEY
+            - name: TTS_ELEVENLABS_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: homunculy-secrets
