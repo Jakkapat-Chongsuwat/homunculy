@@ -31,6 +31,10 @@ metadata:
     app.kubernetes.io/name: homunculy
   annotations:
     kubernetes.azure.com/use-managed-ingress-class: "true"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "homunculy-chat-affinity"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/homunculy-chat"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: webapprouting.kubernetes.azure.com
