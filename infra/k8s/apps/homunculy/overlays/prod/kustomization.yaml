@@ -19,4 +19,4 @@ labels:
 
 images:
   - name: acrhomunculyprod.azurecr.io/homunculy
-    newTag: deb672f5fcdb01f42b21203cdaf20ff467ee3d43
+    newTag: 5f338d6739aeca584be0f74d6bfbde933c01d98e
