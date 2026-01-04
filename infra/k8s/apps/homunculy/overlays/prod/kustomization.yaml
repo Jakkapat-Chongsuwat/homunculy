@@ -6,6 +6,12 @@ namespace: homunculy
 resources:
   - ../../base
 
+patches:
+  - path: database-config.yaml
+    target:
+      kind: Deployment
+      name: homunculy
+
 labels:
   - pairs:
       environment: prod

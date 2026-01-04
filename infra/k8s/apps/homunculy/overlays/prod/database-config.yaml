@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homunculy
+spec:
+  template:
+    spec:
+      containers:
+        - name: homunculy
+          env:
+            - name: DB_HOST
+              value: "psql-homunculy-prod.postgres.database.azure.com"
+            - name: DB_NAME
+              value: "homunculy"
+            - name: DB_USER
+              value: "homunculy"

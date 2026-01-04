@@ -1,6 +1,7 @@
 """Database configuration settings - simplified for Clean Architecture."""
 
 from typing import Literal, Optional
+from urllib.parse import quote_plus
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,7 +50,8 @@ class DatabaseSettings(BaseSettings):
         """Compute database URI from components or use override."""
         if self.uri_override:
             return self.uri_override
-        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        encoded_password = quote_plus(self.postgres_password)
+        return f"postgresql+asyncpg://{self.postgres_user}:{encoded_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     # SQLite specific settings
     sqlite_path: str = Field(default=":memory:", description="SQLite database file path")
