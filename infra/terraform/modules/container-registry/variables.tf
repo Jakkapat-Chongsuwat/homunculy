@@ -42,5 +42,5 @@ variable "sku" {
 variable "admin_enabled" {
   type        = bool
   description = "Enable admin user for the registry"
-  default     = true
+  default     = false
 }

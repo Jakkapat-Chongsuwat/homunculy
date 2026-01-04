@@ -19,12 +19,12 @@ output "login_server" {
 
 output "admin_username" {
   description = "Admin username (if enabled)"
-  value       = azurerm_container_registry.main.admin_username
+  value       = var.admin_enabled ? azurerm_container_registry.main.admin_username : null
   sensitive   = true
 }
 
 output "admin_password" {
   description = "Admin password (if enabled)"
-  value       = azurerm_container_registry.main.admin_password
+  value       = var.admin_enabled ? azurerm_container_registry.main.admin_password : null
   sensitive   = true
 }

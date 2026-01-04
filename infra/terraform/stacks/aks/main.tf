@@ -166,7 +166,7 @@ module "container_registry" {
   environment         = var.environment
   tags                = local.common_tags
   sku                 = local.is_production ? "Standard" : "Basic"
-  admin_enabled       = true
+  admin_enabled       = false
 }
 
 # -----------------------------------------------------------------------------
