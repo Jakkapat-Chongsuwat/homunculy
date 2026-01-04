@@ -70,12 +70,17 @@ build_argocd_cmd_params_patch_json() {
   fi
 }
 
+build_argocd_cm_patch_json() {
+  echo '{"data":{"timeout.reconciliation":"30s"}}'
+}
+
 build_remote_kubectl_command() {
   local manifest_url="$1"
   local ilb_manifest_b64="$2"
   local enable_ingress="$3"
   local ingress_manifest_b64="$4"
-  local patch_json="$5"
+  local cmd_params_patch_json="$5"
+  local argocd_cm_patch_json="$6"
 
   local cmd
   cmd="kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - && \
@@ -88,9 +93,12 @@ echo '${ilb_manifest_b64}' | base64 -d | kubectl apply -f -"
 
   cmd="${cmd} && \
 kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n argocd && \
-kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '${patch_json}' && \
+kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '${cmd_params_patch_json}' && \
+kubectl patch configmap argocd-cm -n argocd --type merge -p '${argocd_cm_patch_json}' && \
 kubectl rollout restart deployment/argocd-server -n argocd && \
+kubectl rollout restart statefulset/argocd-application-controller -n argocd && \
 kubectl rollout status deploy/argocd-server -n argocd --timeout=300s && \
+kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=300s && \
 kubectl get svc -n argocd"
 
   printf '%s' "${cmd}"
@@ -135,7 +143,7 @@ main() {
 
   local ilb_manifest_content ingress_manifest_content
   local ilb_manifest_b64 ingress_manifest_b64
-  local patch_json remote_kubectl_cmd
+  local cmd_params_patch_json argocd_cm_patch_json remote_kubectl_cmd
 
   ilb_manifest_content=$(read_manifest_file "${BOOTSTRAP_DIR}/argocd-ilb.yaml")
   ilb_manifest_b64=$(encode_manifest_for_remote_apply "${ilb_manifest_content}")
@@ -146,8 +154,9 @@ main() {
     ingress_manifest_b64=$(encode_manifest_for_remote_apply "${ingress_manifest_content}")
   fi
 
-  patch_json=$(build_argocd_cmd_params_patch_json "${ENABLE_INGRESS}")
-  remote_kubectl_cmd=$(build_remote_kubectl_command "${MANIFEST_URL}" "${ilb_manifest_b64}" "${ENABLE_INGRESS}" "${ingress_manifest_b64}" "${patch_json}")
+  cmd_params_patch_json=$(build_argocd_cmd_params_patch_json "${ENABLE_INGRESS}")
+  argocd_cm_patch_json=$(build_argocd_cm_patch_json)
+  remote_kubectl_cmd=$(build_remote_kubectl_command "${MANIFEST_URL}" "${ilb_manifest_b64}" "${ENABLE_INGRESS}" "${ingress_manifest_b64}" "${cmd_params_patch_json}" "${argocd_cm_patch_json}")
 
   echo "Installing Argo CD via manifest using az aks command invoke..."
   run_aks_command_in_cluster "${RESOURCE_GROUP}" "${CLUSTER_NAME}" "${remote_kubectl_cmd}"

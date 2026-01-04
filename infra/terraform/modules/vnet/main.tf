@@ -67,8 +67,7 @@ resource "azurerm_subnet_network_security_group_association" "aks" {
 }
 resource "azurerm_private_dns_zone" "postgresql" {
   count = var.create_private_dns_zones ? 1 : 0
-
-  name                = "privatelink.postgres.database.azure.com"
+  name                = "private.postgres.database.azure.com"
   resource_group_name = var.resource_group_name
 
   tags = var.tags

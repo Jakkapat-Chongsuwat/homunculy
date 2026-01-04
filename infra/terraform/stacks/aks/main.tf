@@ -233,8 +233,7 @@ module "keyvault" {
     "openai-api-key"     = var.openai_api_key
     "elevenlabs-api-key" = var.elevenlabs_api_key
     "db-password"        = random_password.db_password.result
-    # Use privatelink FQDN in prod (private endpoint), public FQDN otherwise
-    "database-url" = "postgresql+asyncpg://homunculyadmin:${random_password.db_password.result}@${local.is_production ? replace(module.database.server_fqdn, ".postgres.database.azure.com", ".privatelink.postgres.database.azure.com") : module.database.server_fqdn}:5432/${module.database.database_name}"
+    "database-url" = "postgresql+asyncpg://homunculyadmin:${random_password.db_password.result}@${module.database.server_fqdn}:5432/${module.database.database_name}"
   }
 
   depends_on = [module.database]

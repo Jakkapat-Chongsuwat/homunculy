@@ -33,7 +33,7 @@ resource "null_resource" "argocd_install" {
     ingress_hash        = filemd5("${path.module}/../../../k8s/bootstrap/argocd/argocd-ingress.yaml")
     enable_ingress      = tostring(var.enable_ingress)
     public_ip           = var.public_ip
-    force_redeploy      = timestamp()
+    install_script_hash = filemd5("${path.module}/install_argocd.sh")
   }
 
   provisioner "local-exec" {
