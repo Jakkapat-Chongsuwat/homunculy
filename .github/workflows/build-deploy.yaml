@@ -139,10 +139,8 @@ jobs:
       - name: Update image tags
         run: |
           sha=${GITHUB_SHA}
-          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/homunculy\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
-          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/management-service\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
-          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/rag-service\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
-          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/chat-client\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/overlays/prod/kustomization.yaml
+          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/homunculy\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/apps/homunculy/overlays/prod/kustomization.yaml
+          perl -0777 -i -pe "s|(name: acrhomunculyprod\.azurecr\.io/chat-client\s+newTag:)\s*\S+|\1 ${sha}|g" infra/k8s/apps/chat-client/overlays/prod/kustomization.yaml
 
       - name: Commit changes
         run: |

@@ -9,6 +9,7 @@ resources:
 labels:
   - pairs:
       environment: prod
+    includeSelectors: true
 
 images:
   - name: acrhomunculyprod.azurecr.io/homunculy
