@@ -37,6 +37,8 @@ spec:
               value: "http://+:8080"
             - name: PATH_BASE
               value: "/homunculy-chat"
+            - name: ChatClient__ServerUri
+              value: "ws://homunculy:8000/api/v1/ws/chat"
             - name: ManagementService__BaseUrl
               value: "http://management-service:8080"
             - name: HomunculyService__BaseUrl
