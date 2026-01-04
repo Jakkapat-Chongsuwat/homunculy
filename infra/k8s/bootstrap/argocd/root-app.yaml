@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "<YOUR_GIT_REPO_URL>"
+    repoURL: "https://github.com/Jakkapat-Chongsuwat/homunculy.git"
     targetRevision: "main"
     path: infra/k8s/clusters/prod
     kustomize: {}
