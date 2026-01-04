@@ -61,6 +61,7 @@ resource "null_resource" "root_app" {
     git_repo_url = var.git_repo_url
     git_revision = var.git_target_revision
     git_path     = var.git_apps_path
+    script_hash  = filemd5("${path.module}/create_root_app.sh")
   }
 
   provisioner "local-exec" {

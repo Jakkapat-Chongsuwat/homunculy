@@ -33,7 +33,7 @@ spec:
     path: ${GIT_PATH}
   destination:
     server: https://kubernetes.default.svc
-    namespace: homunculy
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
