@@ -27,6 +27,25 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: homunculy-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homunculy
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from chat-client pods (internal WebSocket connection)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: chat-client
+      ports:
+        - port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: chat-client-egress
 spec:
   podSelector:
