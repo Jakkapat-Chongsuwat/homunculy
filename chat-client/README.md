@@ -2,7 +2,7 @@
 
 💬 **Multi-Platform Chat UI** - .NET Blazor application for interacting with Homunculy AI agents.
 
-## Overview
+## Overview 
 
 | Aspect | Details |
 |--------|---------|

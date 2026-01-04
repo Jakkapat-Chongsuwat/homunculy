@@ -13,7 +13,7 @@
 | **Database** | PostgreSQL (async) |
 | **Architecture** | Clean Architecture |
 
-## Key Features
+## Key Features 
 
 - 🔄 **WebSocket Streaming** - Real-time chat with token-by-token responses
 - 🎙️ **Text-to-Speech** - ElevenLabs voice synthesis integration
