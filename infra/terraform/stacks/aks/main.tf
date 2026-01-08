@@ -318,10 +318,11 @@ module "argocd" {
   argocd_hostname = var.argocd_hostname
 
   # GitOps Configuration
-  create_root_app     = var.argocd_create_root_app
-  git_repo_url        = var.argocd_git_repo_url
-  git_target_revision = var.argocd_git_target_revision
-  git_apps_path       = var.argocd_git_apps_path
+  create_root_app       = var.argocd_create_root_app
+  git_repo_url          = var.argocd_git_repo_url
+  git_target_revision   = var.argocd_git_target_revision
+  git_apps_path         = var.argocd_git_apps_path
+  app_refresh_interval  = var.argocd_app_refresh_interval
 
   # Cluster context for in-cluster install (az aks command invoke)
   resource_group_name = azurerm_resource_group.main.name

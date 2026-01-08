@@ -430,3 +430,9 @@ variable "argocd_git_apps_path" {
   description = "Path to Kubernetes manifests in the repo"
   default     = "infra/k8s/clusters/prod"
 }
+
+variable "argocd_app_refresh_interval" {
+  type        = number
+  description = "ArgoCD application refresh interval in seconds (how often to poll Git for changes)"
+  default     = 180
+}
