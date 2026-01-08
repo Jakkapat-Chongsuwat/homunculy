@@ -86,3 +86,8 @@ variable "public_ip" {
   type        = string
   default     = ""
 }
+variable "app_refresh_interval" {
+  description = "ArgoCD application refresh interval in seconds (how often to poll Git for changes)"
+  type        = number
+  default     = 180
+}

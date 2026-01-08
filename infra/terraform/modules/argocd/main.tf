@@ -57,11 +57,12 @@ resource "null_resource" "root_app" {
   count = var.create_root_app ? 1 : 0
 
   triggers = {
-    cluster_id   = var.aks_cluster_id
-    git_repo_url = var.git_repo_url
-    git_revision = var.git_target_revision
-    git_path     = var.git_apps_path
-    script_hash  = filemd5("${path.module}/create_root_app.sh")
+    cluster_id       = var.aks_cluster_id
+    git_repo_url     = var.git_repo_url
+    git_revision     = var.git_target_revision
+    git_path         = var.git_apps_path
+    refresh_interval = var.app_refresh_interval
+    script_hash      = filemd5("${path.module}/create_root_app.sh")
   }
 
   provisioner "local-exec" {
@@ -69,7 +70,7 @@ resource "null_resource" "root_app" {
     environment = {
       PYTHONUTF8 = "1"
     }
-    command = "${path.module}/create_root_app.sh '${var.resource_group_name}' '${var.aks_cluster_name}' 'homunculy-${var.environment}' '${var.git_repo_url}' '${var.git_target_revision}' '${var.git_apps_path}'"
+    command = "${path.module}/create_root_app.sh '${var.resource_group_name}' '${var.aks_cluster_name}' 'homunculy-${var.environment}' '${var.git_repo_url}' '${var.git_target_revision}' '${var.git_apps_path}' '${var.app_refresh_interval}'"
   }
 
   depends_on = [

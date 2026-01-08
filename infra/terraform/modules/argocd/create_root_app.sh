@@ -3,7 +3,7 @@
 # =============================================================================
 # Create ArgoCD Root Application (GitOps Bootstrap)
 # =============================================================================
-# Usage: create_root_app.sh <resource_group> <cluster_name> <app_name> <git_repo_url> <git_revision> <git_path>
+# Usage: create_root_app.sh <resource_group> <cluster_name> <app_name> <git_repo_url> <git_revision> <git_path> <refresh_interval>
 # =============================================================================
 set -euo pipefail
 
@@ -13,6 +13,7 @@ APP_NAME="$3"
 GIT_REPO_URL="$4"
 GIT_REVISION="$5"
 GIT_PATH="$6"
+REFRESH_INTERVAL="${7:-180}"
 
 echo "Creating ArgoCD root application: ${APP_NAME}..."
 
@@ -25,6 +26,8 @@ kind: Application
 metadata:
   name: ${APP_NAME}
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/refresh: '${REFRESH_INTERVAL}'
 spec:
   project: default
   source:
