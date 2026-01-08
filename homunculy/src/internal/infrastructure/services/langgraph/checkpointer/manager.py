@@ -6,6 +6,7 @@ Handles PostgreSQL and in-memory checkpoint initialization.
 
 import asyncio
 from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from common.logger import get_logger
 from internal.infrastructure.services.langgraph.exceptions import (
@@ -81,6 +82,7 @@ class CheckpointerManager:
             )
 
         db_uri = DATABASE_URI.replace('+asyncpg', '')
+        db_uri = self._to_psycopg_uri(db_uri)
         logger.info("Connecting to Postgres", db_host=self._extract_host(db_uri))
 
         try:
@@ -113,6 +115,27 @@ class CheckpointerManager:
 
     def _extract_host(self, db_uri: str) -> str:
         return db_uri.split('@')[1].split('/')[0] if '@' in db_uri else "unknown"
+
+    def _to_psycopg_uri(self, db_uri: str) -> str:
+        """Convert a SQLAlchemy/asyncpg-style URI into a psycopg-compatible URI.
+
+        Today we primarily need to translate the query parameter `ssl` -> `sslmode`.
+        psycopg rejects `ssl=...` while asyncpg rejects `sslmode=...`.
+        """
+        parts = urlsplit(db_uri)
+        if not parts.query:
+            return db_uri
+
+        query_pairs = parse_qsl(parts.query, keep_blank_values=True)
+        rewritten: list[tuple[str, str]] = []
+        for key, value in query_pairs:
+            if key == "ssl":
+                rewritten.append(("sslmode", value))
+            else:
+                rewritten.append((key, value))
+
+        new_query = urlencode(rewritten)
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
 
     async def cleanup(self) -> None:
         """Release checkpointer resources."""

@@ -60,7 +60,10 @@ class DatabaseSettings(BaseSettings):
         encoded_password = quote_plus(self.postgres_password)
         base_uri = f"postgresql+asyncpg://{self.postgres_user}:{encoded_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         if self.postgres_sslmode != "disable":
-            return f"{base_uri}?sslmode={self.postgres_sslmode}"
+            # asyncpg (used by SQLAlchemy async engine) supports `ssl` kwarg, not `sslmode`.
+            # For psycopg connections (e.g., LangGraph checkpointer), we translate `ssl` -> `sslmode`
+            # at the call site.
+            return f"{base_uri}?ssl={self.postgres_sslmode}"
         return base_uri
 
     # SQLite specific settings
