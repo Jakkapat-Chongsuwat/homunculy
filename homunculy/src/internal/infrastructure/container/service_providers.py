@@ -90,7 +90,8 @@ def get_tts_service() -> Optional[TTSService]:
     Returns:
         TTSService instance or None if not configured
     """
-    elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
+    # Prefer settings-driven config (supports `TTS_ELEVENLABS_API_KEY` from env_prefix="TTS_")
+    elevenlabs_api_key = settings.tts.elevenlabs_api_key or os.getenv("ELEVENLABS_API_KEY")
 
     if elevenlabs_api_key:
         return ElevenLabsTTSService(api_key=elevenlabs_api_key)
