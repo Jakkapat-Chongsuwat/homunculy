@@ -1,124 +1,124 @@
-"""
-Agent Execution Handler.
+"""Agent execution handler."""
 
-This module provides the /execute endpoint for stateless agent execution.
-Homunculy is a stateless execution engine - Management Service handles agent storage.
-
-"""
-
-from fastapi import APIRouter, Depends, HTTPException, status
 from common.logger import get_logger
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from internal.adapters.http.models import (
-    ExecuteChatRequest,
-    ChatResponse,
     AgentExecutionMetadata,
     AudioResponse,
+    ChatResponse,
+    ExecuteChatRequest,
 )
-from internal.domain.entities import AgentProvider, AgentPersonality, AgentConfiguration
+from internal.domain.entities import AgentConfiguration, AgentPersonality, AgentProvider
 from internal.domain.services import LLMService
 from internal.infrastructure.container import get_llm_service
 
-
 logger = get_logger(__name__)
 
-# Router setup
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
+
+_METADATA_FIELDS = (
+    "model_used",
+    "tokens_used",
+    "execution_time_ms",
+    "tools_called",
+    "checkpointer_state",
+    "thread_id",
+    "storage_type",
+)
+_AUDIO_FIELDS = ("data", "format", "encoding", "size_bytes", "voice_id", "duration_ms")
 
 
 @router.post("/execute", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def execute_chat(
     request: ExecuteChatRequest, llm_service: LLMService = Depends(get_llm_service)
 ) -> ChatResponse:
-    """
-    Execute chat with provided agent configuration (STATELESS).
-
-    PRIMARY ENDPOINT for Management Service.
-    - Agent configuration is passed in the request (not retrieved from database)
-    - No agent storage in Homunculy
-    - Conversation state stored in Postgres checkpointer by user_id/session
-
-    Flow:
-    1. Management Service sends: config + message + user_id
-    2. Homunculy executes agent with LangGraph
-    3. Returns chat response
-    4. Homunculy remains stateless (no config stored)
-
-    Args:
-        request: Execution request with full agent config, message, user_id
-
-    Returns:
-        Chat response with message, confidence, metadata
-    """
     try:
-        # Map HTTP request to domain entities
-        personality = AgentPersonality(
-            name=request.configuration.personality.name,
-            description=request.configuration.personality.description,
-            traits=request.configuration.personality.traits,
-            mood=request.configuration.personality.mood,
-        )
+        return await _execute_chat(request, llm_service)
+    except Exception as exc:
+        _log_execution_error(exc)
+        raise _http_500(exc) from exc
 
-        # Parse provider from request
-        try:
-            provider = AgentProvider(request.configuration.provider)
-        except ValueError:
-            provider = AgentProvider.LANGRAPH
 
-        configuration = AgentConfiguration(
-            provider=provider,
-            model_name=request.configuration.model_name,
-            personality=personality,
-            system_prompt=request.configuration.system_prompt,
-            temperature=request.configuration.temperature,
-            max_tokens=request.configuration.max_tokens,
-        )
+async def _execute_chat(request: ExecuteChatRequest, llm_service: LLMService) -> ChatResponse:
+    configuration = _build_configuration(request)
+    context = _build_context(request)
+    response = await llm_service.chat(configuration, request.message, context)
+    return _build_chat_response(response)
 
-        # LLM service injected via Depends() - proper Clean Architecture DI
-        # Note: Service is injected by FastAPI, not called directly
 
-        # Add user_id to context for conversation isolation
-        context = request.context.copy()
-        context["user_id"] = request.user_id
-        context["include_audio"] = request.include_audio  # Pass audio flag to service
+def _build_configuration(request: ExecuteChatRequest) -> AgentConfiguration:
+    data = request.configuration.model_dump()
+    data["provider"] = _parse_provider(request)
+    data["personality"] = _build_personality(request)
+    return AgentConfiguration(**data)
 
-        # Execute chat (stateless - config not stored)
-        response = await llm_service.chat(configuration, request.message, context)
 
-        # Convert metadata dict to strongly-typed AgentExecutionMetadata
-        metadata_dict = response.metadata or {}
-        metadata = AgentExecutionMetadata(
-            model_used=metadata_dict.get("model_used"),
-            tokens_used=metadata_dict.get("tokens_used"),
-            execution_time_ms=metadata_dict.get("execution_time_ms"),
-            tools_called=metadata_dict.get("tools_called", []),
-            checkpointer_state=metadata_dict.get("checkpointer_state"),
-            thread_id=metadata_dict.get("thread_id"),
-            storage_type=metadata_dict.get("storage_type"),
-        )
+def _build_personality(request: ExecuteChatRequest) -> AgentPersonality:
+    data = request.configuration.personality.model_dump()
+    return AgentPersonality(**data)
 
-        # Build strongly-typed AudioResponse (always present, might be empty)
-        audio_data = metadata_dict.get("audio", {})
-        audio = AudioResponse(
-            data=audio_data.get("data", ""),
-            format=audio_data.get("format", "mp3"),
-            encoding=audio_data.get("encoding", "base64"),
-            size_bytes=audio_data.get("size_bytes", 0),
-            voice_id=audio_data.get("voice_id", ""),
-            duration_ms=audio_data.get("duration_ms"),
-            generated=bool(audio_data.get("data")),  # True if audio data exists
-        )
 
-        return ChatResponse(
-            message=response.message,
-            confidence=response.confidence,
-            reasoning=response.reasoning or "",
-            audio=audio,
-            metadata=metadata,
-        )
+def _parse_provider(request: ExecuteChatRequest) -> AgentProvider:
+    try:
+        return AgentProvider(request.configuration.provider)
+    except ValueError:
+        return AgentProvider.LANGRAPH
 
-    except Exception as e:
-        logger.error("Agent execution failed", error=str(e), exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Chat execution failed: {str(e)}",
-        )
+
+def _build_context(request: ExecuteChatRequest) -> dict:
+    context = request.context.copy()
+    context["user_id"] = request.user_id
+    context["include_audio"] = request.include_audio
+    return context
+
+
+def _build_chat_response(response) -> ChatResponse:
+    metadata = _build_execution_metadata(response.metadata or {})
+    audio = _build_audio_response(response.metadata or {})
+    payload = _chat_response_payload(response, audio, metadata)
+    return ChatResponse(**payload)
+
+
+def _chat_response_payload(
+    response, audio: AudioResponse, metadata: AgentExecutionMetadata
+) -> dict:
+    return dict(
+        message=response.message,
+        confidence=response.confidence,
+        reasoning=response.reasoning or "",
+        audio=audio,
+        metadata=metadata,
+    )
+
+
+def _build_execution_metadata(metadata: dict) -> AgentExecutionMetadata:
+    payload = _metadata_payload(metadata)
+    return AgentExecutionMetadata(**payload)
+
+
+def _metadata_payload(metadata: dict) -> dict:
+    payload = {key: metadata.get(key) for key in _METADATA_FIELDS}
+    payload["tools_called"] = metadata.get("tools_called") or []
+    return payload
+
+
+def _build_audio_response(metadata: dict) -> AudioResponse:
+    audio = metadata.get("audio") or {}
+    payload = _audio_payload(audio)
+    return AudioResponse(**payload)
+
+
+def _audio_payload(audio: dict) -> dict:
+    payload = {key: audio.get(key) for key in _AUDIO_FIELDS}
+    payload["generated"] = bool(audio.get("data"))
+    return payload
+
+
+def _log_execution_error(exc: Exception) -> None:
+    logger.error("Agent execution failed", error=str(exc), exc_info=True)
+
+
+def _http_500(exc: Exception) -> HTTPException:
+    message = f"Chat execution failed: {str(exc)}"
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=message)

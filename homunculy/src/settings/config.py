@@ -13,14 +13,14 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, rely on system environment variables
 
-from .app import app_settings, ApplicationSettings
-from .database import database_settings, DatabaseSettings
-from .llm import llm_settings, LLMSettings
-from .security import security_settings, SecuritySettings
-from .logging import logging_settings, LoggingSettings
-from .tts import tts_settings, TTSSettings
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .app import ApplicationSettings, app_settings
+from .database import DatabaseSettings, database_settings
+from .llm import LLMSettings, llm_settings
+from .logging import LoggingSettings, logging_settings
+from .security import SecuritySettings, security_settings
+from .tts import TTSSettings, tts_settings
 
 
 class Settings(BaseSettings):

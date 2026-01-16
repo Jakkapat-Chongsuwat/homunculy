@@ -52,7 +52,8 @@ class LoggingSettings(BaseSettings):
     file_enabled: bool = Field(default=True, description="Enable file logging")
     file_path: str = Field(default="logs/app.log", description="Log file path")
     file_max_bytes: int = Field(
-        default=10 * 1024 * 1024, description="Maximum log file size in bytes"  # 10MB
+        default=10 * 1024 * 1024,
+        description="Maximum log file size in bytes",  # 10MB
     )
     file_backup_count: int = Field(default=5, description="Number of backup log files to keep")
 

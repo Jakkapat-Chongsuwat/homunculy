@@ -6,7 +6,6 @@ from urllib.parse import quote_plus
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 DatabaseProvider = Literal["postgresql", "sqlite", "mysql"]
 
 

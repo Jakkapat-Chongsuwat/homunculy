@@ -9,11 +9,11 @@ specific to database and storage infrastructure.
 
 class DatabaseException(Exception):
     """Base exception for database errors."""
-    
+
     def __init__(self, message: str, *args, **kwargs):
         """
         Initialize database exception.
-        
+
         Args:
             message: Human-readable error message
             *args: Additional positional arguments
@@ -22,7 +22,7 @@ class DatabaseException(Exception):
         self.message = message
         self.context = kwargs
         super().__init__(message, *args)
-    
+
     def __str__(self) -> str:
         """String representation of the exception."""
         if self.context:
@@ -33,11 +33,13 @@ class DatabaseException(Exception):
 
 class DatabaseConnectionException(DatabaseException):
     """Raised when database connection fails."""
+
     pass
 
 
 class DatabaseTransactionException(DatabaseException):
     """Raised when database transaction fails."""
+
     pass
 
 

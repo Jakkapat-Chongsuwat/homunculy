@@ -20,9 +20,7 @@ class CreateAgentUseCaseImpl:
         """
         self._repository = agent_repository
 
-    async def execute(
-        self, agent_id: str, name: str, configuration: AgentConfiguration
-    ) -> Agent:
+    async def execute(self, agent_id: str, name: str, configuration: AgentConfiguration) -> Agent:
         """
         Create a new agent.
 

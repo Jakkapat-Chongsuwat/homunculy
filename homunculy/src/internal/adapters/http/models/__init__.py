@@ -6,25 +6,24 @@ Organized by module:
 """
 
 # Common base models
+# Agent models
+from .agents import (
+    AgentConfigurationRequest,
+    AgentExecutionMetadata,
+    AgentPersonalityRequest,
+    AudioEncoding,
+    AudioFormat,
+    AudioResponse,
+    ChatResponse,
+    ExecuteChatRequest,
+)
 from .common import (
     BaseResponse,
     ErrorDetail,
     ErrorResponse,
-    SuccessResponse,
-    PaginationMetadata,
     PaginatedResponse,
-)
-
-# Agent models
-from .agents import (
-    AgentPersonalityRequest,
-    AgentConfigurationRequest,
-    ExecuteChatRequest,
-    ChatResponse,
-    AgentExecutionMetadata,
-    AudioResponse,
-    AudioFormat,
-    AudioEncoding,
+    PaginationMetadata,
+    SuccessResponse,
 )
 
 __all__ = [

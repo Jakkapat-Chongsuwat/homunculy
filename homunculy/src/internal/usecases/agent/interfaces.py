@@ -4,7 +4,7 @@ Agent Use Case Protocols.
 Defines Protocol-based interfaces for agent-related use cases.
 """
 
-from typing import Protocol, Optional, List
+from typing import List, Optional, Protocol
 
 from internal.domain.entities import Agent, AgentConfiguration, AgentResponse
 
@@ -12,9 +12,7 @@ from internal.domain.entities import Agent, AgentConfiguration, AgentResponse
 class CreateAgentUseCase(Protocol):
     """Protocol for creating an agent."""
 
-    async def execute(
-        self, agent_id: str, name: str, configuration: AgentConfiguration
-    ) -> Agent:
+    async def execute(self, agent_id: str, name: str, configuration: AgentConfiguration) -> Agent:
         """Create a new agent."""
         ...
 

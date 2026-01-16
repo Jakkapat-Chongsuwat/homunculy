@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, JSON, String
+from sqlalchemy import JSON, Boolean, Column, DateTime, String
 
 from ..database.session_manager import Base
 

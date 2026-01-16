@@ -1,8 +1,9 @@
 """OpenAI LLM Client Implementation."""
 
-from typing import Any, List, Dict, Type, TypeVar, cast
-from pydantic import BaseModel
+from typing import Dict, List, Type, TypeVar, cast
+
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 from internal.domain.services import LLMClient
 

@@ -6,4 +6,4 @@ def build_uuid4_str() -> str:
 
 
 def public_dict(object_) -> dict:
-    return {k: v for k, v in vars(object_).items() if not k.startswith('_')}
+    return {k: v for k, v in vars(object_).items() if not k.startswith("_")}

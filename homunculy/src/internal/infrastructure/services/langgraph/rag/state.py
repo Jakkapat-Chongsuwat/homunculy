@@ -1,7 +1,7 @@
 """RAG State Definition."""
 
-from typing import List, TypedDict, Annotated, Optional, NotRequired
 from operator import add
+from typing import Annotated, List, NotRequired, Optional, TypedDict
 
 
 class RAGState(TypedDict):

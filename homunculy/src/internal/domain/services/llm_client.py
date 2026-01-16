@@ -1,18 +1,19 @@
-"""LLM Client Interface."""
+"""LLM client contract."""
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Dict, Type, TypeVar
+from typing import Dict, List, Type, TypeVar
+
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 
 
 class LLMClient(ABC):
-    """Abstract interface for LLM operations."""
+    """LLM operations contract."""
 
     @abstractmethod
     async def invoke(self, messages: List[Dict[str, str]]) -> str:
-        """Invoke LLM with messages and return response."""
+        """Invoke LLM with messages."""
 
     @abstractmethod
     async def invoke_structured(self, messages: List[Dict[str, str]], schema: Type[T]) -> T:

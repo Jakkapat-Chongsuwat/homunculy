@@ -1,8 +1,9 @@
 """Answer Grader Implementation."""
 
-from typing import List, Dict
+from typing import Dict, List
 
 from internal.domain.services import AnswerGraderService, LLMClient
+
 from .schemas import GradeAnswerSchema
 
 ANSWER_GRADER_PROMPT = """You are a grader assessing whether an answer addresses the question.

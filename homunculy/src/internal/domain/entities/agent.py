@@ -1,10 +1,4 @@
-"""
-AI Agent Domain Entity.
-
-This module defines the core AI Agent domain entity and related value objects.
-Following Clean Architecture principles, these entities are independent of
-any external frameworks or infrastructure concerns.
-"""
+"""Agent domain entities and value objects."""
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,15 +9,15 @@ from pydantic import BaseModel, Field
 
 
 class AgentProvider(Enum):
-    """Supported AI agent providers."""
-    
+    """Supported agent providers."""
+
     OPENAI = "openai"
     LANGRAPH = "langraph"
 
 
 class AgentStatus(Enum):
     """Agent execution status."""
-    
+
     IDLE = "idle"
     THINKING = "thinking"
     RESPONDING = "responding"
@@ -33,8 +27,8 @@ class AgentStatus(Enum):
 
 @dataclass
 class AgentMessage:
-    """Represents a message in agent conversation."""
-    
+    """Message in a conversation."""
+
     role: str  # user, assistant, system
     content: str
     timestamp: datetime
@@ -42,31 +36,30 @@ class AgentMessage:
 
 
 class AgentResponse(BaseModel):
-    """Represents an agent's response."""
-    
+    """Agent response output."""
+
     message: str
     confidence: float
     reasoning: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     status: AgentStatus = AgentStatus.COMPLETED
-    
+
 
 class AgentPersonality(BaseModel):
-    """Represents an AI agent's personality traits."""
-    
+    """Agent personality traits."""
+
     name: str = Field(..., description="Agent's name")
     description: str = Field(..., description="Agent description")
     traits: Dict[str, float] = Field(
-        default_factory=dict,
-        description="Personality traits as key-value pairs (0.0-1.0)"
+        default_factory=dict, description="Personality traits as key-value pairs (0.0-1.0)"
     )
     mood: str = Field(default="neutral", description="Current mood state")
     memory_context: str = Field(default="", description="Long-term memory context")
-    
+
 
 class AgentConfiguration(BaseModel):
-    """Configuration for AI agents."""
-    
+    """Agent configuration."""
+
     provider: AgentProvider
     model_name: str
     personality: AgentPersonality
@@ -74,11 +67,11 @@ class AgentConfiguration(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=2000, gt=0)
     tools: List[str] = Field(default_factory=list, description="Available tools/functions")
-    
+
 
 class AgentThread(BaseModel):
-    """Represents a conversation thread with an agent."""
-    
+    """Conversation thread."""
+
     id: str
     agent_id: str
     messages: List[AgentMessage] = Field(default_factory=list)
@@ -88,12 +81,8 @@ class AgentThread(BaseModel):
 
 
 class Agent(BaseModel):
-    """
-    Core Agent domain entity.
-    
-    Represents an AI agent instance with its configuration and state.
-    """
-    
+    """Agent entity with configuration and state."""
+
     id: str
     name: str
     configuration: AgentConfiguration
@@ -102,12 +91,12 @@ class Agent(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    
+
     def activate(self) -> None:
         """Activate the agent."""
         self.is_active = True
         self.updated_at = datetime.now(timezone.utc)
-    
+
     def deactivate(self) -> None:
         """Deactivate the agent."""
         self.is_active = False

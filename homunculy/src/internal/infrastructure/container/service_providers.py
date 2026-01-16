@@ -7,23 +7,22 @@ Only contains providers that depend on concrete infrastructure implementations.
 
 import os
 from typing import AsyncGenerator, Optional
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from internal.domain.entities.agent import AgentProvider
 from internal.domain.repositories import UnitOfWork
-from internal.domain.services import LLMService, TTSService, RAGService
+from internal.domain.services import LLMService, RAGService, TTSService
+from internal.infrastructure.container.di_container import get_container
 from internal.infrastructure.persistence.sqlalchemy.database import (
     async_session_factory,
 )
 from internal.infrastructure.persistence.sqlalchemy.repositories import (
     SQLAlchemyUnitOfWork,
 )
-from internal.domain.entities.agent import AgentProvider
-from internal.infrastructure.services.langgraph import LangGraphAgentService
-from internal.infrastructure.services.tts import ElevenLabsTTSService
-from internal.infrastructure.services.rag import HTTPRAGService
-from internal.usecases.streaming import StreamChatUseCaseImpl
-from settings import settings
+from internal.infrastructure.services.langgraph.checkpointer import create_checkpointer_manager
+from internal.infrastructure.services.langgraph.graph import GraphManager
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -72,12 +71,7 @@ def get_llm_service(provider: AgentProvider = AgentProvider.LANGRAPH) -> LLMServ
     Raises:
         ValueError: If provider is not supported
     """
-    # Get optional services (may be None if not configured)
-    tts_service = get_tts_service()
-    rag_service = get_rag_service()
-
-    # Return new service instance (stateless - checkpointer handles persistence)
-    return LangGraphAgentService(tts_service=tts_service, rag_service=rag_service)
+    return get_container().llm_service()
 
 
 def get_tts_service() -> Optional[TTSService]:
@@ -90,14 +84,7 @@ def get_tts_service() -> Optional[TTSService]:
     Returns:
         TTSService instance or None if not configured
     """
-    # Prefer settings-driven config (supports `TTS_ELEVENLABS_API_KEY` from env_prefix="TTS_")
-    elevenlabs_api_key = settings.tts.elevenlabs_api_key or os.getenv("ELEVENLABS_API_KEY")
-
-    if elevenlabs_api_key:
-        return ElevenLabsTTSService(api_key=elevenlabs_api_key)
-    else:
-        # TTS not configured - tools won't be available
-        return None
+    return get_container().tts_service()
 
 
 def get_rag_service() -> Optional[RAGService]:
@@ -110,30 +97,23 @@ def get_rag_service() -> Optional[RAGService]:
     Returns:
         RAGService instance or None if not configured
     """
-    rag_service_url = os.getenv('RAG_SERVICE_URL')
-
-    if rag_service_url:
-        return HTTPRAGService(base_url=rag_service_url)
-    else:
-        # RAG not configured - tools won't be available
-        return None
+    return get_container().rag_service()
 
 
-def get_stream_chat_usecase(
-    llm_service: LLMService = Depends(get_llm_service),
-    tts_service: Optional[TTSService] = Depends(get_tts_service),
-) -> StreamChatUseCaseImpl:
+def get_graph_manager() -> GraphManager:
     """
-    Get Stream Chat Use Case dependency.
+    Get Graph Manager dependency.
 
-    Creates a use case instance for streaming chat with optional TTS.
-    Follows Clean Architecture: use case depends on domain service abstractions.
-
-    Args:
-        llm_service: LLM service for chat streaming
-        tts_service: TTS service for audio streaming (optional)
-
-    Returns:
-        StreamChatUseCaseImpl instance
+    Creates a GraphManager with configured services and checkpointer.
+    Used for Pipecat integration to access compiled graphs.
     """
-    return StreamChatUseCaseImpl(llm_service, tts_service)
+    api_key = os.getenv("LLM_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+    # Use default checkpointer (Postgres if DB available, else Memory)
+    checkpointer_mgr = create_checkpointer_manager(None)
+
+    return GraphManager(
+        api_key=api_key,
+        checkpointer=checkpointer_mgr.get_checkpointer(),
+        tts_service=get_tts_service(),
+        rag_service=get_rag_service(),
+    )

@@ -1,8 +1,9 @@
 """Hallucination Grader Implementation."""
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from internal.domain.services import HallucinationGraderService, LLMClient
+
 from .schemas import GradeHallucinationsSchema
 
 HALLUCINATION_GRADER_PROMPT = """You are a grader assessing whether an LLM generation is grounded.

@@ -12,7 +12,6 @@ from internal.infrastructure.services.langgraph.graph.thread_resolver import (
     ThreadResolver,
 )
 
-
 __all__ = [
     "GraphManager",
     "create_graph_manager",

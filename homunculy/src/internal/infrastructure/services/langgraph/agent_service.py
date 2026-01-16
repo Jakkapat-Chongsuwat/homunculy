@@ -12,35 +12,33 @@ import asyncio
 import os
 from typing import Any, Dict, Optional, cast
 
-from langchain_core.runnables.config import RunnableConfig
-
 from common.logger import get_logger
-from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
-from internal.domain.exceptions import AgentExecutionException
-from internal.domain.services import LLMService, TTSService, RAGService
-from internal.infrastructure.services.langgraph.checkpointer import (
-    CheckpointerManager,
-    create_checkpointer_manager,
-)
-from internal.infrastructure.services.langgraph.exceptions import (
-    GraphStateException,
-    LLMAuthenticationException,
-)
-from internal.infrastructure.services.langgraph.graph_building import build_system_prompt
-from internal.infrastructure.services.langgraph.graph import (
-    GraphManager,
-    ThreadResolver,
-)
-from internal.infrastructure.services.langgraph.response import (
-    ResponseBuilder,
-    create_response_builder,
-)
+from langchain_core.runnables.config import RunnableConfig
 from settings import (
     LLM_SUMMARIZATION_MAX_TOKENS,
     LLM_SUMMARIZATION_SUMMARY_TOKENS,
     LLM_SUMMARIZATION_TRIGGER_TOKENS,
 )
 
+from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
+from internal.domain.exceptions import AgentExecutionException
+from internal.domain.services import LLMService, RAGService, TTSService
+from internal.infrastructure.services.langgraph.checkpointer import (
+    create_checkpointer_manager,
+)
+from internal.infrastructure.services.langgraph.exceptions import (
+    GraphStateException,
+    LLMAuthenticationException,
+)
+from internal.infrastructure.services.langgraph.graph import (
+    GraphManager,
+    ThreadResolver,
+)
+from internal.infrastructure.services.langgraph.graph_building import build_system_prompt
+from internal.infrastructure.services.langgraph.response import (
+    ResponseBuilder,
+    create_response_builder,
+)
 
 logger = get_logger(__name__)
 
@@ -212,7 +210,7 @@ class LangGraphAgentService(LLMService):
             messages = result.get("messages", [])
             if messages:
                 last_msg = messages[-1]
-                response = getattr(last_msg, 'content', '') or ""
+                response = getattr(last_msg, "content", "") or ""
 
         return response or "No response generated"
 
@@ -305,8 +303,8 @@ class LangGraphAgentService(LLMService):
         if result_messages:
             # Find the last AI message (not a tool message)
             for msg in reversed(result_messages):
-                if isinstance(msg, AIMessage) and not getattr(msg, 'tool_calls', None):
-                    response_text = getattr(msg, 'content', '') or ""
+                if isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
+                    response_text = getattr(msg, "content", "") or ""
                     break
 
         if not response_text:

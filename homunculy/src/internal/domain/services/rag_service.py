@@ -1,11 +1,11 @@
-"""RAG Service Interface."""
+"""RAG service contract."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class RAGService(ABC):
-    """Abstract interface for RAG operations."""
+    """RAG operations contract."""
 
     @abstractmethod
     async def retrieve(
@@ -14,8 +14,8 @@ class RAGService(ABC):
         top_k: int = 5,
         namespace: str = "default",
     ) -> List[Dict[str, Any]]:
-        """Retrieve relevant documents for a query."""
+        """Retrieve relevant documents."""
 
     @abstractmethod
     async def search_web(self, query: str) -> List[Dict[str, Any]]:
-        """Search web for additional context."""
+        """Search the web for context."""

@@ -15,7 +15,6 @@ from .agent import (
     AgentStatus,
     AgentThread,
 )
-from .document import Document
 
 __all__ = [
     "Agent",
@@ -26,5 +25,4 @@ __all__ = [
     "AgentResponse",
     "AgentStatus",
     "AgentThread",
-    "Document",
 ]

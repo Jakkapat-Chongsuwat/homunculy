@@ -1,4 +1,4 @@
-MAPPER_DOCSTRING = '''
+MAPPER_DOCSTRING = """
 Mapping Logic:
 
 This documentation describes the conversion logic used across various mapper.py files in the project.
@@ -17,6 +17,6 @@ Advantages of using mappers (converters):
 - Separation of Concerns: Converters handle only the conversion, while models or data objects deal with data representation.
 - Flexibility: Changes in business logic or data structure only require modifications in the converter, leaving models or data objects unaffected.
 
-Disadvantages: 
+Disadvantages:
 - Increased Complexity: Introduces the overhead of managing and maintaining additional converters or services.
-'''
+"""

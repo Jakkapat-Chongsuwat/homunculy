@@ -9,7 +9,6 @@ from internal.infrastructure.services.langgraph.summarizer.background import (
     create_background_summarizer,
 )
 
-
 __all__ = [
     "BackgroundSummarizer",
     "create_background_summarizer",

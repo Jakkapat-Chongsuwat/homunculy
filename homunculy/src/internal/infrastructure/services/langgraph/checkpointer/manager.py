@@ -9,12 +9,12 @@ from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from common.logger import get_logger
+from settings import DATABASE_URI
+
 from internal.infrastructure.services.langgraph.exceptions import (
     CheckpointerConnectionException,
     CheckpointerSetupException,
 )
-from settings import DATABASE_URI
-
 
 logger = get_logger(__name__)
 
@@ -44,6 +44,9 @@ class CheckpointerManager:
     def checkpointer(self) -> Any:
         return self._checkpointer
 
+    def get_checkpointer(self) -> Any:
+        return self._checkpointer
+
     @property
     def is_initialized(self) -> bool:
         return self._initialized
@@ -59,19 +62,30 @@ class CheckpointerManager:
         """Initialize checkpointer on first use."""
         if self._initialized:
             return
-
-        logger.info("Initializing checkpointer")
-
-        if self._should_use_postgres():
-            await self._init_postgres()
-        else:
-            self._init_memory()
-
-        self._initialized = True
-        logger.info("Checkpointer ready", type=type(self._checkpointer).__name__)
+        await self._init()
 
     def _should_use_postgres(self) -> bool:
         return HAS_POSTGRES_CHECKPOINT and bool(DATABASE_URI)
+
+    async def _init(self) -> None:
+        logger.info("Initializing checkpointer")
+        await self._maybe_init_postgres()
+        self._init_memory_if_missing()
+        self._mark_ready()
+
+    async def _maybe_init_postgres(self) -> None:
+        if not self._should_use_postgres():
+            return
+        await self._init_postgres()
+
+    def _init_memory_if_missing(self) -> None:
+        if self._checkpointer:
+            return
+        self._init_memory()
+
+    def _mark_ready(self) -> None:
+        self._initialized = True
+        logger.info("Checkpointer ready", type=type(self._checkpointer).__name__)
 
     async def _init_postgres(self) -> None:
         """Initialize PostgreSQL checkpointer."""
@@ -81,8 +95,7 @@ class CheckpointerManager:
                 storage_type="postgres",
             )
 
-        db_uri = DATABASE_URI.replace('+asyncpg', '')
-        db_uri = self._to_psycopg_uri(db_uri)
+        db_uri = self._postgres_checkpoint_uri()
         logger.info("Connecting to Postgres", db_host=self._extract_host(db_uri))
 
         try:
@@ -113,8 +126,14 @@ class CheckpointerManager:
         logger.warning("Using MemorySaver", reason=reason)
         self._checkpointer = MemorySaver()
 
+    def _postgres_checkpoint_uri(self) -> str:
+        return self._to_psycopg_uri(self._remove_asyncpg(str(DATABASE_URI)))
+
+    def _remove_asyncpg(self, db_uri: str) -> str:
+        return db_uri.replace("+asyncpg", "")
+
     def _extract_host(self, db_uri: str) -> str:
-        return db_uri.split('@')[1].split('/')[0] if '@' in db_uri else "unknown"
+        return db_uri.split("@")[1].split("/")[0] if "@" in db_uri else "unknown"
 
     def _to_psycopg_uri(self, db_uri: str) -> str:
         """Convert a SQLAlchemy/asyncpg-style URI into a psycopg-compatible URI.

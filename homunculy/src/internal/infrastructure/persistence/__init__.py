@@ -9,9 +9,9 @@ from .sqlalchemy import (
     SQLAlchemyAgentRepository,
     SQLAlchemyUnitOfWork,
     async_session_factory,
+    close_db,
     get_db_session,
     init_db,
-    close_db,
 )
 
 __all__ = [

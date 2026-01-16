@@ -69,10 +69,10 @@ def _create_llm_node(llm: Union[ChatOpenAI, Runnable], use_summarized: bool = Tr
 
         try:
             result = await llm.ainvoke(messages)
-            content = result.content if hasattr(result, 'content') else str(result)
+            content = result.content if hasattr(result, "content") else str(result)
 
             if isinstance(result, AIMessage):
-                tool_calls = getattr(result, 'tool_calls', None)
+                tool_calls = getattr(result, "tool_calls", None)
                 if tool_calls:
                     return {"messages": [result], "error": None}
 
@@ -121,7 +121,7 @@ def _should_continue_after_llm(state: ConversationState) -> str:
     last_message = messages[-1]
 
     if isinstance(last_message, AIMessage):
-        tool_calls = getattr(last_message, 'tool_calls', None)
+        tool_calls = getattr(last_message, "tool_calls", None)
         if tool_calls:
             return "tools"
 

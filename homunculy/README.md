@@ -2,25 +2,6 @@
 
 🤖 **Core AI Agent Backend** - Python/FastAPI service powering conversational AI agents with streaming support.
 
-## Overview
-
-| Aspect | Details |
-|--------|---------|
-| **Language** | Python 3.12+ |
-| **Framework** | FastAPI |
-| **AI Engine** | LangGraph + LangChain + OpenAI |
-| **TTS** | ElevenLabs Integration |
-| **Database** | PostgreSQL (async) |
-| **Architecture** | Clean Architecture |
-
-## Key Features 
-
-- 🔄 **WebSocket Streaming** - Real-time chat with token-by-token responses
-- 🎙️ **Text-to-Speech** - ElevenLabs voice synthesis integration
-- 📊 **LangGraph Agents** - Stateful AI agents with memory persistence
-- 🔌 **REST + GraphQL APIs** - Flexible API consumption options
-- ✅ **Checkpoint System** - Conversation state persistence
-
 ## Project Structure
 
 ```
@@ -42,8 +23,38 @@ homunculy/
 poetry install
 
 # Run locally
-make run
+make up
 
 # Run tests
 make test
+```
+
+## LiveKit + Pipecat + LangGraph (Worker)
+
+This repo supports a LiveKit-first runtime via a separate worker process (recommended) while keeping FastAPI for HTTP management APIs.
+
+For local self-hosted LiveKit, this repo uses a dev config with defaults:
+- `LIVEKIT_URL=ws://localhost:7880`
+- `LIVEKIT_API_KEY=devkey`
+- `LIVEKIT_API_SECRET=devsecret`
+
+```bash
+# Install optional worker dependencies
+poetry install --with livekit
+
+# Start local LiveKit server (root docker-compose)
+make livekit-up
+
+# Generate a room join token (JWT) for a WebRTC client
+make livekit-token ROOM=dev-room ID=web NAME="Web Client"
+
+# Run the LiveKit Agents worker (preferred)
+export LIVEKIT_URL=...
+export LIVEKIT_API_KEY=...
+export LIVEKIT_API_SECRET=...
+make livekit-agent
+
+# Alternatively run the standalone Pipecat worker (requires a room name)
+export LIVEKIT_ROOM_NAME=dev-room
+make livekit-worker
 ```

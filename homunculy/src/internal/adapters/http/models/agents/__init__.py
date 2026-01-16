@@ -1,15 +1,15 @@
 """Agent HTTP Models - Agent-specific request/response structures."""
 
 from .requests import (
-    AgentPersonalityRequest,
     AgentConfigurationRequest,
+    AgentPersonalityRequest,
     ExecuteChatRequest,
 )
 from .responses import (
-    AudioFormat,
-    AudioEncoding,
-    AudioResponse,
     AgentExecutionMetadata,
+    AudioEncoding,
+    AudioFormat,
+    AudioResponse,
     ChatResponse,
 )
 

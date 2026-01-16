@@ -5,12 +5,12 @@ Provides document retrieval capability to agents through tool calling interface.
 Uses the self-reflective RAG system for high-quality document search.
 """
 
-from typing import Annotated, List
-from langchain_core.tools import tool
+from typing import Annotated
 
 from common.logger import get_logger
-from internal.domain.services import RAGService
+from langchain_core.tools import tool
 
+from internal.domain.services import RAGService
 
 logger = get_logger(__name__)
 

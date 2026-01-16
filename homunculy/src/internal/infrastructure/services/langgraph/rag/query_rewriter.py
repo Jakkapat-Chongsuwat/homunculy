@@ -1,11 +1,11 @@
 """Query Rewriter Implementation."""
 
-from typing import List, Dict
+from typing import Dict, List
 
-from internal.domain.services import QueryRewriterService, LLMClient
+from internal.domain.services import LLMClient, QueryRewriterService
 
-QUERY_REWRITER_PROMPT = """You are a question re-writer. Convert the input question 
-to a better version optimized for vectorstore retrieval. 
+QUERY_REWRITER_PROMPT = """You are a question re-writer. Convert the input question
+to a better version optimized for vectorstore retrieval.
 Output only the rewritten question."""
 
 

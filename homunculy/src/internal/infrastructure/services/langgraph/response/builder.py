@@ -8,10 +8,10 @@ import base64
 from typing import Any, Dict, Optional
 
 from common.logger import get_logger
-from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
-from internal.domain.services import TTSService
 from settings.tts import tts_settings
 
+from internal.domain.entities import AgentConfiguration, AgentResponse, AgentStatus
+from internal.domain.services import TTSService
 
 logger = get_logger(__name__)
 
@@ -119,7 +119,7 @@ class ResponseBuilder:
         )
 
         return {
-            "data": base64.b64encode(audio_bytes).decode('utf-8'),
+            "data": base64.b64encode(audio_bytes).decode("utf-8"),
             "format": "mp3",
             "encoding": "base64",
             "size_bytes": len(audio_bytes),

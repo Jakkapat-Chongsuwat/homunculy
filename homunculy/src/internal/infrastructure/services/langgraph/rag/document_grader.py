@@ -1,8 +1,9 @@
 """Document Grader Implementation."""
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from internal.domain.services import DocumentGraderService, LLMClient
+
 from .schemas import GradeDocumentsSchema
 
 DOCUMENT_GRADER_PROMPT = """You are a grader assessing relevance of a retrieved document.

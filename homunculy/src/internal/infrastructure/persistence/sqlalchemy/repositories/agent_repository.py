@@ -83,16 +83,12 @@ class SQLAlchemyAgentRepository(AgentRepository):
         return agent
 
     async def get_by_id(self, agent_id: str) -> Optional[Agent]:
-        result = await self.session.execute(
-            select(AgentModel).where(AgentModel.id == agent_id)
-        )
+        result = await self.session.execute(select(AgentModel).where(AgentModel.id == agent_id))
         model = result.scalar_one_or_none()
         return self._to_domain(model) if model else None
 
     async def update(self, agent: Agent) -> Agent:
-        result = await self.session.execute(
-            select(AgentModel).where(AgentModel.id == agent.id)
-        )
+        result = await self.session.execute(select(AgentModel).where(AgentModel.id == agent.id))
         model = result.scalar_one_or_none()
 
         if not model:
@@ -107,9 +103,7 @@ class SQLAlchemyAgentRepository(AgentRepository):
         return agent
 
     async def delete(self, agent_id: str) -> bool:
-        result = await self.session.execute(
-            select(AgentModel).where(AgentModel.id == agent_id)
-        )
+        result = await self.session.execute(select(AgentModel).where(AgentModel.id == agent_id))
         model = result.scalar_one_or_none()
 
         if not model:
@@ -120,15 +114,11 @@ class SQLAlchemyAgentRepository(AgentRepository):
         return True
 
     async def list_all(self, limit: int = 50, offset: int = 0) -> List[Agent]:
-        result = await self.session.execute(
-            select(AgentModel).limit(limit).offset(offset)
-        )
+        result = await self.session.execute(select(AgentModel).limit(limit).offset(offset))
         models = result.scalars().all()
         return [self._to_domain(model) for model in models]
 
-    async def update_configuration(
-        self, agent_id: str, configuration: AgentConfiguration
-    ) -> bool:
+    async def update_configuration(self, agent_id: str, configuration: AgentConfiguration) -> bool:
         agent = await self.get_by_id(agent_id)
         if not agent:
             return False

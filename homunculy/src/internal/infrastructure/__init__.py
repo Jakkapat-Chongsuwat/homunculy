@@ -8,22 +8,21 @@ This layer contains all external concerns and implementations:
 - Framework integrations (LangGraph)
 """
 
+from .container import (
+    get_llm_service,
+    get_session,
+    get_tts_service,
+    get_uow,
+)
 from .persistence import (
     SQLAlchemyAgentRepository,
     SQLAlchemyUnitOfWork,
-    init_db,
     close_db,
+    init_db,
 )
 from .services import (
-    LangGraphAgentService,
     ElevenLabsTTSService,
-)
-from .container import (
-    get_session,
-    get_uow,
-    get_llm_service,
-    get_tts_service,
-    get_stream_chat_usecase,
+    LangGraphAgentService,
 )
 
 __all__ = [
@@ -40,5 +39,4 @@ __all__ = [
     "get_uow",
     "get_llm_service",
     "get_tts_service",
-    "get_stream_chat_usecase",
 ]

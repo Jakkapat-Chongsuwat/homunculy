@@ -12,7 +12,8 @@ DIFF_PYTHONS = `git diff $(GIT_ARGS) | grep .py$$`
 format:
 	@if [[ ! -z "${DIFF_PYTHONS}" ]]; then \
 		echo "> autoflake"; autoflake --remove-all-unused-imports --ignore-init-module-imports -r -i $(DIFF_FILES); \
-		echo "> black"; black --config $(SETTINGS_PATH) -q $(DIFF_PYTHONS); \
+		echo "> ruff (fix)"; ruff check --fix $(DIFF_PYTHONS); \
+		echo "> ruff (format)"; ruff format $(DIFF_PYTHONS); \
 	fi
 
 lint:
@@ -22,24 +23,47 @@ lint:
 	@if [[ ! -z "$(DIFF_PYTHONS)" ]]; then \
 		echo "> pylint"; pylint --rcfile=$(SETTINGS_PATH) -sn $(DIFF_PYTHONS); \
 		echo "> ruff"; ruff check $(DIFF_PYTHONS); \
+		echo "> mypy"; mypy --config-file $(SETTINGS_PATH) $(DIFF_PYTHONS); \
 		echo "> pyright"; pyright $(DIFF_PYTHONS); \
 	fi
 
 test:
-	@echo "Running comprehensive test suite..."
-	@coverage erase
-	@echo "Running multi-database compatibility tests..."
-	@bats --timing ./tests/api_db_test.bats
-	@echo "Running AI Agent specific tests..."
-	@make test-ai-agent
-	@coverage report --show-missing --skip-covered --fail-under 90
-	@coverage html
+	@echo "Running tests in parallel..."
+	@poetry run pytest -n auto --dist loadfile -q
 
 up:
 	uvicorn main:app \
 		--port $(PORT) \
 		--app-dir ./src \
 		--reload
+
+livekit-worker:
+	@echo "Starting LiveKit/Pipecat worker..."
+	@export LIVEKIT_URL=$${LIVEKIT_URL:-ws://localhost:7880} && \
+	 export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
+	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
+	 export PYTHONPATH=src && \
+	 poetry run python -m internal.adapters.livekit.pipecat.worker dev
+
+livekit-agent:
+	@echo "Starting LiveKit Agents worker..."
+	@export LIVEKIT_URL=$${LIVEKIT_URL:-ws://localhost:7880} && \
+	 export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
+	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
+	 export PYTHONPATH=src && poetry run python -m internal.adapters.livekit.pipecat.worker $${LIVEKIT_AGENT_CMD:-dev}
+
+livekit-up:
+	@echo "Starting self-hosted LiveKit server (root docker-compose)..."
+	@cd .. && docker compose up -d livekit
+
+livekit-down:
+	@echo "Stopping self-hosted LiveKit server (root docker-compose)..."
+	@cd .. && docker compose stop livekit && docker compose rm -f livekit
+
+livekit-token:
+	@export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
+	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
+	 poetry run python scripts/livekit_token.py --room $${ROOM:-dev-room} --identity $${ID:-dev-user} --name "$${NAME:-Dev User}"
 
 db:
 	docker compose down --remove-orphans -v

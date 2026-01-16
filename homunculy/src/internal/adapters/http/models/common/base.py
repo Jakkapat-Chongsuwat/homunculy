@@ -1,65 +1,56 @@
-"""Base HTTP Response Models - REST API Best Practices."""
+"""Base HTTP response models."""
 
-from typing import Any, Generic, Optional, TypeVar
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Generic, Optional, TypeVar
 
+from pydantic import BaseModel, ConfigDict, Field
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class BaseResponse(BaseModel):
-    """
-    Base response model for all HTTP responses.
-    
-    Provides consistent structure across all endpoints following REST best practices.
-    """
+    """Base response shape."""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     success: bool = Field(description="Indicates if the request was successful")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp (UTC)")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp (UTC)"
+    )
     request_id: str = Field(default="", description="Request tracking ID for debugging and tracing")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional response metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional response metadata"
+    )
 
 
 class ErrorDetail(BaseModel):
-    """
-    Detailed error information following RFC 7807 Problem Details.
-    
-    Provides structured error information for better client handling.
-    """
+    """Structured error detail."""
+
     code: str = Field(description="Machine-readable error code (e.g., VALIDATION_ERROR, NOT_FOUND)")
     message: str = Field(description="Human-readable error message")
-    field: Optional[str] = Field(default=None, description="Field that caused the error (for validation errors)")
+    field: Optional[str] = Field(
+        default=None, description="Field that caused the error (for validation errors)"
+    )
     details: dict[str, Any] = Field(default_factory=dict, description="Additional error context")
 
 
 class ErrorResponse(BaseResponse):
-    """
-    Standard error response model.
-    
-    Used for all error responses (4xx, 5xx) with consistent structure.
-    """
+    """Error response envelope."""
+
     success: bool = Field(default=False, description="Always False for error responses")
     error: ErrorDetail = Field(description="Detailed error information")
 
 
 class SuccessResponse(BaseResponse, Generic[T]):
-    """
-    Generic success response wrapper.
-    
-    Wraps successful responses with consistent metadata structure.
-    """
+    """Success response envelope."""
+
     success: bool = Field(default=True, description="Always True for success responses")
     data: T = Field(description="Response payload")
 
 
 class PaginationMetadata(BaseModel):
-    """
-    Pagination metadata for list endpoints.
-    
-    Follows cursor-based or offset-based pagination patterns.
-    """
+    """Pagination metadata."""
+
     total: int = Field(description="Total number of items")
     page: int = Field(description="Current page number (1-indexed)")
     page_size: int = Field(description="Number of items per page")
@@ -69,11 +60,8 @@ class PaginationMetadata(BaseModel):
 
 
 class PaginatedResponse(BaseResponse, Generic[T]):
-    """
-    Paginated response for list endpoints.
-    
-    Provides consistent pagination structure across all list endpoints.
-    """
+    """Paginated response envelope."""
+
     success: bool = Field(default=True, description="Always True for success responses")
     data: list[T] = Field(description="List of items for current page")
     pagination: PaginationMetadata = Field(description="Pagination metadata")

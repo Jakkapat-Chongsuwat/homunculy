@@ -8,10 +8,8 @@ the main response flow. Updates checkpoint state in the background.
 import asyncio
 from typing import Any, Dict, Optional, Sequence
 
-from langchain_core.messages import BaseMessage, SystemMessage
-
 from common.logger import get_logger
-
+from langchain_core.messages import BaseMessage, SystemMessage
 
 logger = get_logger(__name__)
 

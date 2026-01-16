@@ -3,6 +3,24 @@
 
 services:
   # ===========================================
+  # LIVEKIT (WebRTC SFU)
+  # ===========================================
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: livekit
+    command: ["--config", "/livekit.yaml"]
+    volumes:
+      - ./infra/livekit/livekit.yaml:/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    networks:
+      - homunculy_network
+    restart: unless-stopped
+
+  # ===========================================
   # HOMUNCULY PYTHON SERVICE & DATABASE
   # ===========================================
   

@@ -9,11 +9,11 @@ specific to LangGraph agent infrastructure (checkpointers, memory, LLM auth, etc
 
 class LLMAuthenticationException(Exception):
     """Raised when LLM API authentication fails."""
-    
+
     def __init__(self, message: str, provider: str | None = None):
         """
         Initialize LLM authentication exception.
-        
+
         Args:
             message: Human-readable error message
             provider: LLM provider name (e.g., 'openai')
@@ -21,7 +21,7 @@ class LLMAuthenticationException(Exception):
         self.message = message
         self.provider = provider
         super().__init__(message)
-    
+
     def __str__(self) -> str:
         """String representation of the exception."""
         if self.provider:
@@ -31,11 +31,11 @@ class LLMAuthenticationException(Exception):
 
 class CheckpointerException(Exception):
     """Base exception for checkpointer implementation errors."""
-    
+
     def __init__(self, message: str, *args, **kwargs):
         """
         Initialize checkpointer exception.
-        
+
         Args:
             message: Human-readable error message
             *args: Additional positional arguments
@@ -44,7 +44,7 @@ class CheckpointerException(Exception):
         self.message = message
         self.context = kwargs
         super().__init__(message, *args)
-    
+
     def __str__(self) -> str:
         """String representation of the exception."""
         if self.context:
@@ -55,27 +55,27 @@ class CheckpointerException(Exception):
 
 class CheckpointerConnectionException(CheckpointerException):
     """Raised when checkpointer connection fails."""
-    
+
     def __init__(self, message: str, storage_type: str | None = None):
         super().__init__(message, storage_type=storage_type)
 
 
 class CheckpointerSetupException(CheckpointerException):
     """Raised when checkpointer setup/initialization fails."""
-    
+
     def __init__(self, message: str, storage_type: str | None = None):
         super().__init__(message, storage_type=storage_type)
 
 
 class GraphExecutionException(Exception):
     """Raised when LangGraph execution fails."""
-    
+
     def __init__(self, message: str, thread_id: str | None = None, **kwargs):
         self.message = message
         self.thread_id = thread_id
         self.context = kwargs
         super().__init__(message)
-    
+
     def __str__(self) -> str:
         parts = [self.message]
         if self.thread_id:
@@ -88,7 +88,7 @@ class GraphExecutionException(Exception):
 
 class GraphStateException(Exception):
     """Raised when graph state retrieval/manipulation fails."""
-    
+
     def __init__(self, message: str, thread_id: str | None = None):
         self.message = message
         self.thread_id = thread_id

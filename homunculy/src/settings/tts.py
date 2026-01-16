@@ -10,7 +10,6 @@ from typing import Literal, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 TTSProvider = Literal["elevenlabs", "azure", "google", "aws"]
 
 
@@ -34,7 +33,7 @@ class TTSSettings(BaseSettings):
         default="eleven_multilingual_v2", description="Default ElevenLabs TTS model"
     )
     elevenlabs_streaming_model_id: str = Field(
-        default="eleven_turbo_v2_5", description="Fast model for WebSocket streaming"
+        default="eleven_turbo_v2_5", description="Fast model for low-latency streaming"
     )
     elevenlabs_output_format: str = Field(
         default="pcm_24000",

@@ -1,15 +1,15 @@
-"""Grader Service Interfaces."""
+"""Grader service contracts."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class DocumentGraderService(ABC):
-    """Abstract interface for document relevance grading."""
+    """Document relevance grading."""
 
     @abstractmethod
     async def grade(self, question: str, document: str) -> bool:
-        """Grade single document relevance."""
+        """Grade one document."""
 
     @abstractmethod
     async def grade_batch(
@@ -19,24 +19,24 @@ class DocumentGraderService(ABC):
 
 
 class HallucinationGraderService(ABC):
-    """Abstract interface for hallucination detection."""
+    """Hallucination detection."""
 
     @abstractmethod
     async def check(self, documents: List[Dict[str, Any]], generation: str) -> bool:
-        """Check if generation is grounded in documents."""
+        """Check grounding."""
 
 
 class AnswerGraderService(ABC):
-    """Abstract interface for answer usefulness grading."""
+    """Answer usefulness grading."""
 
     @abstractmethod
     async def grade(self, question: str, generation: str) -> bool:
-        """Grade if answer addresses question."""
+        """Grade answer usefulness."""
 
 
 class QueryRewriterService(ABC):
-    """Abstract interface for query rewriting."""
+    """Query rewriting."""
 
     @abstractmethod
     async def rewrite(self, question: str) -> str:
-        """Rewrite question for better retrieval."""
+        """Rewrite question."""
