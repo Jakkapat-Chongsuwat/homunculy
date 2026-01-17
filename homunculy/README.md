@@ -1,57 +1,46 @@
 # Homunculy AI Agent Service
 
-🤖 Python/FastAPI backend for conversational AI agents with real-time voice via LiveKit + Pipecat + LangGraph.
+🤖 Python/FastAPI backend for AI agents with LiveKit + Pipecat + LangGraph.
 
 ## Architecture
 
 ```mermaid
 graph TB
-    subgraph Presentation["presentation/ (User-Facing)"]
-        HTTP["/chat HTTP API"]
-        WH["Webhooks"]
+    subgraph DI["DI Container"]
+        C[Container]
+    end
+    
+    subgraph Presentation["presentation/"]
+        HTTP[HTTP Handlers]
     end
 
-    subgraph Application["application/ (Business Logic)"]
-        UC["Use Cases"]
-        LG["LangGraph RAG"]
+    subgraph Application["application/"]
+        UC[Use Cases]
+        LG[LangGraph]
     end
 
-    subgraph Infrastructure["infrastructure/ (External)"]
-        subgraph Transport["transport/ (WebRTC)"]
-            LK["LiveKit Worker"]
-            PC["Pipecat Pipeline"]
-        end
-        AD["Adapters (LLM/TTS/STT)"]
-        DB["Persistence"]
+    subgraph Infrastructure["infrastructure/"]
+        AD[Adapters]
+        UOW[CheckpointerUoW]
+        FAC[Factory]
     end
 
-    subgraph Domain["domain/ (Core)"]
-        EN["Entities"]
-        IF["Interfaces (Ports)"]
-    end
-
-    HTTP --> UC
-    LK --> PC
-    PC --> LG
-    UC --> LG
-    LG --> AD
-    AD --> IF
-    UC --> IF
+    C -->|inject| HTTP
+    C -->|inject| AD
+    HTTP --> UC --> LG --> AD
+    FAC -->|create| UOW
+    UOW -->|checkpointer| LG
 ```
 
 ## Quick Start
 
 ```bash
-poetry install && make up        # HTTP API on :8000
-make test                        # 75 tests in parallel
+poetry install && make up   # :8000
+make test                   # 90+ tests
 ```
 
-## Voice Agent (LiveKit)
+## Voice (LiveKit)
 
 ```bash
-make livekit-up                  # Start local LiveKit server
-make livekit-token ROOM=dev-room # Generate JWT token
-make livekit-agent               # Run voice worker
+make livekit-up && make livekit-agent
 ```
-
-Environment: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
