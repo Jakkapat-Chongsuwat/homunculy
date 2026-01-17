@@ -1,0 +1,26 @@
+{
+  "name": "homunculy",
+  "version": "1.0.0",
+  "graphs": {
+    "rag": {
+      "entry_point": "application.graphs.builder:build_rag_graph",
+      "state_schema": "application.graphs.state:GraphState"
+    }
+  },
+  "dependencies": [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.2.0"
+  ],
+  "env_vars": [
+    "OPENAI_API_KEY",
+    "ELEVENLABS_API_KEY",
+    "LIVEKIT_API_KEY",
+    "LIVEKIT_API_SECRET",
+    "DB_HOST",
+    "DB_PORT",
+    "DB_NAME",
+    "DB_USER",
+    "DB_PASSWORD"
+  ]
+}
