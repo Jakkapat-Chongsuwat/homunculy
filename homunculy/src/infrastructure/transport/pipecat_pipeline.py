@@ -9,10 +9,10 @@ from livekit.agents import JobContext
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
-from pipecat.services.elevenlabs import ElevenLabsTTSService
-from pipecat.services.openai import OpenAISTTService
+from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.services.openai.stt import OpenAISTTService
 
-from infrastructure.pipecat.transport import (
+from infrastructure.transport.pipecat_transport import (
     TransportConfig,
     create_livekit_transport,
     extract_livekit_parts,
@@ -90,7 +90,10 @@ class PipecatPipeline:
         await runner.run(task)
 
 
-def create_pipeline(llm_service: Any, config: PipelineConfig | None = None) -> PipecatPipeline:
+def create_pipeline(
+    llm_service: Any,
+    config: PipelineConfig | None = None,
+) -> PipecatPipeline:
     """Factory to create pipeline with defaults."""
     cfg = config or _default_config()
     return PipecatPipeline(cfg, llm_service)

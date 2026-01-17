@@ -1,4 +1,4 @@
-"""LiveKit agent worker entrypoint."""
+"""LiveKit agent worker entrypoint - WebRTC connection handler."""
 
 from common.logger import get_logger
 from livekit.agents import JobContext, WorkerOptions, cli
@@ -36,7 +36,6 @@ def create_worker(pipeline_runner) -> LiveKitWorker:
     return LiveKitWorker(pipeline_runner)
 
 
-# Standalone run support
 def run_standalone(pipeline_runner) -> None:
     """Run worker as standalone process."""
     worker = create_worker(pipeline_runner)

@@ -1,60 +1,57 @@
 # Homunculy AI Agent Service
 
-🤖 **Core AI Agent Backend** - Python/FastAPI service powering conversational AI agents with streaming support.
+🤖 Python/FastAPI backend for conversational AI agents with real-time voice via LiveKit + Pipecat + LangGraph.
 
-## Project Structure
+## Architecture
 
-```
-homunculy/
-├── src/
-│   ├── main.py              # FastAPI application entry
-│   ├── common/              # Shared utilities & base classes
-│   ├── internal/            # Core business logic (agents, chat)
-│   └── settings/            # Configuration & environment
-├── tests/                   # Unit, integration, e2e tests
-├── logs/                    # Application logs & audio files
-└── Dockerfile               # Container definition
+```mermaid
+graph TB
+    subgraph Presentation["presentation/ (User-Facing)"]
+        HTTP["/chat HTTP API"]
+        WH["Webhooks"]
+    end
+
+    subgraph Application["application/ (Business Logic)"]
+        UC["Use Cases"]
+        LG["LangGraph RAG"]
+    end
+
+    subgraph Infrastructure["infrastructure/ (External)"]
+        subgraph Transport["transport/ (WebRTC)"]
+            LK["LiveKit Worker"]
+            PC["Pipecat Pipeline"]
+        end
+        AD["Adapters (LLM/TTS/STT)"]
+        DB["Persistence"]
+    end
+
+    subgraph Domain["domain/ (Core)"]
+        EN["Entities"]
+        IF["Interfaces (Ports)"]
+    end
+
+    HTTP --> UC
+    LK --> PC
+    PC --> LG
+    UC --> LG
+    LG --> AD
+    AD --> IF
+    UC --> IF
 ```
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-poetry install
-
-# Run locally
-make up
-
-# Run tests
-make test
+poetry install && make up        # HTTP API on :8000
+make test                        # 75 tests in parallel
 ```
 
-## LiveKit + Pipecat + LangGraph (Worker)
-
-This repo supports a LiveKit-first runtime via a separate worker process (recommended) while keeping FastAPI for HTTP management APIs.
-
-For local self-hosted LiveKit, this repo uses a dev config with defaults:
-- `LIVEKIT_URL=ws://localhost:7880`
-- `LIVEKIT_API_KEY=devkey`
-- `LIVEKIT_API_SECRET=devsecret`
+## Voice Agent (LiveKit)
 
 ```bash
-# Install optional worker dependencies
-poetry install --with livekit
-
-# Start local LiveKit server (root docker-compose)
-make livekit-up
-
-# Generate a room join token (JWT) for a WebRTC client
-make livekit-token ROOM=dev-room ID=web NAME="Web Client"
-
-# Run the LiveKit Agents worker (preferred)
-export LIVEKIT_URL=...
-export LIVEKIT_API_KEY=...
-export LIVEKIT_API_SECRET=...
-make livekit-agent
-
-# Alternatively run the standalone Pipecat worker (requires a room name)
-export LIVEKIT_ROOM_NAME=dev-room
-make livekit-worker
+make livekit-up                  # Start local LiveKit server
+make livekit-token ROOM=dev-room # Generate JWT token
+make livekit-agent               # Run voice worker
 ```
+
+Environment: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`

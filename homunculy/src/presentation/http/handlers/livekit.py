@@ -2,7 +2,7 @@
 
 from common.logger import get_logger
 from fastapi import APIRouter
-from infrastructure.livekit import create_room_token
+from infrastructure.transport import create_room_token
 from pydantic import BaseModel
 
 logger = get_logger(__name__)

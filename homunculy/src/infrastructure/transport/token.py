@@ -1,4 +1,4 @@
-"""LiveKit JWT token generation."""
+"""LiveKit JWT token generation for WebRTC room access."""
 
 import time
 

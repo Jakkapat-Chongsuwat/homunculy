@@ -74,9 +74,8 @@ async def on_shutdown() -> None:
 async def _build_graph(api_key: str, checkpointer, config, bind_tools: bool):
     """Build LangGraph workflow (placeholder)."""
     # This would use application.graphs.builder in full implementation
-    from langgraph.graph import StateGraph
-
     from application.graphs.state import GraphState
+    from langgraph.graph import StateGraph
 
     graph = StateGraph(GraphState)
     # Add nodes and edges based on config

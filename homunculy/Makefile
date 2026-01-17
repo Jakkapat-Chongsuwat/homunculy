@@ -12,9 +12,13 @@ DIFF_PYTHONS = `git diff $(GIT_ARGS) | grep .py$$`
 format:
 	@if [[ ! -z "${DIFF_PYTHONS}" ]]; then \
 		echo "> autoflake"; autoflake --remove-all-unused-imports --ignore-init-module-imports -r -i $(DIFF_FILES); \
-		echo "> ruff (fix)"; ruff check --fix $(DIFF_PYTHONS); \
+		echo "> ruff (fix)"; ruff check --fix --select I,F401 $(DIFF_PYTHONS); \
 		echo "> ruff (format)"; ruff format $(DIFF_PYTHONS); \
 	fi
+
+format-all:
+	@echo "> ruff (fix all)"; poetry run ruff check --fix src/
+	@echo "> ruff (format all)"; poetry run ruff format src/
 
 lint:
 	@if command -v cspell > /dev/null; then \
@@ -43,14 +47,14 @@ livekit-worker:
 	 export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
 	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
 	 export PYTHONPATH=src && \
-	 poetry run python -m internal.adapters.livekit.pipecat.worker dev
+	 poetry run python -m infrastructure.transport.livekit_worker dev
 
 livekit-agent:
 	@echo "Starting LiveKit Agents worker..."
 	@export LIVEKIT_URL=$${LIVEKIT_URL:-ws://localhost:7880} && \
 	 export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
 	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
-	 export PYTHONPATH=src && poetry run python -m internal.adapters.livekit.pipecat.worker $${LIVEKIT_AGENT_CMD:-dev}
+	 export PYTHONPATH=src && poetry run python -m infrastructure.transport.livekit_worker $${LIVEKIT_AGENT_CMD:-dev}
 
 livekit-up:
 	@echo "Starting self-hosted LiveKit server (root docker-compose)..."

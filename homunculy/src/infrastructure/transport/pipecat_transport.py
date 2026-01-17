@@ -1,4 +1,4 @@
-"""Pipecat transport configuration."""
+"""Pipecat transport configuration for WebRTC."""
 
 from dataclasses import dataclass
 from typing import Any
