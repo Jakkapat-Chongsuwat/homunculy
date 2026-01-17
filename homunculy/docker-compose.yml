@@ -60,7 +60,11 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URI=postgresql+asyncpg://homunculy_user:homunculy_password@postgres:5432/homunculy
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=homunculy
+      - DB_USER=homunculy_user
+      - DB_PASSWORD=homunculy_password
       - APP_HOST=0.0.0.0
       - APP_PORT=8000
     ports:
