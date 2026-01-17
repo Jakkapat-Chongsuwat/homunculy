@@ -94,6 +94,12 @@ docker-restart:
 	@echo "Restarting application..."
 	docker compose restart homunculy-app
 
+chat-local:
+	@echo "POST /chat on local docker app..."
+	@curl -sS -X POST http://localhost:8000/chat \
+		-H "Content-Type: application/json" \
+		-d '{"message":"hello"}'
+
 docker-clean:
 	@echo "Cleaning up Docker resources..."
 	docker compose down -v --remove-orphans
