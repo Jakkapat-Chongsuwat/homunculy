@@ -1,4 +1,5 @@
 using ChatClient.Infrastructure;
+using MudBlazor.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -81,6 +82,8 @@ public static class MauiProgram
     private static void ConfigureServices(MauiAppBuilder builder)
     {
         builder.Services.AddMauiBlazorWebView();
+
+        builder.Services.AddMudServices();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

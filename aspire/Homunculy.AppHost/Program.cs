@@ -5,6 +5,8 @@ var homunculyDbPassword = builder.AddParameter("homunculy-db-password", secret: 
 var managementDbPassword = builder.AddParameter("management-db-password", secret: true);
 var openaiApiKey = builder.AddParameter("openai-api-key", secret: true);
 var elevenLabsApiKey = builder.AddParameter("elevenlabs-api-key", secret: true);
+var livekitApiKey = builder.AddParameter("livekit-api-key", secret: true);
+var livekitApiSecret = builder.AddParameter("livekit-api-secret", secret: true);
 
 // ============================================================================
 // RAG Stack (Pinecone Local + RAG Service)
@@ -36,6 +38,20 @@ var ragService = builder.AddContainer("rag-service", "rag-service")
     .WithEnvironment("RAG_TOP_K", "5")
     .WithExternalHttpEndpoints()
     .WaitFor(pineconeLocal);
+
+// ============================================================================
+// LiveKit (WebRTC)
+// ============================================================================
+
+var livekit = builder.AddContainer("livekit", "livekit/livekit-server", "latest")
+    .WithBindMount("../../infra/livekit/livekit.yaml", "/livekit.yaml")
+    .WithArgs("--config", "/livekit.yaml")
+    .WithHttpEndpoint(port: 7880, targetPort: 7880, name: "http");
+
+var livekitHttp = livekit.GetEndpoint("http").ToString();
+var livekitWs = livekitHttp
+    .Replace("https://", "wss://")
+    .Replace("http://", "ws://");
 
 // ============================================================================
 // Homunculy Stack (Python/FastAPI + PostgreSQL)
@@ -76,6 +92,9 @@ var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithEnvironment("TTS_ELEVENLABS_API_KEY", elevenLabsApiKey)
     .WithEnvironment("TTS_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     .WithEnvironment("TTS_ELEVENLABS_STREAMING_MODEL_ID", "eleven_turbo_v2_5")
+    .WithEnvironment("LIVEKIT_URL", livekitWs)
+    .WithEnvironment("LIVEKIT_API_KEY", livekitApiKey)
+    .WithEnvironment("LIVEKIT_API_SECRET", livekitApiSecret)
     .WithEnvironment("RAG_SERVICE_URL", ragService.GetEndpoint("http"))
     .WithEnvironment("LOGGING_LEVEL", "INFO")
     .WithEnvironment("LOGGING_FORMAT", "json")
@@ -83,6 +102,8 @@ var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithExternalHttpEndpoints()
     .WaitFor(homunculyMigrations)
     .WaitFor(ragService);
+
+var homunculyHttp = homunculyApp.GetEndpoint("http").ToString();
 
 // Management Stack (Go/Fiber + PostgreSQL)
 var managementPostgres = builder.AddPostgres("management-postgres", password: managementDbPassword)
@@ -122,8 +143,10 @@ var chatClientWeb = builder.AddContainer("chat-client-web", "chat-client-web")
     .WithHttpEndpoint(port: 5000, targetPort: 5000, name: "http")
     .WithEnvironment("ASPNETCORE_URLS", "http://+:5000")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__homunculy-app", homunculyApp.GetEndpoint("http"))
-    .WithEnvironment("ChatClient__ServerUri", homunculyApp.GetEndpoint("http"))
+    .WithEnvironment("ConnectionStrings__homunculy-app", homunculyHttp)
+    .WithEnvironment("ChatClient__ServerUri", homunculyHttp)
+    .WithEnvironment("ChatClient__LiveKit__Url", livekitWs)
+    .WithEnvironment("ChatClient__LiveKit__TokenEndpoint", $"{homunculyHttp}/api/v1/livekit/token")
     .WithExternalHttpEndpoints()
     .WaitFor(homunculyApp);
 

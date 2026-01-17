@@ -28,3 +28,5 @@ Desktop.ini
 *.backup
 /homunculy/.github/instructions
 .github/copilot-instructions.md
+.github/prompts/ui-ux-pro-max.prompt.md
+/.shared

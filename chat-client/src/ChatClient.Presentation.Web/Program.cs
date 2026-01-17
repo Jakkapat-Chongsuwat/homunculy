@@ -1,4 +1,6 @@
 using ChatClient.Infrastructure;
+using ChatClient.Presentation.Web.Services;
+using MudBlazor.Services;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -45,6 +47,12 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
+
+    builder.Services.AddMudServices();
+    builder.Services.Configure<LiveKitSettings>(
+        builder.Configuration.GetSection("ChatClient:LiveKit"));
+    builder.Services.AddHttpClient();
+    builder.Services.AddScoped<LiveKitService>();
 
     // Debug: Log all connection strings
     var allConnStrings = builder.Configuration.GetSection("ConnectionStrings").GetChildren();

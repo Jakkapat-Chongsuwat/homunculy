@@ -1,0 +1,52 @@
+@using ChatClient.Presentation.Web.Services
+@inject LiveKitService LiveKit
+
+<MudPaper Class="lk-panel" Elevation="1">
+    <MudStack Spacing="2">
+        <MudText Typo="Typo.h6">LiveKit Voice Room</MudText>
+
+        <MudTextField @bind-Value="_room" Label="Room" Variant="Variant.Outlined" />
+        <MudTextField @bind-Value="_identity" Label="Identity" Variant="Variant.Outlined" />
+
+        <MudSwitch T="bool"
+               Checked="_micEnabled"
+               CheckedChanged="OnMicChanged"
+               Label="Microphone" />
+
+        <MudStack Direction="Row" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Connect">
+                Connect
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Disconnect">
+                Disconnect
+            </MudButton>
+        </MudStack>
+
+        <MudText Typo="Typo.caption">Status: @_status</MudText>
+        <div id="livekit-audio" aria-hidden="true"></div>
+    </MudStack>
+</MudPaper>
+
+@code {
+    private string _room = "dev-room";
+    private string _identity = $"web-{Guid.NewGuid():N}";
+    private bool _micEnabled = true;
+    private string _status = "Disconnected";
+
+    private async Task Connect()
+    {
+        var ok = await LiveKit.ConnectAsync(_room, _identity, _micEnabled);
+        _status = ok ? "Connected" : "Missing LiveKit config";
+    }
+
+    private async Task Disconnect()
+    {
+        await LiveKit.DisconnectAsync();
+        _status = "Disconnected";
+    }
+
+    private void OnMicChanged(bool enabled)
+    {
+        _micEnabled = enabled;
+    }
+}
