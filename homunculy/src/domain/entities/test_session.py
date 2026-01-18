@@ -1,6 +1,5 @@
 """Unit tests for Session domain entity."""
 
-
 from domain.entities.session import ConversationState, Session
 
 

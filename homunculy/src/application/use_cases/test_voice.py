@@ -3,14 +3,14 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
+from application.use_cases.voice import VoiceInput, VoiceOutput, VoiceUseCase
 from domain.entities.agent import (
     AgentConfiguration,
     AgentPersonality,
     AgentProvider,
     AgentResponse,
 )
-
-from application.use_cases.voice import VoiceInput, VoiceOutput, VoiceUseCase
 
 
 class TestVoiceInput:

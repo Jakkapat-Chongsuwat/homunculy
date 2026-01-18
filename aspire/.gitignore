@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Development secrets (use .template file as reference)
+**/appsettings.Development.json
+
 # User-specific files
 *.rsuser
 *.suo

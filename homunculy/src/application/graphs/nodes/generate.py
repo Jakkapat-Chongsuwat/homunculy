@@ -1,9 +1,8 @@
 """Generate node - Generate response using LLM."""
 
+from application.graphs.state import GraphState, with_generation
 from common.logger import get_logger
 from domain.entities import AgentConfiguration
-
-from application.graphs.state import GraphState, with_generation
 
 logger = get_logger(__name__)
 

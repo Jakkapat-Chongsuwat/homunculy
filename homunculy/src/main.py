@@ -16,7 +16,6 @@ from infrastructure.container import container
 from infrastructure.persistence import CheckpointerFactory, CheckpointerUnitOfWork
 from presentation.http import create_app
 from presentation.http.handlers.agent import set_llm_service
-from presentation.http.handlers.livekit import configure_livekit
 
 configure_logging()
 logger = get_logger(__name__)
@@ -57,11 +56,6 @@ async def on_startup() -> None:
         container.tts_adapter.override(tts_adapter)
         logger.info("TTS service initialized")
 
-    # Configure LiveKit if configured
-    if settings.livekit.api_key:
-        configure_livekit(settings.livekit.api_key, settings.livekit.api_secret)
-        logger.info("LiveKit configured")
-
     logger.info("All services initialized")
 
 
@@ -97,10 +91,11 @@ def _build_connection_string() -> str:
 
 async def _build_graph(api_key: str, checkpointer, config, bind_tools: bool):
     """Build simple chat graph with LLM node."""
-    from application.graphs.state import GraphState
     from langchain_openai import ChatOpenAI
     from langgraph.graph import END, START, StateGraph
     from pydantic import SecretStr
+
+    from application.graphs.state import GraphState
 
     llm = ChatOpenAI(api_key=SecretStr(api_key), model="gpt-4o-mini")
 

@@ -6,7 +6,6 @@ from typing import Any
 from common.logger import get_logger
 from domain.entities import AgentConfiguration, AgentResponse
 from domain.interfaces import LLMPort
-
 from infrastructure.adapters.langgraph.graph_manager import GraphManager
 from infrastructure.adapters.langgraph.helpers import (
     build_messages,

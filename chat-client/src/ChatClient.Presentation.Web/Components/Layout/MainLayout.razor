@@ -1,23 +1,14 @@
 @inherits LayoutComponentBase
+@using ChatClient.Presentation.Web.Theme
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<main>
+<main class="homunculy-bg">
     @Body
 </main>
 
 @code {
-    private readonly MudTheme _theme = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#2563EB",
-            Secondary = "#3B82F6",
-            Tertiary = "#F97316",
-            Background = "#F8FAFC",
-            TextPrimary = "#1E293B"
-        }
-    };
+    private readonly MudTheme _theme = HomunculyTheme.Create();
 }

@@ -2,9 +2,6 @@
 
 from collections.abc import AsyncIterator
 
-from common.logger import get_logger
-from domain.entities import AgentConfiguration
-from domain.interfaces import LLMPort
 from pipecat.frames.frames import (
     Frame,
     LLMFullResponseEndFrame,
@@ -13,6 +10,10 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.llm_service import LLMService as PipecatLLMService
+
+from common.logger import get_logger
+from domain.entities import AgentConfiguration
+from domain.interfaces import LLMPort
 
 logger = get_logger(__name__)
 

@@ -1,4 +1,3 @@
-using ChatClient.Infrastructure;
 using ChatClient.Presentation.Web.Services;
 using MudBlazor.Services;
 using Serilog;
@@ -61,39 +60,42 @@ static void ConfigureServices(WebApplicationBuilder builder)
         Log.Information("ConnectionString [{Key}] = {Value}", cs.Key, cs.Value);
     }
 
-    var aspireEndpoint = builder.Configuration.GetConnectionString("homunculy-app");
-    var configEndpoint = builder.Configuration["ChatClient:ServerUri"];
-    
-    string wsEndpoint;
-    if (!string.IsNullOrEmpty(aspireEndpoint))
-    {
-        wsEndpoint = aspireEndpoint
-            .Replace("https://", "wss://")
-            .Replace("http://", "ws://")
-            .TrimEnd('/') + "/api/v1/ws/chat";
-        Log.Information("Using Aspire endpoint: {Aspire} -> {WebSocket}", aspireEndpoint, wsEndpoint);
-    }
-    else if (!string.IsNullOrEmpty(configEndpoint))
-    {
-        // Config already has full WebSocket URL with path
-        wsEndpoint = configEndpoint;
-        Log.Information("Using config endpoint: {WebSocket}", wsEndpoint);
-    }
-    else
-    {
-        wsEndpoint = "ws://localhost:8000/api/v1/ws/chat";
-        Log.Warning("No endpoint configured, using default: {WebSocket}", wsEndpoint);
-    }
+    var aspireEndpoint = ResolveServiceHttp(builder.Configuration, "homunculy-app");
+    ConfigureLiveKit(builder, aspireEndpoint);
+}
 
-    Log.Information("Connecting to Homunculy WebSocket at: {Endpoint}", wsEndpoint);
+static void ConfigureLiveKit(WebApplicationBuilder builder, string homunculyHttp)
+{
+    var livekitHttp = ResolveServiceHttp(builder.Configuration, "livekit");
+    var managementHttp = ResolveServiceHttp(builder.Configuration, "management-app");
+    var livekitWs = string.IsNullOrWhiteSpace(livekitHttp)
+        ? string.Empty
+        : livekitHttp.Replace("https://", "wss://").Replace("http://", "ws://");
 
-    builder.Services.AddChatClientWithWebAudio(settings =>
+    builder.Services.Configure<LiveKitSettings>(options =>
     {
-        settings.ServerUri = wsEndpoint;
-        settings.UserId = Guid.NewGuid().ToString();
-        settings.EnableAudio = true;
+        if (!IsAbsolute(options.Url) && !string.IsNullOrWhiteSpace(livekitWs))
+            options.Url = livekitWs;
+
+        if (!IsAbsolute(options.TokenEndpoint) && !string.IsNullOrWhiteSpace(managementHttp))
+            options.TokenEndpoint = $"{managementHttp}/api/v1/livekit/token";
+
+        if (!IsAbsolute(options.TokenEndpoint) && !string.IsNullOrWhiteSpace(homunculyHttp))
+            options.TokenEndpoint = $"{homunculyHttp}/api/v1/livekit/token";
     });
 }
+
+static string ResolveServiceHttp(IConfiguration config, string name)
+{
+    var http = config[$"services:{name}:http:0"];
+    if (IsAbsolute(http)) return http!.TrimEnd('/');
+
+    var conn = config.GetConnectionString(name);
+    return IsAbsolute(conn) ? conn!.TrimEnd('/') : string.Empty;
+}
+
+static bool IsAbsolute(string? value) =>
+    Uri.TryCreate(value, UriKind.Absolute, out _);
 
 static void ConfigurePipeline(WebApplication app)
 {

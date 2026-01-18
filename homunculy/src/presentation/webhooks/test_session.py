@@ -1,6 +1,5 @@
 """Unit tests for Session webhook handler."""
 
-
 from domain.entities.session import Session
 
 

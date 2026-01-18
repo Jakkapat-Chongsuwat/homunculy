@@ -3,10 +3,10 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from domain.entities.agent import AgentResponse
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from domain.entities.agent import AgentResponse
 from presentation.http.handlers.agent import router, set_llm_service
 
 

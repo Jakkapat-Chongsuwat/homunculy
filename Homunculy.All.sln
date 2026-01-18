@@ -27,6 +27,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatClient.Presentation.Mau
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatClient.MauiServiceDefaults", "chat-client\src\ChatClient.MauiServiceDefaults\ChatClient.MauiServiceDefaults.csproj", "{F1B76AF2-B3F7-462F-9A15-D0893DDE4042}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{9672BF4F-A3A6-4A7E-07CE-89F5C9FAE215}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatClient.Presentation.Web.Tests", "chat-client\tests\ChatClient.Presentation.Web.Tests\ChatClient.Presentation.Web.Tests.csproj", "{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -145,6 +149,18 @@ Global
 		{F1B76AF2-B3F7-462F-9A15-D0893DDE4042}.Release|x64.Build.0 = Release|Any CPU
 		{F1B76AF2-B3F7-462F-9A15-D0893DDE4042}.Release|x86.ActiveCfg = Release|Any CPU
 		{F1B76AF2-B3F7-462F-9A15-D0893DDE4042}.Release|x86.Build.0 = Release|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Debug|x64.Build.0 = Debug|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Debug|x86.Build.0 = Debug|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Release|x64.ActiveCfg = Release|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Release|x64.Build.0 = Release|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Release|x86.ActiveCfg = Release|Any CPU
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -160,5 +176,7 @@ Global
 		{2D829D0A-E069-4683-9A92-AB1DABBF39AD} = {64880D93-BAB4-FF83-898C-B934B68C31A9}
 		{63795157-CA8D-4BF2-990A-9F3B4561431E} = {D8E1E13B-C60D-9639-5FA4-4B309E7CAA45}
 		{F1B76AF2-B3F7-462F-9A15-D0893DDE4042} = {D8E1E13B-C60D-9639-5FA4-4B309E7CAA45}
+		{9672BF4F-A3A6-4A7E-07CE-89F5C9FAE215} = {0DCBDF00-49A9-67A7-1518-A43841E9A8D7}
+		{0D0B236D-CF69-4FE6-91E2-41E26C175CA3} = {9672BF4F-A3A6-4A7E-07CE-89F5C9FAE215}
 	EndGlobalSection
 EndGlobal

@@ -3,6 +3,7 @@
 import time
 
 import jwt
+
 from common.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,16 +17,16 @@ def create_room_token(
     ttl: int = 3600,
 ) -> str:
     """Create JWT token for LiveKit room access."""
-    claims = _build_claims(room, identity, ttl)
+    claims = _build_claims(api_key, room, identity, ttl)
     return _sign_token(claims, api_key, api_secret)
 
 
-def _build_claims(room: str, identity: str, ttl: int) -> dict:
+def _build_claims(api_key: str, room: str, identity: str, ttl: int) -> dict:
     """Build JWT claims for room access."""
     now = int(time.time())
     return {
         "exp": now + ttl,
-        "iss": "homunculy",
+        "iss": api_key,
         "sub": identity,
         "video": _video_grants(room),
     }
@@ -38,6 +39,7 @@ def _video_grants(room: str) -> dict:
         "roomJoin": True,
         "canPublish": True,
         "canSubscribe": True,
+        "canPublishData": True,
     }
 
 

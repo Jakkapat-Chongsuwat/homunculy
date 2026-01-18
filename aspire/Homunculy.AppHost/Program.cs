@@ -1,67 +1,38 @@
+using Aspire.Hosting.ApplicationModel;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Parameters
+// Secrets
 var homunculyDbPassword = builder.AddParameter("homunculy-db-password", secret: true);
-var managementDbPassword = builder.AddParameter("management-db-password", secret: true);
 var openaiApiKey = builder.AddParameter("openai-api-key", secret: true);
 var elevenLabsApiKey = builder.AddParameter("elevenlabs-api-key", secret: true);
 var livekitApiKey = builder.AddParameter("livekit-api-key", secret: true);
 var livekitApiSecret = builder.AddParameter("livekit-api-secret", secret: true);
 
-// ============================================================================
-// RAG Stack (Pinecone Local + RAG Service)
-// ============================================================================
+// Container network URLs
+const string livekitWsInternal = "ws://livekit:7880";
+const string livekitWsExternal = "ws://localhost:7880";
+const string homunculyUrl = "http://homunculy-app:8000";
+const string managementUrl = "http://management-app:8080";
+const string livekitDevKey = "devkey";
+const string livekitDevSecret = "devsecretdevsecretdevsecretdevsecret";
 
-// Pinecone Local - Vector Database for RAG
-var pineconeLocal = builder.AddContainer("pinecone-local", "ghcr.io/pinecone-io/pinecone-index", "latest")
-    .WithHttpEndpoint(port: 5081, targetPort: 5081, name: "grpc")
-    .WithEnvironment("PORT", "5081")
-    .WithEnvironment("INDEX_TYPE", "serverless")
-    .WithEnvironment("DIMENSION", "1536")
-    .WithEnvironment("METRIC", "cosine")
-    .WithVolume("pinecone-local-data", "/data");
-
-// RAG Service (Python/FastAPI)
-var ragService = builder.AddContainer("rag-service", "rag-service")
-    .WithDockerfile("../../rag-service", "Dockerfile")
-    .WithHttpEndpoint(port: 8001, targetPort: 8001, name: "http")
-    .WithEnvironment("APP_HOST", "0.0.0.0")
-    .WithEnvironment("APP_PORT", "8001")
-    .WithEnvironment("PINECONE_ENVIRONMENT", "local")
-    .WithEnvironment("PINECONE_API_KEY", "pclocal")
-    .WithEnvironment("PINECONE_HOST", "pinecone-local:5081")
-    .WithEnvironment("PINECONE_INDEX_NAME", "homunculy-rag")
-    .WithEnvironment("PINECONE_DIMENSION", "1536")
-    .WithEnvironment("OPENAI_API_KEY", openaiApiKey)
-    .WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-small")
-    .WithEnvironment("RAG_CHUNK_SIZE", "512")
-    .WithEnvironment("RAG_TOP_K", "5")
-    .WithExternalHttpEndpoints()
-    .WaitFor(pineconeLocal);
-
-// ============================================================================
-// LiveKit (WebRTC)
-// ============================================================================
-
-var livekit = builder.AddContainer("livekit", "livekit/livekit-server", "latest")
+// LiveKit
+var livekit = builder.AddContainer("livekit", "livekit/livekit-server", "v1.9.11")
     .WithBindMount("../../infra/livekit/livekit.yaml", "/livekit.yaml")
     .WithArgs("--config", "/livekit.yaml")
-    .WithHttpEndpoint(port: 7880, targetPort: 7880, name: "http");
+    .WithHttpEndpoint(port: 7880, targetPort: 7880, name: "http")
+    .WithEndpoint(port: 7881, targetPort: 7881, name: "rtc-tcp")
+    .WithEndpoint(port: 50000, targetPort: 50000, name: "rtc-udp", protocol: System.Net.Sockets.ProtocolType.Udp)
+    .WithExternalHttpEndpoints();
 
-var livekitHttp = livekit.GetEndpoint("http").ToString();
-var livekitWs = livekitHttp
-    .Replace("https://", "wss://")
-    .Replace("http://", "ws://");
-
-// ============================================================================
-// Homunculy Stack (Python/FastAPI + PostgreSQL)
-// ============================================================================
+// PostgreSQL + pgAdmin
 var homunculyPostgres = builder.AddPostgres("homunculy-postgres", password: homunculyDbPassword)
     .WithDataVolume("homunculy-postgres-data")
     .WithPgAdmin();
-    
 var homunculyDb = homunculyPostgres.AddDatabase("homunculy");
 
+// Migrations
 var homunculyMigrations = builder.AddContainer("homunculy-migrations", "liquibase/liquibase", "4.33.0")
     .WithBindMount("../../homunculy-db/changelog", "/liquibase/changelog")
     .WithEnvironment("LIQUIBASE_COMMAND_CHANGELOG_FILE", "changelog/db.changelog-master.xml")
@@ -71,6 +42,7 @@ var homunculyMigrations = builder.AddContainer("homunculy-migrations", "liquibas
     .WithArgs("update")
     .WaitFor(homunculyPostgres);
 
+// Homunculy API
 var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithDockerfile("../../homunculy", "Dockerfile")
     .WithHttpEndpoint(port: 8000, targetPort: 8000, name: "http")
@@ -92,23 +64,34 @@ var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithEnvironment("TTS_ELEVENLABS_API_KEY", elevenLabsApiKey)
     .WithEnvironment("TTS_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     .WithEnvironment("TTS_ELEVENLABS_STREAMING_MODEL_ID", "eleven_turbo_v2_5")
-    .WithEnvironment("LIVEKIT_URL", livekitWs)
-    .WithEnvironment("LIVEKIT_API_KEY", livekitApiKey)
-    .WithEnvironment("LIVEKIT_API_SECRET", livekitApiSecret)
-    .WithEnvironment("RAG_SERVICE_URL", ragService.GetEndpoint("http"))
+    .WithEnvironment("LIVEKIT_URL", livekitWsInternal)
+    .WithEnvironment("LIVEKIT_API_KEY", livekitDevKey)
+    .WithEnvironment("LIVEKIT_API_SECRET", livekitDevSecret)
     .WithEnvironment("LOGGING_LEVEL", "INFO")
     .WithEnvironment("LOGGING_FORMAT", "json")
     .WithBindMount("../../homunculy/logs", "/app/logs")
     .WithExternalHttpEndpoints()
     .WaitFor(homunculyMigrations)
-    .WaitFor(ragService);
+    .WaitFor(livekit);
 
-var homunculyHttp = homunculyApp.GetEndpoint("http").ToString();
+// Chat Client (Blazor)
+var chatClientWeb = builder.AddContainer("chat-client-web", "chat-client-web")
+    .WithDockerfile("../..", "chat-client/Dockerfile")
+    .WithHttpEndpoint(port: 5000, targetPort: 5000, name: "http")
+    .WithEnvironment("ASPNETCORE_URLS", "http://+:5000")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("ConnectionStrings__homunculy-app", homunculyUrl)
+    .WithEnvironment("ChatClient__ServerUri", homunculyUrl)
+    .WithEnvironment("ChatClient__LiveKit__Url", livekitWsExternal)
+    .WithEnvironment("ChatClient__LiveKit__TokenEndpoint", $"{managementUrl}/api/v1/livekit/token")
+    .WithExternalHttpEndpoints()
+    .WaitFor(homunculyApp);
 
-// Management Stack (Go/Fiber + PostgreSQL)
+// --- Management Stack ---
+var managementDbPassword = builder.AddParameter("management-db-password", secret: true);
+
 var managementPostgres = builder.AddPostgres("management-postgres", password: managementDbPassword)
     .WithDataVolume("management-postgres-data");
-    
 var managementDb = managementPostgres.AddDatabase("management");
 
 var managementMigrations = builder.AddContainer("management-migrations", "liquibase/liquibase", "4.33.0")
@@ -131,27 +114,54 @@ var managementApp = builder.AddContainer("management-app", "management-app")
     .WithEnvironment("DB_USER", "postgres")
     .WithEnvironment("DB_PASSWORD", managementDbPassword)
     .WithEnvironment("DB_SSL_MODE", "disable")
-    .WithEnvironment("HOMUNCULY_BASE_URL", homunculyApp.GetEndpoint("http"))
+    .WithEnvironment("HOMUNCULY_BASE_URL", homunculyUrl)
     .WithEnvironment("HOMUNCULY_API_KEY", "dev_api_key_123")
+    .WithEnvironment("LIVEKIT_API_KEY", livekitDevKey)
+    .WithEnvironment("LIVEKIT_API_SECRET", livekitDevSecret)
+    .WithEnvironment("LIVEKIT_TOKEN_TTL", "3600")
     .WithExternalHttpEndpoints()
     .WaitFor(managementMigrations)
     .WaitFor(homunculyApp);
 
-// Chat Clients
-var chatClientWeb = builder.AddContainer("chat-client-web", "chat-client-web")
-    .WithDockerfile("../..", "chat-client/Dockerfile")
-    .WithHttpEndpoint(port: 5000, targetPort: 5000, name: "http")
-    .WithEnvironment("ASPNETCORE_URLS", "http://+:5000")
-    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("ConnectionStrings__homunculy-app", homunculyHttp)
-    .WithEnvironment("ChatClient__ServerUri", homunculyHttp)
-    .WithEnvironment("ChatClient__LiveKit__Url", livekitWs)
-    .WithEnvironment("ChatClient__LiveKit__TokenEndpoint", $"{homunculyHttp}/api/v1/livekit/token")
-    .WithExternalHttpEndpoints()
-    .WaitFor(homunculyApp);
+builder.Build().Run();
 
-// MAUI client (desktop, runs locally not in container)
+// =============================================================================
+// DISABLED SERVICES (uncomment when needed)
+// =============================================================================
+#if false
+
+// --- RAG Stack ---
+var ragServiceUrl = "http://rag-service:8001";
+
+var pineconeLocal = builder.AddContainer("pinecone-local", "ghcr.io/pinecone-io/pinecone-index", "latest")
+    .WithHttpEndpoint(port: 5081, targetPort: 5081, name: "grpc")
+    .WithEnvironment("PORT", "5081")
+    .WithEnvironment("INDEX_TYPE", "serverless")
+    .WithEnvironment("DIMENSION", "1536")
+    .WithEnvironment("METRIC", "cosine")
+    .WithVolume("pinecone-local-data", "/data");
+
+var ragService = builder.AddContainer("rag-service", "rag-service")
+    .WithDockerfile("../../rag-service", "Dockerfile")
+    .WithHttpEndpoint(port: 8001, targetPort: 8001, name: "http")
+    .WithEnvironment("APP_HOST", "0.0.0.0")
+    .WithEnvironment("APP_PORT", "8001")
+    .WithEnvironment("PINECONE_ENVIRONMENT", "local")
+    .WithEnvironment("PINECONE_API_KEY", "pclocal")
+    .WithEnvironment("PINECONE_HOST", "pinecone-local:5081")
+    .WithEnvironment("PINECONE_INDEX_NAME", "homunculy-rag")
+    .WithEnvironment("PINECONE_DIMENSION", "1536")
+    .WithEnvironment("OPENAI_API_KEY", openaiApiKey)
+    .WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-small")
+    .WithEnvironment("RAG_CHUNK_SIZE", "512")
+    .WithEnvironment("RAG_TOP_K", "5")
+    .WithExternalHttpEndpoints()
+    .WaitFor(pineconeLocal);
+
+// Add to homunculyApp: .WithEnvironment("RAG_SERVICE_URL", ragServiceUrl).WaitFor(ragService)
+
+// --- MAUI Client ---
 var mauiApp = builder.AddMauiProject("chat-client-maui", @"../../chat-client/src/ChatClient.Presentation.Maui/ChatClient.Presentation.Maui.csproj");
 mauiApp.AddWindowsDevice();
 
-builder.Build().Run();
+#endif

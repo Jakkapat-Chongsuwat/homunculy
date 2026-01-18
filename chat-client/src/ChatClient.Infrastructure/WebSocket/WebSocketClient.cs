@@ -64,7 +64,7 @@ public sealed class WebSocketClient : IWebSocketClient
             return true;
 
         _reconnect.Reset();
-        return await ConnectWithRetryAsync(ct);
+        return await RunConnectLoop(ct);
     }
 
     public async Task SendAsync(string message, CancellationToken ct = default)
@@ -115,22 +115,16 @@ public sealed class WebSocketClient : IWebSocketClient
 
     private async Task<bool> ConnectWithRetryAsync(CancellationToken ct)
     {
-        while (_reconnect.CanRetry && !ct.IsCancellationRequested)
+        return await RunConnectLoop(ct);
+    }
+
+    private async Task<bool> RunConnectLoop(CancellationToken ct)
+    {
+        while (CanRetry(ct))
         {
             try
             {
-                SetState(_reconnect.Attempts == 0 
-                    ? ConnectionState.Connecting 
-                    : ConnectionState.Reconnecting);
-
-                await EstablishConnectionAsync(ct);
-                
-                _reconnect.Reset();
-                SetState(ConnectionState.Connected);
-                
-                StartPingLoop();
-                StartReceiveLoop();
-                
+                await ConnectOnce(ct);
                 return true;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -139,27 +133,61 @@ public sealed class WebSocketClient : IWebSocketClient
             }
             catch (Exception ex)
             {
-                _reconnect.RecordAttempt();
-                
-                if (!_reconnect.CanRetry)
-                {
-                    _log.Error(ex, "Max reconnection attempts reached");
-                    EmitError($"Connection failed after {_reconnect.MaxAttempts} attempts");
-                    SetState(ConnectionState.Disconnected);
-                    return false;
-                }
-
-                var delay = _reconnect.GetNextDelay();
-                _log.Warning(
-                    "Attempt {N}/{Max} failed: {Error}. Retry in {Delay}ms",
-                    _reconnect.Attempts, _reconnect.MaxAttempts, 
-                    ex.Message, delay.TotalMilliseconds);
-
+                var delay = HandleConnectFailure(ex);
+                if (delay == TimeSpan.Zero) return false;
                 await Task.Delay(delay, ct);
             }
         }
 
         return false;
+    }
+
+    private bool CanRetry(CancellationToken ct) =>
+        _reconnect.CanRetry && !ct.IsCancellationRequested;
+
+    private async Task ConnectOnce(CancellationToken ct)
+    {
+        SetConnectingState();
+        await EstablishConnectionAsync(ct);
+        OnConnected();
+    }
+
+    private void SetConnectingState() =>
+        SetState(_reconnect.Attempts == 0
+            ? ConnectionState.Connecting
+            : ConnectionState.Reconnecting);
+
+    private void OnConnected()
+    {
+        _reconnect.Reset();
+        SetState(ConnectionState.Connected);
+        StartPingLoop();
+        StartReceiveLoop();
+    }
+
+    private TimeSpan HandleConnectFailure(Exception ex)
+    {
+        _reconnect.RecordAttempt();
+        if (!_reconnect.CanRetry) return StopRetry(ex);
+        return LogRetry(ex);
+    }
+
+    private TimeSpan StopRetry(Exception ex)
+    {
+        _log.Error(ex, "Max reconnection attempts reached");
+        EmitError($"Connection failed after {_reconnect.MaxAttempts} attempts");
+        SetState(ConnectionState.Disconnected);
+        return TimeSpan.Zero;
+    }
+
+    private TimeSpan LogRetry(Exception ex)
+    {
+        var delay = _reconnect.GetNextDelay();
+        _log.Warning(
+            "Attempt {N}/{Max} failed: {Error}. Retry in {Delay}ms",
+            _reconnect.Attempts, _reconnect.MaxAttempts,
+            ex.Message, delay.TotalMilliseconds);
+        return delay;
     }
 
     private async Task EstablishConnectionAsync(CancellationToken ct)
@@ -194,18 +222,28 @@ public sealed class WebSocketClient : IWebSocketClient
 
     private async Task<bool> SendPingAndCheckPong()
     {
+        if (IsPongStale()) return await HandleDeadConnection();
+        return await TrySendPing();
+    }
+
+    private bool IsPongStale()
+    {
+        var delta = DateTime.UtcNow - _lastPongReceived;
+        return delta > _config.PongTimeout + _config.PingInterval;
+    }
+
+    private async Task<bool> HandleDeadConnection()
+    {
+        _log.Warning("No pong received in {Seconds}s, connection may be dead",
+            (DateTime.UtcNow - _lastPongReceived).TotalSeconds);
+        await HandleDisconnectAsync();
+        return false;
+    }
+
+    private async Task<bool> TrySendPing()
+    {
         try
         {
-            // Check if we received a pong recently (dead connection detection)
-            var timeSinceLastPong = DateTime.UtcNow - _lastPongReceived;
-            if (timeSinceLastPong > _config.PongTimeout + _config.PingInterval)
-            {
-                _log.Warning("No pong received in {Seconds}s, connection may be dead", 
-                    timeSinceLastPong.TotalSeconds);
-                await HandleDisconnectAsync();
-                return false;
-            }
-
             await _sender.SendPingAsync(_connection, _connection.Token);
             return true;
         }
@@ -261,27 +299,38 @@ public sealed class WebSocketClient : IWebSocketClient
 
     private async Task HandleDisconnectAsync()
     {
-        if (State == ConnectionState.Reconnecting)
-            return;
+        if (IsReconnecting()) return;
+        var wasConnected = IsConnected();
+        await CloseConnection(wasConnected);
+        ScheduleReconnect();
+    }
 
-        var wasConnected = State == ConnectionState.Connected;
-        
+    private bool IsReconnecting() =>
+        State == ConnectionState.Reconnecting;
+
+    private bool IsConnected() =>
+        State == ConnectionState.Connected;
+
+    private async Task CloseConnection(bool wasConnected)
+    {
         SetState(ConnectionState.Disconnected);
         await CleanupAsync();
-
-        if (wasConnected)
-            _reconnect.Reset();
-
-        if (_reconnect.CanRetry)
-        {
-            _log.Information("Auto-reconnecting...");
-            _ = Task.Run(() => ConnectWithRetryAsync(CancellationToken.None));
-        }
-        else
-        {
-            _log.Warning("Auto-reconnect disabled");
-        }
+        if (wasConnected) _reconnect.Reset();
     }
+
+    private void ScheduleReconnect()
+    {
+        if (!_reconnect.CanRetry)
+        {
+            LogReconnectDisabled();
+            return;
+        }
+        _log.Information("Auto-reconnecting...");
+        _ = Task.Run(() => RunConnectLoop(CancellationToken.None));
+    }
+
+    private void LogReconnectDisabled() =>
+        _log.Warning("Auto-reconnect disabled");
 
     private async Task CleanupAsync()
     {

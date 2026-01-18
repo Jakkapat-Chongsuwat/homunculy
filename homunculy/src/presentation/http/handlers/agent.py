@@ -1,14 +1,14 @@
 """Agent HTTP handler."""
 
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from application.use_cases import ChatUseCase
 from application.use_cases.chat import ChatInput
 from common.logger import get_logger
 from domain.entities import AgentConfiguration, AgentPersonality, AgentProvider
 from domain.interfaces import LLMPort
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 logger = get_logger(__name__)
 router = APIRouter()

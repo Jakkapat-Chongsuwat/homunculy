@@ -1,28 +1,93 @@
 @using ChatClient.Presentation.Web.Services
+@using Microsoft.JSInterop
 @inject LiveKitService LiveKit
+@implements IAsyncDisposable
 
 <MudPaper Class="lk-panel" Elevation="1">
     <MudStack Spacing="2">
         <MudText Typo="Typo.h6">LiveKit Voice Room</MudText>
 
-        <MudTextField @bind-Value="_room" Label="Room" Variant="Variant.Outlined" />
-        <MudTextField @bind-Value="_identity" Label="Identity" Variant="Variant.Outlined" />
+        <MudTextField @bind-Value="_room" Label="Room" Variant="Variant.Outlined" 
+                      Disabled="@IsOperating" />
+        <MudTextField @bind-Value="_identity" Label="Identity" Variant="Variant.Outlined" 
+                      Disabled="@IsOperating" />
 
-        <MudSwitch T="bool"
-               Checked="_micEnabled"
-               CheckedChanged="OnMicChanged"
-               Label="Microphone" />
+        <MudSwitch T="bool" @bind-Value="_micEnabled" Label="Microphone" 
+                   Disabled="@(_state == ConnectionState.Connected)" />
 
-        <MudStack Direction="Row" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Connect">
-                Connect
-            </MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Disconnect">
-                Disconnect
-            </MudButton>
+        <MudStack Row Spacing="2">
+            @if (_state == ConnectionState.Disconnected)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" 
+                           OnClick="Connect" Disabled="@_loading">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate />
+                        <span class="ms-2">Connecting...</span>
+                    }
+                    else
+                    {
+                        <span>Connect</span>
+                    }
+                </MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" 
+                           OnClick="Disconnect" Disabled="@_loading">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate />
+                        <span class="ms-2">Disconnecting...</span>
+                    }
+                    else
+                    {
+                        <span>Disconnect</span>
+                    }
+                </MudButton>
+            }
         </MudStack>
 
-        <MudText Typo="Typo.caption">Status: @_status</MudText>
+        <MudChip T="string" Color="@StatusColor" Size="Size.Small">@_state</MudChip>
+        
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Dense>@_errorMessage</MudAlert>
+        }
+
+        <MudDivider />
+
+        <MudText Typo="Typo.subtitle2">Room Chat</MudText>
+
+        <MudPaper Class="lk-chat" Elevation="0">
+            @if (_messages.Count == 0)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">No messages yet.</MudText>
+            }
+            else
+            {
+                <MudStack Spacing="1">
+                    @foreach (var message in _messages)
+                    {
+                        <MudPaper Class="lk-chat-item" Elevation="0">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @message.Sender · @message.Timestamp.ToLocalTime().ToString("t")
+                            </MudText>
+                            <MudText Typo="Typo.body2">@message.Content</MudText>
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+        </MudPaper>
+
+        <MudStack Row Spacing="1">
+            <MudTextField @bind-Value="_message" Placeholder="Say something to the agent..."
+                          Variant="Variant.Outlined" Disabled="@(!_isConnected)" Class="lk-chat-input" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!CanSend)" OnClick="Send">
+                Send
+            </MudButton>
+        </MudStack>
+        
         <div id="livekit-audio" aria-hidden="true"></div>
     </MudStack>
 </MudPaper>
@@ -31,22 +96,130 @@
     private string _room = "dev-room";
     private string _identity = $"web-{Guid.NewGuid():N}";
     private bool _micEnabled = true;
-    private string _status = "Disconnected";
+    private bool _loading;
+    private string? _errorMessage;
+    private ConnectionState _state = ConnectionState.Disconnected;
+    private bool _isConnected;
+    private string _message = string.Empty;
+    private readonly List<LiveKitChatMessage> _messages = new();
+    private DotNetObjectReference<LiveKitPanel>? _dotNetRef;
+
+    private bool IsOperating => _loading || _state == ConnectionState.Connected;
+    private bool CanSend => _isConnected && !string.IsNullOrWhiteSpace(_message);
+    
+    private Color StatusColor => _state switch
+    {
+        ConnectionState.Connected => Color.Success,
+        ConnectionState.Disconnected => Color.Default,
+        _ => Color.Warning
+    };
 
     private async Task Connect()
     {
-        var ok = await LiveKit.ConnectAsync(_room, _identity, _micEnabled);
-        _status = ok ? "Connected" : "Missing LiveKit config";
+        if (_loading) return;
+        
+        _loading = true;
+        _errorMessage = null;
+        StateHasChanged();
+        
+        try
+        {
+            var ok = await LiveKit.ConnectAsync(_room, _identity, _micEnabled);
+            _state = ok ? ConnectionState.Connected : ConnectionState.Disconnected;
+            if (!ok) _errorMessage = "LiveKit not configured";
+            _isConnected = ok;
+        }
+        catch (Exception ex)
+        {
+            _state = ConnectionState.Disconnected;
+            _errorMessage = ex.Message;
+            _isConnected = false;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task Disconnect()
     {
-        await LiveKit.DisconnectAsync();
-        _status = "Disconnected";
+        if (_loading) return;
+        
+        _loading = true;
+        _errorMessage = null;
+        StateHasChanged();
+        
+        try
+        {
+            await LiveKit.DisconnectAsync();
+            _state = ConnectionState.Disconnected;
+            _isConnected = false;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
     }
 
-    private void OnMicChanged(bool enabled)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _micEnabled = enabled;
+        if (!firstRender) return;
+        _dotNetRef = DotNetObjectReference.Create(this);
+        await LiveKit.RegisterMessageHandlerAsync(_dotNetRef);
     }
+
+    private async Task Send()
+    {
+        if (!CanSend) return;
+        var text = _message.Trim();
+        _message = string.Empty;
+        AddMessage("You", text, DateTimeOffset.UtcNow);
+        await LiveKit.SendTextAsync(text);
+    }
+
+    [JSInvokable]
+    public Task OnLiveKitMessage(string message, string sender, string timestamp)
+    {
+        var ts = DateTimeOffset.TryParse(timestamp, out var parsed)
+            ? parsed
+            : DateTimeOffset.UtcNow;
+        AddMessage(sender, message, ts);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void AddMessage(string sender, string content, DateTimeOffset timestamp)
+    {
+        _messages.Add(new LiveKitChatMessage(sender, content, timestamp));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dotNetRef is null) return;
+        await TryUnregisterAsync();
+        _dotNetRef.Dispose();
+    }
+
+    private async Task TryUnregisterAsync()
+    {
+        try
+        {
+            await LiveKit.UnregisterMessageHandlerAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private enum ConnectionState { Disconnected, Connected }
+
+    private sealed record LiveKitChatMessage(
+        string Sender,
+        string Content,
+        DateTimeOffset Timestamp);
 }

@@ -1,0 +1,10 @@
+{
+  "Parameters": {
+    "homunculy-db-password": "<postgres-password>",
+    "management-db-password": "<postgres-password>",
+    "openai-api-key": "<your-openai-api-key>",
+    "elevenlabs-api-key": "<your-elevenlabs-api-key>",
+    "livekit-api-key": "devkey",
+    "livekit-api-secret": "devsecret"
+  }
+}

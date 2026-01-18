@@ -3,11 +3,11 @@
 from contextlib import asynccontextmanager
 from typing import Any
 
-from common.logger import configure_logging, get_logger
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
+from common.logger import configure_logging, get_logger
 from presentation.http.routes import router
 
 logger = get_logger(__name__)

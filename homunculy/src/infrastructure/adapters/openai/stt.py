@@ -2,9 +2,10 @@
 
 from collections.abc import AsyncIterator
 
+from openai import AsyncOpenAI
+
 from common.logger import get_logger
 from domain.interfaces import STTPort
-from openai import AsyncOpenAI
 
 logger = get_logger(__name__)
 

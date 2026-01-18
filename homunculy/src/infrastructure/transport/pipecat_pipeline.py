@@ -4,7 +4,6 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-from common.logger import get_logger
 from livekit.agents import JobContext
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
@@ -12,6 +11,7 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.services.openai.stt import OpenAISTTService
 
+from common.logger import get_logger
 from infrastructure.transport.pipecat_transport import (
     TransportConfig,
     create_livekit_transport,
@@ -42,6 +42,12 @@ class PipecatPipeline:
     async def run(self, ctx: JobContext) -> None:
         """Run the pipeline for a LiveKit context."""
         transport = self._create_transport(ctx)
+        task = self._create_task(transport)
+        await self._execute(task)
+
+    async def run_with_parts(self, url: str, token: str, room: str) -> None:
+        """Run pipeline with explicit LiveKit connection details."""
+        transport = create_livekit_transport(url, token, room, TransportConfig())
         task = self._create_task(transport)
         await self._execute(task)
 

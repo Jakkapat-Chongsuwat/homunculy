@@ -2,10 +2,9 @@
 
 from typing import Any
 
+from application.graphs.state import GraphState, with_documents
 from common.logger import get_logger
 from domain.interfaces import RAGPort
-
-from application.graphs.state import GraphState, with_documents
 
 logger = get_logger(__name__)
 

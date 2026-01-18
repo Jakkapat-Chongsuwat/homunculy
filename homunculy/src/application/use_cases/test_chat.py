@@ -3,14 +3,14 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
+from application.use_cases.chat import ChatInput, ChatOutput, ChatUseCase
 from domain.entities.agent import (
     AgentConfiguration,
     AgentPersonality,
     AgentProvider,
     AgentResponse,
 )
-
-from application.use_cases.chat import ChatInput, ChatOutput, ChatUseCase
 
 
 class TestChatInput:

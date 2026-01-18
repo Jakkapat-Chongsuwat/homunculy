@@ -1,8 +1,9 @@
 """Session event webhooks."""
 
-from common.logger import get_logger
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
+
+from common.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()

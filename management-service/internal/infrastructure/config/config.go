@@ -11,6 +11,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Logging  LoggingConfig
+	LiveKit  LiveKitConfig
 }
 
 // ServerConfig holds server-related configuration
@@ -38,6 +39,13 @@ type LoggingConfig struct {
 	Format string `json:"format"`
 }
 
+// LiveKitConfig holds LiveKit settings.
+type LiveKitConfig struct {
+	APIKey    string `json:"api_key"`
+	APISecret string `json:"api_secret"`
+	TokenTTL  int    `json:"token_ttl"`
+}
+
 // Load loads configuration from environment variables with defaults
 func Load() *Config {
 	return &Config{
@@ -59,6 +67,11 @@ func Load() *Config {
 		Logging: LoggingConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
 			Format: getEnv("LOG_FORMAT", "json"),
+		},
+		LiveKit: LiveKitConfig{
+			APIKey:    getEnv("LIVEKIT_API_KEY", ""),
+			APISecret: getEnv("LIVEKIT_API_SECRET", ""),
+			TokenTTL:  getEnvAsInt("LIVEKIT_TOKEN_TTL", 3600),
 		},
 	}
 }

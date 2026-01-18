@@ -2,8 +2,9 @@
 
 from typing import Any
 
-from domain.entities import AgentConfiguration
 from langchain_core.messages import HumanMessage, SystemMessage
+
+from domain.entities import AgentConfiguration
 
 
 def runnable_config(thread_id: str) -> dict[str, Any]:

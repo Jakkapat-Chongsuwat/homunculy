@@ -45,7 +45,7 @@ livekit-worker:
 	@echo "Starting LiveKit/Pipecat worker..."
 	@export LIVEKIT_URL=$${LIVEKIT_URL:-ws://localhost:7880} && \
 	 export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
-	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
+	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret} && \
 	 export PYTHONPATH=src && \
 	 poetry run python -m infrastructure.transport.livekit_worker dev
 
@@ -53,7 +53,7 @@ livekit-agent:
 	@echo "Starting LiveKit Agents worker..."
 	@export LIVEKIT_URL=$${LIVEKIT_URL:-ws://localhost:7880} && \
 	 export LIVEKIT_API_KEY=$${LIVEKIT_API_KEY:-devkey} && \
-	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecret} && \
+	 export LIVEKIT_API_SECRET=$${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevsecret} && \
 	 export PYTHONPATH=src && poetry run python -m infrastructure.transport.livekit_worker $${LIVEKIT_AGENT_CMD:-dev}
 
 livekit-up:

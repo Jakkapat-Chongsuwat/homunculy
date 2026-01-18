@@ -40,7 +40,8 @@
         if (firstRender && !_initialized)
         {
             _initialized = true;
-            await ViewModel.ConnectAsync();
+            // Don't auto-connect - user will click retry or WebSocket endpoint may not exist
+            // await ViewModel.ConnectAsync();
             await AudioPlayer.InitializeAsync();
         }
     }

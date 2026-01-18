@@ -1,8 +1,7 @@
 """Rewrite node - Transform query for better retrieval."""
 
-from common.logger import get_logger
-
 from application.graphs.state import GraphState
+from common.logger import get_logger
 
 logger = get_logger(__name__)
 

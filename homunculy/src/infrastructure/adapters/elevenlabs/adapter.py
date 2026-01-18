@@ -3,10 +3,10 @@
 from collections.abc import AsyncIterator
 from typing import Any
 
-from common.logger import get_logger
-from domain.interfaces import TTSPort
 from elevenlabs.client import AsyncElevenLabs
 
+from common.logger import get_logger
+from domain.interfaces import TTSPort
 from infrastructure.adapters.elevenlabs.helpers import (
     collect_audio,
     map_voices,

@@ -82,23 +82,32 @@ public sealed class ChatViewModel : ViewModelBase
 
     public async Task SendMessageAsync(CancellationToken ct = default)
     {
-        var message = CurrentInput.Trim();
-        if (string.IsNullOrEmpty(message)) return;
-
-        CurrentInput = string.Empty;
-        ResetAudioForNewMessage();
-
-        AddUserMessage(message);
-        CreateAssistantPlaceholder();
-
-        _isProcessing.OnNext(true);
+        var message = GetTrimmedInput();
+        if (message is null) return;
+        PrepareSend(message);
         await _client.SendAsync(message, ct);
     }
 
-    private void ResetAudioForNewMessage()
+    private string? GetTrimmedInput() =>
+        string.IsNullOrWhiteSpace(CurrentInput) ? null : CurrentInput.Trim();
+
+    private void PrepareSend(string message)
     {
-        _audio.Reset();
+        ClearInput();
+        ResetAudio();
+        AddUserMessage(message);
+        CreateAssistantPlaceholder();
+        SetProcessing(true);
     }
+
+    private void ClearInput() =>
+        CurrentInput = string.Empty;
+
+    private void ResetAudio() =>
+        _audio.Reset();
+
+    private void SetProcessing(bool value) =>
+        _isProcessing.OnNext(value);
 
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
@@ -164,14 +173,14 @@ public sealed class ChatViewModel : ViewModelBase
     {
         FinalizeAssistantMessage();
         _audio.Flush();
-        _isProcessing.OnNext(false);
+        SetProcessing(false);
     }
 
     private void HandleInterrupted()
     {
         AppendInterruptedMarker();
         _audio.Clear();
-        _isProcessing.OnNext(false);
+        SetProcessing(false);
     }
 
     private void HandleError(ErrorOccurred e)
@@ -179,7 +188,7 @@ public sealed class ChatViewModel : ViewModelBase
         _log.Error("Chat error: {Message}", e.Message);
         AddSystemMessage($"Error: {e.Message}");
         FinalizeAssistantMessage();
-        _isProcessing.OnNext(false);
+        SetProcessing(false);
     }
 
     private void HandleStatus(StatusMessageReceived e)
@@ -205,47 +214,44 @@ public sealed class ChatViewModel : ViewModelBase
 
     private void UpdateAssistantContent(string chunk)
     {
-        if (_currentAssistantMessage is null) return;
-        var index = Messages.IndexOf(_currentAssistantMessage);
-        if (index < 0) return;
-
-        _currentAssistantMessage = _currentAssistantMessage
-            .WithContent(_currentAssistantMessage.Content + chunk);
-        Messages[index] = _currentAssistantMessage;
+        UpdateAssistant(
+            message => message.WithContent(message.Content + chunk),
+            clear: false);
     }
 
     private void MarkAssistantHasAudio()
     {
-        if (_currentAssistantMessage is null) return;
-        var index = Messages.IndexOf(_currentAssistantMessage);
-        if (index < 0) return;
-
-        _currentAssistantMessage = _currentAssistantMessage.WithAudio(true);
-        Messages[index] = _currentAssistantMessage;
+        UpdateAssistant(message => message.WithAudio(true), clear: false);
     }
 
     private void FinalizeAssistantMessage()
     {
-        if (_currentAssistantMessage is null) return;
-        var index = Messages.IndexOf(_currentAssistantMessage);
-        if (index < 0) return;
-
-        _currentAssistantMessage = _currentAssistantMessage.WithStreaming(false);
-        Messages[index] = _currentAssistantMessage;
-        _currentAssistantMessage = null;
+        UpdateAssistant(message => message.WithStreaming(false), clear: true);
     }
 
     private void AppendInterruptedMarker()
     {
-        if (_currentAssistantMessage is null) return;
-        var index = Messages.IndexOf(_currentAssistantMessage);
-        if (index < 0) return;
+        UpdateAssistant(
+            message => message
+                .WithContent(message.Content + " [Interrupted]")
+                .WithStreaming(false),
+            clear: true);
+    }
 
-        _currentAssistantMessage = _currentAssistantMessage
-            .WithContent(_currentAssistantMessage.Content + " [Interrupted]")
-            .WithStreaming(false);
+    private void UpdateAssistant(Func<ChatMessage, ChatMessage> update, bool clear)
+    {
+        if (!TryGetAssistantIndex(out var index)) return;
+        _currentAssistantMessage = update(_currentAssistantMessage!);
         Messages[index] = _currentAssistantMessage;
-        _currentAssistantMessage = null;
+        if (clear) _currentAssistantMessage = null;
+    }
+
+    private bool TryGetAssistantIndex(out int index)
+    {
+        index = _currentAssistantMessage is null
+            ? -1
+            : Messages.IndexOf(_currentAssistantMessage);
+        return index >= 0;
     }
 
     private void AddMessage(ChatMessage message)

@@ -12,6 +12,7 @@ func SetupRoutes(
 	agentHandler *handlers.AgentHandler,
 	userHandler *handlers.UserHandler,
 	chatHandler *handlers.ChatHandler,
+	livekitHandler *handlers.LiveKitHandler,
 ) {
 	// API v1 routes
 	api := app.Group("/api/v1")
@@ -35,8 +36,15 @@ func SetupRoutes(
 		api.Post("/chat", chatHandler.ExecuteChat)
 	}
 
+	// LiveKit routes
+	if livekitHandler != nil {
+		api.Post("/livekit/token", livekitHandler.CreateToken)
+	}
+
 	// Health check
-	api.Get("/health", agentHandler.HealthCheck)
+	if agentHandler != nil {
+		api.Get("/health", agentHandler.HealthCheck)
+	}
 
 	// Add middleware
 	app.Use(loggingMiddleware)

@@ -127,6 +127,6 @@ def _load_livekit_settings() -> LiveKitSettings:
     """Load LiveKit settings from environment."""
     return LiveKitSettings(
         url=os.getenv("LIVEKIT_URL", ""),
-        api_key=os.getenv("LIVEKIT_API_KEY", ""),
-        api_secret=os.getenv("LIVEKIT_API_SECRET", ""),
+        api_key=os.getenv("LIVEKIT_API_KEY", "devkey"),
+        api_secret=os.getenv("LIVEKIT_API_SECRET", "devsecretdevsecretdevsecretdevsecret"),
     )

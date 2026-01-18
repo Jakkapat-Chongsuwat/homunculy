@@ -45,13 +45,13 @@ class TestCreateRoomToken:
 
     def test_token_has_correct_issuer(self) -> None:
         token = create_room_token(
-            api_key="key",
+            api_key="my_api_key",
             api_secret="secret",
             room="room",
             identity="user",
         )
         decoded = jwt.decode(token, "secret", algorithms=["HS256"])
-        assert decoded["iss"] == "homunculy"
+        assert decoded["iss"] == "my_api_key"
 
     def test_token_has_api_key_in_header(self) -> None:
         token = create_room_token(

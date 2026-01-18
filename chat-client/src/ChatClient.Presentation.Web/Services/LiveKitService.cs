@@ -31,14 +31,35 @@ public sealed class LiveKitService
     {
         if (!_settings.IsConfigured)
             return FailConfig();
+        
+        // Disconnect first if already connected
+        try
+        {
+            if (await IsConnectedAsync())
+                await DisconnectAsync();
+        }
+        catch
+        {
+            // Ignore - may not be initialized
+        }
+        
         var token = await GetTokenAsync(room, identity);
         await _js.InvokeVoidAsync("livekitInterop.connect", _settings.Url, token);
         await SetMicEnabledAsync(enableMic);
         return true;
     }
 
-    public Task DisconnectAsync() =>
-        _js.InvokeVoidAsync("livekitInterop.disconnect").AsTask();
+    public async Task DisconnectAsync()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("livekitInterop.disconnect");
+        }
+        catch (JSException ex) when (ex.Message.Contains("Client initiated disconnect"))
+        {
+            // Expected when disconnecting - ignore
+        }
+    }
 
     public Task SetMicEnabledAsync(bool enabled) =>
         _js.InvokeVoidAsync("livekitInterop.setMicEnabled", enabled).AsTask();
@@ -46,12 +67,25 @@ public sealed class LiveKitService
     public async Task<bool> IsConnectedAsync() =>
         await _js.InvokeAsync<bool>("livekitInterop.isConnected");
 
+    public Task SendTextAsync(string message) =>
+        _js.InvokeVoidAsync("livekitInterop.sendText", message).AsTask();
+
+    public ValueTask RegisterMessageHandlerAsync<T>(DotNetObjectReference<T> reference)
+        where T : class =>
+        _js.InvokeVoidAsync("livekitInterop.registerMessageHandler", reference);
+
+    public ValueTask UnregisterMessageHandlerAsync() =>
+        _js.InvokeVoidAsync("livekitInterop.unregisterMessageHandler");
+
     private async Task<string> GetTokenAsync(string room, string identity)
     {
+        var endpoint = _settings.TokenEndpoint;
+        if (!Uri.IsWellFormedUriString(endpoint, UriKind.Absolute))
+            throw new InvalidOperationException($"TokenEndpoint must be an absolute URI: {endpoint}");
+
         var request = new TokenRequest(room, identity, 3600);
-        var response = await _http.PostAsJsonAsync(_settings.TokenEndpoint, request);
-        var token = await ReadTokenAsync(response);
-        return token;
+        var response = await _http.PostAsJsonAsync(new Uri(endpoint), request);
+        return await ReadTokenAsync(response);
     }
 
     private async Task<string> ReadTokenAsync(HttpResponseMessage response)
