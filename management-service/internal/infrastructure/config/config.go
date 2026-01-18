@@ -8,10 +8,11 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Logging  LoggingConfig
-	LiveKit  LiveKitConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Logging   LoggingConfig
+	LiveKit   LiveKitConfig
+	Homunculy HomunculyConfig
 }
 
 // ServerConfig holds server-related configuration
@@ -46,6 +47,12 @@ type LiveKitConfig struct {
 	TokenTTL  int    `json:"token_ttl"`
 }
 
+// HomunculyConfig holds Homunculy agent settings.
+type HomunculyConfig struct {
+	BaseURL string `json:"base_url"`
+	APIKey  string `json:"api_key"`
+}
+
 // Load loads configuration from environment variables with defaults
 func Load() *Config {
 	return &Config{
@@ -72,6 +79,10 @@ func Load() *Config {
 			APIKey:    getEnv("LIVEKIT_API_KEY", ""),
 			APISecret: getEnv("LIVEKIT_API_SECRET", ""),
 			TokenTTL:  getEnvAsInt("LIVEKIT_TOKEN_TTL", 3600),
+		},
+		Homunculy: HomunculyConfig{
+			BaseURL: getEnv("HOMUNCULY_BASE_URL", ""),
+			APIKey:  getEnv("HOMUNCULY_API_KEY", ""),
 		},
 	}
 }

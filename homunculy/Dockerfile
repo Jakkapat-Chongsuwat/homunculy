@@ -61,18 +61,21 @@ WORKDIR $APP_HOME
 # Copy application code
 COPY --chown=appuser:appuser ./src .
 
-# Create logs directory
-RUN mkdir -p logs && chown -R appuser:appuser logs
+# Create logs and nltk_data directories
+RUN mkdir -p logs /app/nltk_data && chown -R appuser:appuser logs /app/nltk_data
 
 # Switch to non-root user
 USER appuser
 
-# Expose application port
+# Set NLTK data path
+ENV NLTK_DATA=/app/nltk_data
+
+# Expose health port
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
 
-# Run application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run worker (default mode)
+CMD ["python", "-m", "main"]

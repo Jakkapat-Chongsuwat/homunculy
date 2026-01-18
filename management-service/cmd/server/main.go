@@ -5,6 +5,7 @@ import (
 	"log"
 	"management-service/internal/adapters/http/handlers"
 	"management-service/internal/adapters/http/routes"
+	"management-service/internal/infrastructure"
 	"management-service/internal/infrastructure/config"
 	"management-service/internal/infrastructure/database"
 	"management-service/internal/infrastructure/livekit"
@@ -108,7 +109,8 @@ func createLiveKitHandler(cfg *config.Config) *handlers.LiveKitHandler {
 	if issuer == nil {
 		return nil
 	}
-	return handlers.NewLiveKitHandler(tokenUseCase(cfg, issuer))
+	agentJoiner := createAgentJoiner(cfg)
+	return handlers.NewLiveKitHandler(tokenUseCase(issuer, agentJoiner, cfg))
 }
 
 func tokenIssuer(cfg *config.Config) *livekit.TokenIssuer {
@@ -122,6 +124,14 @@ func missingLiveKit(cfg *config.Config) bool {
 	return cfg.LiveKit.APIKey == "" || cfg.LiveKit.APISecret == ""
 }
 
-func tokenUseCase(cfg *config.Config, issuer *livekit.TokenIssuer) *livekitusecase.CreateTokenUseCase {
-	return livekitusecase.NewCreateTokenUseCase(issuer, cfg.LiveKit.TokenTTL)
+func createAgentJoiner(cfg *config.Config) *livekit.AgentJoiner {
+	if cfg.Homunculy.BaseURL == "" {
+		return nil
+	}
+	client := infrastructure.NewHomunculyClient(cfg.Homunculy.BaseURL, cfg.Homunculy.APIKey)
+	return livekit.NewAgentJoiner(client)
+}
+
+func tokenUseCase(issuer *livekit.TokenIssuer, joiner *livekit.AgentJoiner, cfg *config.Config) *livekitusecase.CreateTokenUseCase {
+	return livekitusecase.NewCreateTokenUseCase(issuer, joiner, cfg.LiveKit.TokenTTL)
 }

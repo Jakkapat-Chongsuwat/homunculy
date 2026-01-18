@@ -1,121 +1,130 @@
-"""LiveKit agent worker entrypoint - WebRTC connection handler."""
+"""LiveKit Agent Service - Agent Controls Itself.
+
+The agent is a STANDALONE SERVICE that receives commands from Control Plane.
+Agent decides when to join rooms. LiveKit is just a media router.
+
+Architecture:
+1. Agent runs as HTTP service (FastAPI)
+2. Management Service calls POST /join with room details
+3. Agent creates its own token and connects to LiveKit
+4. Agent is ACTIVE, not PASSIVE
+"""
 
 from __future__ import annotations
 
-import argparse
-import asyncio
 import os
-import sys
-from uuid import uuid4
+from contextlib import asynccontextmanager
 
-from livekit.agents import JobContext, WorkerOptions, cli
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+from pydantic import BaseModel
 
-from common.logger import configure_logging, get_logger
-from infrastructure.transport.pipecat_transport import extract_livekit_parts
+from common.logger import get_logger
+from infrastructure.transport.session_handle import SessionRegistry
 
 logger = get_logger(__name__)
 
+# Config
+AGENT_NAME = os.getenv("AGENT_NAME", "homunculy-super")
+
+# Global session registry
+_registry = SessionRegistry()
+
+
+# --- API Models ---
+
+
+class JoinRequest(BaseModel):
+    """Request from Control Plane."""
+
+    room: str
+    user_id: str
+    metadata: dict | None = None
+
+
+class JoinResponse(BaseModel):
+    """Response with session details."""
+
+    session_id: str
+    room: str
+    status: str
+
+
+class LeaveRequest(BaseModel):
+    """Request to leave."""
+
+    session_id: str
+
+
+# --- Service Factory ---
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle."""
+    logger.info("Agent service starting", agent=AGENT_NAME)
+    yield
+    await _registry.cleanup_all()
+    logger.info("Agent service stopped")
+
+
+def create_agent_service() -> FastAPI:
+    """Create the agent HTTP service."""
+    app = FastAPI(title=f"Agent: {AGENT_NAME}", lifespan=lifespan)
+    _register_routes(app)
+    return app
+
+
+def _register_routes(app: FastAPI) -> None:
+    """Register all routes."""
+    app.get("/health")(_health)
+    app.post("/join", response_model=JoinResponse)(_join)
+    app.post("/leave")(_leave)
+    app.get("/sessions")(_list_sessions)
+
+
+# --- Route Handlers ---
+
+
+async def _health():
+    """Health check."""
+    return {"status": "healthy", "agent": AGENT_NAME, "sessions": _registry.count}
+
+
+async def _join(req: JoinRequest, background: BackgroundTasks):
+    """Join a room."""
+    handle = _registry.create(req.room, req.user_id, req.metadata or {})
+    background.add_task(handle.run)
+    return JoinResponse(session_id=handle.session_id, room=req.room, status="joining")
+
+
+async def _leave(req: LeaveRequest):
+    """Leave a room."""
+    handle = _registry.remove(req.session_id)
+    if not handle:
+        raise HTTPException(404, "Session not found")
+    await handle.stop()
+    return {"status": "left", "session_id": req.session_id}
+
+
+async def _list_sessions():
+    """List active sessions."""
+    return {"sessions": _registry.list_all()}
+
+
+# --- Transport Adapter ---
+
 
 class LiveKitWorker:
-    """LiveKit agent worker wrapper."""
-
-    def __init__(self, pipeline_runner) -> None:
-        self._pipeline_runner = pipeline_runner
+    """Transport adapter - runs agent as HTTP service."""
 
     def run(self) -> None:
-        """Run the worker CLI."""
-        cli.run_app(self._worker_options())
+        """Start agent service."""
+        import uvicorn
 
-    def _worker_options(self) -> WorkerOptions:
-        """Create worker options with entrypoint."""
-        return WorkerOptions(entrypoint_fnc=self._entrypoint)
-
-    async def _entrypoint(self, ctx: JobContext) -> None:
-        """Worker entrypoint handler."""
-        await self._pipeline_runner(ctx)
+        port = int(os.getenv("HEALTH_PORT", "8000"))
+        uvicorn.run(create_agent_service(), host="0.0.0.0", port=port)
 
 
-def create_worker(pipeline_runner) -> LiveKitWorker:
-    """Factory function to create LiveKit worker."""
-    return LiveKitWorker(pipeline_runner)
-
-
-def run_standalone(pipeline_runner) -> None:
-    """Run worker as standalone process."""
-    worker = create_worker(pipeline_runner)
-    worker.run()
-
-
-def main() -> None:
-    """CLI entrypoint for worker."""
-    configure_logging()
-    _ = _parse_args()
-    run_standalone(run_isolated_session)
-
-
-def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="LiveKit worker")
-    p.add_argument("cmd", nargs="?", default="dev")
-    return p.parse_args()
-
-
-async def run_isolated_session(ctx: JobContext) -> None:
-    await _connect(ctx)
-    url, token, room = extract_livekit_parts(ctx)
-    await _spawn_session(url, token, room, _session_id(ctx))
-
-
-async def _connect(ctx: JobContext) -> None:
-    logger.info("Connecting to room", room=ctx.room.name)
-    await ctx.connect()
-
-
-def _session_id(ctx: JobContext) -> str:
-    job = getattr(ctx, "job", None)
-    job_id = getattr(job, "id", "")
-    return job_id or _fallback_session(ctx)
-
-
-def _fallback_session(ctx: JobContext) -> str:
-    room = getattr(getattr(ctx, "room", None), "name", "session")
-    return f"{room}-{uuid4().hex}"
-
-
-async def _spawn_session(url: str, token: str, room: str, session_id: str) -> None:
-    env = _env(url, token, room, session_id)
-    args = _command(url, token, room, session_id)
-    process = await asyncio.create_subprocess_exec(*args, env=env)
-    await process.wait()
-
-
-def _env(url: str, token: str, room: str, session_id: str) -> dict[str, str]:
-    env = os.environ.copy()
-    env.update(
-        {
-            "LIVEKIT_URL": url,
-            "LIVEKIT_TOKEN": token,
-            "LIVEKIT_ROOM": room,
-            "HOMUNCULY_SESSION_ID": session_id,
-        }
-    )
-    return env
-
-
-def _command(url: str, token: str, room: str, session_id: str) -> list[str]:
-    return [
-        sys.executable,
-        "-m",
-        "infrastructure.transport.session_process",
-        "--url",
-        url,
-        "--token",
-        token,
-        "--room",
-        room,
-        "--session-id",
-        session_id,
-    ]
-
-
-if __name__ == "__main__":
-    main()
+def create_worker() -> LiveKitWorker:
+    """Factory for main.py."""
+    return LiveKitWorker()

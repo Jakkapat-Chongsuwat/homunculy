@@ -2,28 +2,44 @@ package livekit
 
 import (
 	"context"
+	"encoding/json"
 
 	"management-service/internal/domain/services"
 )
 
-// CreateTokenUseCase issues room tokens.
+// CreateTokenUseCase issues room tokens AND tells agent to join.
+// This is the Control Plane - it orchestrates the whole flow.
 type CreateTokenUseCase struct {
-	issuer     services.TokenIssuer
-	defaultTtl int
+	issuer      services.TokenIssuer
+	agentJoiner services.AgentJoiner
+	defaultTtl  int
 }
 
 // NewCreateTokenUseCase creates a new use case.
-func NewCreateTokenUseCase(issuer services.TokenIssuer, defaultTtl int) *CreateTokenUseCase {
-	return &CreateTokenUseCase{issuer: issuer, defaultTtl: defaultTtl}
+func NewCreateTokenUseCase(issuer services.TokenIssuer, agentJoiner services.AgentJoiner, defaultTtl int) *CreateTokenUseCase {
+	return &CreateTokenUseCase{issuer: issuer, agentJoiner: agentJoiner, defaultTtl: defaultTtl}
 }
 
-// Execute issues a token for a room.
+// Execute issues a token and tells agent to join.
+// Flow: 1) Create user token  2) Tell agent to join room  3) Return token
 func (uc *CreateTokenUseCase) Execute(ctx context.Context, req CreateTokenRequest) (*CreateTokenResponse, error) {
+	// 1. Issue token for user
 	issue := toIssue(req, uc.defaultTtl)
-	token, err := uc.issuer.IssueToken(ctx, issue)
+	token, err := uc.issuer.IssueToken(issue)
 	if err != nil {
 		return nil, err
 	}
+
+	// 2. Tell agent to join room (agent controls itself)
+	if uc.agentJoiner != nil {
+		metadata := parseMetadata(req.Metadata)
+		_, err = uc.agentJoiner.JoinRoom(req.Room, req.Identity, metadata)
+		if err != nil {
+			// Log but don't fail - user can still connect
+			// TODO: proper logging
+		}
+	}
+
 	return &CreateTokenResponse{Token: token, Room: req.Room, Identity: req.Identity}, nil
 }
 
@@ -56,4 +72,13 @@ func pickTtl(value, fallback int) int {
 		return value
 	}
 	return fallback
+}
+
+func parseMetadata(meta string) map[string]interface{} {
+	if meta == "" {
+		return nil
+	}
+	var result map[string]interface{}
+	json.Unmarshal([]byte(meta), &result)
+	return result
 }

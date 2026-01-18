@@ -1,48 +1,148 @@
 """
-Homunculy - AI Agent Management System (2026 Architecture).
+Homunculy - AI Agent (2026 Architecture).
 
-Main application entry point following Clean Architecture.
-Layers: Domain -> Application -> Infrastructure -> Presentation
+Clean Architecture entrypoint with pluggable transport.
+Run modes: worker (default), api
 
-Uses Dependency Injection for clean, testable code.
+Usage:
+    python -m main           # Worker mode (LiveKit agent)
+    python -m main --api     # API mode (FastAPI server)
 """
 
+from __future__ import annotations
+
+import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
+from typing import Protocol, runtime_checkable
+
 from common.logger import configure_logging, get_logger
-from infrastructure.adapters.elevenlabs import ElevenLabsTTSAdapter
-from infrastructure.adapters.langgraph import LangGraphLLMAdapter
-from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
-from infrastructure.config import get_settings
-from infrastructure.container import container
-from infrastructure.persistence import CheckpointerFactory, CheckpointerUnitOfWork
-from presentation.http import create_app
-from presentation.http.handlers.agent import set_llm_service
 
 configure_logging()
 logger = get_logger(__name__)
 
-# Application state (managed by lifespan, not global mutable)
-_checkpointer_uow: CheckpointerUnitOfWork | None = None
+
+# =============================================================================
+# Transport Interface (Domain Layer)
+# =============================================================================
 
 
-async def on_startup() -> None:
-    """Initialize services on startup via DI container."""
-    global _checkpointer_uow
+@runtime_checkable
+class TransportPort(Protocol):
+    """Transport runtime contract."""
+
+    def run(self) -> None:
+        """Start the transport."""
+        ...
+
+
+# =============================================================================
+# Transport Factory (Application Layer)
+# =============================================================================
+
+
+def create_transport(name: str) -> TransportPort:
+    """Create transport by name."""
+    if name == "livekit":
+        return _livekit()
+    raise SystemExit(f"Unknown transport: {name}")
+
+
+def _livekit():
+    from infrastructure.transport.livekit_worker import create_worker
+
+    return create_worker()
+
+
+# =============================================================================
+# Health Server (Infrastructure Layer - Inline)
+# =============================================================================
+
+
+def start_health(port: int) -> None:
+    """Start background health server."""
+    server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+    Thread(target=server.serve_forever, daemon=True).start()
+    logger.info("Health server started", port=port)
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    """Minimal /health endpoint."""
+
+    def do_GET(self) -> None:
+        code, body = (200, b"ok") if self.path == "/health" else (404, b"not found")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args) -> None:  # noqa: A002
+        pass
+
+
+# =============================================================================
+# Worker Mode
+# =============================================================================
+
+
+def run_worker() -> None:
+    """Run as LiveKit agent service.
+
+    Agent runs as HTTP service (FastAPI) with:
+    - POST /join - Control Plane tells agent to join a room
+    - POST /leave - Control Plane tells agent to leave
+    - GET /health - Health check
+    - GET /sessions - List active sessions
+    """
+    transport = create_transport(os.getenv("AGENT_TRANSPORT", "livekit"))
+    transport.run()
+
+
+# =============================================================================
+# API Mode (Legacy FastAPI)
+# =============================================================================
+
+
+def create_api():
+    """Create FastAPI app for API mode."""
+    from infrastructure.config import get_settings
+    from presentation.http import create_app
 
     settings = get_settings()
-    logger.info("Initializing services", app=settings.app.name)
+    return create_app(
+        name=settings.app.name,
+        version=settings.app.version,
+        on_startup=_api_startup,
+        on_shutdown=_api_shutdown,
+    )
 
-    # Create checkpointer via factory
+
+_checkpointer_uow = None
+
+
+async def _api_startup() -> None:
+    """Initialize API services."""
+    global _checkpointer_uow
+
+    from infrastructure.adapters.elevenlabs import ElevenLabsTTSAdapter
+    from infrastructure.adapters.langgraph import LangGraphLLMAdapter
+    from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
+    from infrastructure.config import get_settings
+    from infrastructure.container import container
+    from presentation.http.handlers.agent import set_llm_service
+
+    settings = get_settings()
+    logger.info("Initializing API", app=settings.app.name)
+
     _checkpointer_uow = await _create_checkpointer()
     await _checkpointer_uow.setup()
 
-    # Wire up graph manager
     graph_manager = create_graph_manager(
         api_key=settings.llm.api_key,
         checkpointer=_checkpointer_uow.checkpointer,
         build_fn=_build_graph,
     )
 
-    # Create and register LLM adapter
     llm_adapter = LangGraphLLMAdapter(
         api_key=settings.llm.api_key,
         graph_manager=graph_manager,
@@ -50,47 +150,42 @@ async def on_startup() -> None:
     container.llm_adapter.override(llm_adapter)
     set_llm_service(llm_adapter)
 
-    # Create TTS adapter if configured
     if settings.tts.api_key:
-        tts_adapter = ElevenLabsTTSAdapter(settings.tts.api_key)
-        container.tts_adapter.override(tts_adapter)
-        logger.info("TTS service initialized")
+        container.tts_adapter.override(ElevenLabsTTSAdapter(settings.tts.api_key))
+        logger.info("TTS initialized")
 
-    logger.info("All services initialized")
+    logger.info("API ready")
 
 
-async def on_shutdown() -> None:
-    """Cleanup services on shutdown."""
+async def _api_shutdown() -> None:
+    """Cleanup API services."""
     if _checkpointer_uow:
         await _checkpointer_uow.cleanup()
-    logger.info("Services cleaned up")
+    logger.info("API shutdown")
 
 
-async def _create_checkpointer() -> CheckpointerUnitOfWork:
+async def _create_checkpointer():
     """Create checkpointer based on environment."""
-    import os
+    from infrastructure.persistence import CheckpointerFactory
 
     db_host = os.getenv("DB_HOST", "")
     if db_host:
-        conn_string = _build_connection_string()
-        return await CheckpointerFactory.create_postgres(conn_string)
+        conn = _db_url()
+        return await CheckpointerFactory.create_postgres(conn)
     return CheckpointerFactory.create_memory()
 
 
-def _build_connection_string() -> str:
-    """Build PostgreSQL connection string."""
-    import os
-
+def _db_url() -> str:
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
     name = os.getenv("DB_NAME", "homunculy")
     user = os.getenv("DB_USER", "postgres")
-    password = os.getenv("DB_PASSWORD", "")
-    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+    pw = os.getenv("DB_PASSWORD", "")
+    return f"postgresql://{user}:{pw}@{host}:{port}/{name}"
 
 
 async def _build_graph(api_key: str, checkpointer, config, bind_tools: bool):
-    """Build simple chat graph with LLM node."""
+    """Build chat graph."""
     from langchain_openai import ChatOpenAI
     from langgraph.graph import END, START, StateGraph
     from pydantic import SecretStr
@@ -99,34 +194,45 @@ async def _build_graph(api_key: str, checkpointer, config, bind_tools: bool):
 
     llm = ChatOpenAI(api_key=SecretStr(api_key), model="gpt-4o-mini")
 
-    async def chat_node(state: GraphState) -> dict:
-        """Process messages through LLM."""
-        response = await llm.ainvoke(state["messages"])
-        return {"messages": [response]}
+    async def chat(state: GraphState) -> dict:
+        return {"messages": [await llm.ainvoke(state["messages"])]}
 
-    graph = StateGraph(GraphState)
-    graph.add_node("chat", chat_node)
-    graph.add_edge(START, "chat")
-    graph.add_edge("chat", END)
-    return graph.compile(checkpointer=checkpointer)
+    g = StateGraph(GraphState)
+    g.add_node("chat", chat)
+    g.add_edge(START, "chat")
+    g.add_edge("chat", END)
+    return g.compile(checkpointer=checkpointer)
 
 
-# Create FastAPI application
-settings = get_settings()
-app = create_app(
-    name=settings.app.name,
-    version=settings.app.version,
-    on_startup=on_startup,
-    on_shutdown=on_shutdown,
-)
+# FastAPI app instance (for uvicorn)
+app = create_api()
+
+
+# =============================================================================
+# CLI Entrypoint
+# =============================================================================
+
+
+def main() -> None:
+    """CLI entrypoint."""
+    import sys
+
+    if "--api" in sys.argv:
+        _run_api()
+    else:
+        run_worker()
+
+
+def _run_api() -> None:
+    import uvicorn
+
+    from infrastructure.config import get_settings
+
+    settings = get_settings()
+    uvicorn.run(
+        "main:app", host=settings.app.host, port=settings.app.port, reload=settings.app.debug
+    )
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host=settings.app.host,
-        port=settings.app.port,
-        reload=settings.app.debug,
-    )
+    main()
