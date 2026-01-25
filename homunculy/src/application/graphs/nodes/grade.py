@@ -1,12 +1,12 @@
 """Grade node - Grade documents and generation quality."""
 
-from application.graphs.state import GraphState
+from application.graphs.state import GraphStateBase
 
 
 async def grade_documents_node(
-    state: GraphState,
+    state: GraphStateBase,
     grader_fn,
-) -> GraphState:
+) -> GraphStateBase:
     """Grade retrieved documents for relevance."""
     docs = state.get("documents", [])
     question = state.get("question", "")
@@ -34,7 +34,7 @@ async def _is_relevant(doc: dict, question: str, grader_fn) -> bool:
 
 
 async def grade_generation_node(
-    state: GraphState,
+    state: GraphStateBase,
     hallucination_grader_fn,
     answer_grader_fn,
 ) -> dict[str, bool]:

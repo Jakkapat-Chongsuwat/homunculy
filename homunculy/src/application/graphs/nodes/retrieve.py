@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from application.graphs.state import GraphState, with_documents
+from application.graphs.state import GraphStateBase, with_documents
 from common.logger import get_logger
 from domain.interfaces import RAGPort
 
@@ -10,17 +10,17 @@ logger = get_logger(__name__)
 
 
 async def retrieve_node(
-    state: GraphState,
+    state: GraphStateBase,
     rag: RAGPort,
     top_k: int = 5,
-) -> GraphState:
+) -> GraphStateBase:
     """Retrieve relevant documents for the question."""
     question = _extract_question(state)
     documents = await _fetch_documents(rag, question, top_k)
     return with_documents(state, documents)
 
 
-def _extract_question(state: GraphState) -> str:
+def _extract_question(state: GraphStateBase) -> str:
     """Extract question from state."""
     return state.get("question", "")
 

@@ -13,8 +13,8 @@ from typing import Any, Callable
 from langgraph.graph import END, StateGraph
 
 from application.graphs.builder import GraphBuilderPort
-from application.graphs.state import GraphState
 from common.logger import get_logger
+from infrastructure.adapters.langgraph.state import GraphState
 
 logger = get_logger(__name__)
 

@@ -42,6 +42,7 @@ type LoggingConfig struct {
 
 // LiveKitConfig holds LiveKit settings.
 type LiveKitConfig struct {
+	Host      string `json:"host"`
 	APIKey    string `json:"api_key"`
 	APISecret string `json:"api_secret"`
 	TokenTTL  int    `json:"token_ttl"`
@@ -76,6 +77,7 @@ func Load() *Config {
 			Format: getEnv("LOG_FORMAT", "json"),
 		},
 		LiveKit: LiveKitConfig{
+			Host:      getEnv("LIVEKIT_HOST", "http://localhost:7880"),
 			APIKey:    getEnv("LIVEKIT_API_KEY", ""),
 			APISecret: getEnv("LIVEKIT_API_SECRET", ""),
 			TokenTTL:  getEnvAsInt("LIVEKIT_TOKEN_TTL", 3600),

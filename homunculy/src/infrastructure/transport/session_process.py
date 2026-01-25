@@ -161,7 +161,7 @@ async def _build_graph(api_key: str, checkpointer, config, bind_tools: bool):
 def _graph(llm):
     from langgraph.graph import END, START, StateGraph
 
-    from application.graphs.state import GraphState
+    from infrastructure.adapters.langgraph.state import GraphState
 
     graph = StateGraph(GraphState)
     graph.add_node("chat", _chat_node(llm))

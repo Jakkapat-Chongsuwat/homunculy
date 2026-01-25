@@ -52,6 +52,10 @@ class OrchestratorPort(ABC):
         """Stream response chunks."""
         ...
 
+    async def close(self) -> None:
+        """Close any open connections. Override if needed."""
+        pass
+
 
 class SupervisorPort(ABC):
     """Supervisor orchestrates multiple agents."""

@@ -24,7 +24,7 @@ from infrastructure.adapters.langgraph import LangGraphLLMAdapter
 from infrastructure.adapters.openai import OpenAISTTAdapter
 from infrastructure.adapters.orchestration import (
     LangGraphOrchestrator,
-    LangGraphSupervisor,
+    SwarmOrchestrator,
 )
 from infrastructure.adapters.pipeline import (
     OpenAIPipeline,
@@ -49,7 +49,7 @@ __all__ = [
     "create_token_generator",
     # Orchestration adapters
     "LangGraphOrchestrator",
-    "LangGraphSupervisor",
+    "SwarmOrchestrator",
     # Transport adapters
     "LiveKitRoom",
     "LiveKitTokenGenerator",
@@ -58,7 +58,7 @@ __all__ = [
     "OpenAISTT",
     "OpenAITTS",
     "SileroVAD",
-    # Legacy (to be migrated)
+    # Service adapters
     "ElevenLabsTTSAdapter",
     "LangGraphLLMAdapter",
     "OpenAISTTAdapter",

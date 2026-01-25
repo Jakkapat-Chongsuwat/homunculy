@@ -1,7 +1,7 @@
-"""Unit tests for Graph state module."""
+"""Unit tests for Graph state module (application layer)."""
 
 from application.graphs.state import (
-    GraphConfig,
+    GraphStateBase,
     increment_retry,
     initial_state,
     with_documents,
@@ -9,8 +9,8 @@ from application.graphs.state import (
 )
 
 
-class TestGraphState:
-    """Tests for GraphState TypedDict."""
+class TestGraphStateBase:
+    """Tests for GraphStateBase TypedDict."""
 
     def test_initial_state(self) -> None:
         state = initial_state("What is AI?")
@@ -44,23 +44,12 @@ class TestGraphState:
         assert state["generation"] == ""
         assert new_state["generation"] == "Answer"
 
-
-class TestGraphConfig:
-    """Tests for GraphConfig model."""
-
-    def test_create_config(self) -> None:
-        config = GraphConfig(thread_id="t1", agent_id="a1")
-        assert config.thread_id == "t1"
-        assert config.agent_id == "a1"
-        assert config.max_retries == 3
-        assert config.temperature == 0.7
-
-    def test_config_custom_values(self) -> None:
-        config = GraphConfig(
-            thread_id="t2",
-            agent_id="a2",
-            max_retries=5,
-            temperature=0.5,
-        )
-        assert config.max_retries == 5
-        assert config.temperature == 0.5
+    def test_type_compatibility(self) -> None:
+        """Verify the state is a valid TypedDict."""
+        state: GraphStateBase = initial_state("Q")
+        assert isinstance(state, dict)
+        assert "messages" in state
+        assert "question" in state
+        assert "generation" in state
+        assert "documents" in state
+        assert "retry_count" in state

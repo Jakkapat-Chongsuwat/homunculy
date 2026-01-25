@@ -5,7 +5,6 @@ import (
 	"log"
 	"management-service/internal/adapters/http/handlers"
 	"management-service/internal/adapters/http/routes"
-	"management-service/internal/infrastructure"
 	"management-service/internal/infrastructure/config"
 	"management-service/internal/infrastructure/database"
 	"management-service/internal/infrastructure/livekit"
@@ -124,14 +123,14 @@ func missingLiveKit(cfg *config.Config) bool {
 	return cfg.LiveKit.APIKey == "" || cfg.LiveKit.APISecret == ""
 }
 
-func createAgentJoiner(cfg *config.Config) *livekit.AgentJoiner {
-	if cfg.Homunculy.BaseURL == "" {
+func createAgentJoiner(cfg *config.Config) *livekit.DispatchAgentJoiner {
+	if missingLiveKit(cfg) {
 		return nil
 	}
-	client := infrastructure.NewHomunculyClient(cfg.Homunculy.BaseURL, cfg.Homunculy.APIKey)
-	return livekit.NewAgentJoiner(client)
+	agentName := "homunculy-super" // Default agent name
+	return livekit.NewDispatchAgentJoiner(cfg.LiveKit.Host, cfg.LiveKit.APIKey, cfg.LiveKit.APISecret, agentName)
 }
 
-func tokenUseCase(issuer *livekit.TokenIssuer, joiner *livekit.AgentJoiner, cfg *config.Config) *livekitusecase.CreateTokenUseCase {
+func tokenUseCase(issuer *livekit.TokenIssuer, joiner *livekit.DispatchAgentJoiner, cfg *config.Config) *livekitusecase.CreateTokenUseCase {
 	return livekitusecase.NewCreateTokenUseCase(issuer, joiner, cfg.LiveKit.TokenTTL)
 }

@@ -17,17 +17,17 @@ from infrastructure.adapters.orchestration.graph_builder import (
 )
 from infrastructure.adapters.orchestration.langgraph_adapter import (
     LangGraphOrchestrator,
-    LangGraphSupervisor,
 )
 from infrastructure.adapters.orchestration.supervisor_adapter import (
     LangGraphSupervisorAdapter,
     SupervisorOrchestrator,
 )
+from infrastructure.adapters.orchestration.swarm_adapter import SwarmOrchestrator
 
 __all__ = [
     # Core adapters
     "LangGraphOrchestrator",
-    "LangGraphSupervisor",
+    "SwarmOrchestrator",
     # Official supervisor (langgraph-supervisor-py)
     "LangGraphSupervisorAdapter",
     "SupervisorOrchestrator",

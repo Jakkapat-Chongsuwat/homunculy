@@ -1,32 +1,32 @@
-"""Graph state schema for LangGraph workflows."""
+"""Graph state types - framework agnostic.
 
-from typing import Annotated, Any
+These are pure TypedDicts without any framework-specific reducers.
+The infrastructure layer (LangGraph) uses its own GraphState with reducers.
 
-from langgraph.graph import add_messages
-from pydantic import BaseModel, Field
+Application layer nodes use this for type hints - it's structurally
+compatible with infrastructure's GraphState.
+"""
+
+from typing import Any
+
 from typing_extensions import TypedDict
 
 
-class GraphState(TypedDict):
-    """State for RAG-enhanced conversation graph."""
+class GraphStateBase(TypedDict):
+    """Base graph state for type hints in application layer.
 
-    messages: Annotated[list[Any], add_messages]
+    Structurally compatible with infrastructure.adapters.langgraph.state.GraphState.
+    Use this in application layer for framework-agnostic type hints.
+    """
+
+    messages: list[Any]
     question: str
     generation: str
     documents: list[dict[str, Any]]
     retry_count: int
 
 
-class GraphConfig(BaseModel):
-    """Graph configuration."""
-
-    max_retries: int = Field(default=3, ge=1)
-    thread_id: str = Field(...)
-    agent_id: str = Field(...)
-    temperature: float = Field(default=0.7)
-
-
-def initial_state(question: str) -> GraphState:
+def initial_state(question: str) -> GraphStateBase:
     """Create initial graph state."""
     return {
         "messages": [],
@@ -37,16 +37,16 @@ def initial_state(question: str) -> GraphState:
     }
 
 
-def with_documents(state: GraphState, docs: list[dict]) -> GraphState:
+def with_documents(state: GraphStateBase, docs: list[dict]) -> GraphStateBase:
     """Return state with documents added."""
     return {**state, "documents": docs}
 
 
-def with_generation(state: GraphState, text: str) -> GraphState:
+def with_generation(state: GraphStateBase, text: str) -> GraphStateBase:
     """Return state with generation set."""
     return {**state, "generation": text}
 
 
-def increment_retry(state: GraphState) -> GraphState:
+def increment_retry(state: GraphStateBase) -> GraphStateBase:
     """Return state with incremented retry count."""
     return {**state, "retry_count": state["retry_count"] + 1}

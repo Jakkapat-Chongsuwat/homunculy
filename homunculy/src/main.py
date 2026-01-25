@@ -1,20 +1,22 @@
 """
-Homunculy - AI Agent (2026 Architecture).
+Homunculy - 2026 Hybrid Dual-System AI Agent.
 
-Clean Architecture entrypoint with pluggable transport.
-Run modes: worker (default), api
+Clean Architecture entrypoint - ALL dependency wiring happens here.
+
+Architecture:
+- ReflexLayer: Fast responses (<300ms) - greetings, acknowledgments
+- CognitionLayer: Deep reasoning - LangGraph with tools
+- DualSystemOrchestrator: Coordinates both in parallel
 
 Usage:
-    python -m main           # Worker mode (LiveKit agent)
-    python -m main --api     # API mode (FastAPI server)
+    python -m main              # Worker mode (LiveKit agent)
+    python -m main --api        # API mode (FastAPI server)
 """
 
 from __future__ import annotations
 
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread
-from typing import Protocol, runtime_checkable
+import sys
 
 from common.logger import configure_logging, get_logger
 
@@ -23,185 +25,153 @@ logger = get_logger(__name__)
 
 
 # =============================================================================
-# Transport Interface (Domain Layer)
+# Configuration (single source of truth)
 # =============================================================================
 
 
-@runtime_checkable
-class TransportPort(Protocol):
-    """Transport runtime contract."""
-
-    def run(self) -> None:
-        """Start the transport."""
-        ...
+def _env(key: str, default: str = "") -> str:
+    """Get environment variable."""
+    return os.getenv(key, default)
 
 
-# =============================================================================
-# Transport Factory (Application Layer)
-# =============================================================================
-
-
-def create_transport(name: str) -> TransportPort:
-    """Create transport by name."""
-    if name == "livekit":
-        return _livekit()
-    raise SystemExit(f"Unknown transport: {name}")
-
-
-def _livekit():
-    from infrastructure.transport.livekit_worker import create_worker
-
-    return create_worker()
+def _env_int(key: str, default: int = 0) -> int:
+    """Get integer environment variable."""
+    return int(os.getenv(key, str(default)))
 
 
 # =============================================================================
-# Health Server (Infrastructure Layer - Inline)
+# Health Server (minimal - no deps)
 # =============================================================================
 
 
-def start_health(port: int) -> None:
+def _start_health_server(port: int) -> None:
     """Start background health server."""
-    server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from threading import Thread
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            ok = self.path == "/health"
+            self.send_response(200 if ok else 404)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok" if ok else b"not found")
+
+        def log_message(self, format: str, *args) -> None:  # noqa: A002
+            pass
+
+    server = HTTPServer(("0.0.0.0", port), Handler)
     Thread(target=server.serve_forever, daemon=True).start()
     logger.info("Health server started", port=port)
 
 
-class _HealthHandler(BaseHTTPRequestHandler):
-    """Minimal /health endpoint."""
-
-    def do_GET(self) -> None:
-        code, body = (200, b"ok") if self.path == "/health" else (404, b"not found")
-        self.send_response(code)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
-        pass
-
-
 # =============================================================================
-# Worker Mode
+# Worker Mode (LiveKit Agent)
 # =============================================================================
 
 
 def run_worker() -> None:
-    """Run as LiveKit agent service.
+    """Run as LiveKit agent worker.
 
-    Agent runs as HTTP service (FastAPI) with:
-    - POST /join - Control Plane tells agent to join a room
-    - POST /leave - Control Plane tells agent to leave
-    - GET /health - Health check
-    - GET /sessions - List active sessions
+    Dependencies wired:
+    1. Health server (background)
+    2. LiveKit worker (foreground)
     """
-    transport = create_transport(os.getenv("AGENT_TRANSPORT", "livekit"))
-    transport.run()
+    _start_health_server(_env_int("HEALTH_PORT", 8000))
+    _run_livekit_worker()
+
+
+def _run_livekit_worker() -> None:
+    """Import and run LiveKit worker."""
+    from infrastructure.transport.livekit_agent_worker import run_worker as lk_run
+
+    lk_run()
 
 
 # =============================================================================
-# API Mode (Legacy FastAPI)
+# API Mode (FastAPI) - Wires all dependencies
 # =============================================================================
 
 
 def create_api():
-    """Create FastAPI app for API mode."""
-    from infrastructure.config import get_settings
+    """Create FastAPI app with dependency wiring."""
     from presentation.http import create_app
+    from settings import APP_NAME, APP_VERSION
 
-    settings = get_settings()
     return create_app(
-        name=settings.app.name,
-        version=settings.app.version,
-        on_startup=_api_startup,
-        on_shutdown=_api_shutdown,
+        name=APP_NAME,
+        version=APP_VERSION,
+        on_startup=_wire_dependencies,
+        on_shutdown=_cleanup_dependencies,
     )
 
 
-_checkpointer_uow = None
+# Global state for cleanup
+_state: dict = {}
 
 
-async def _api_startup() -> None:
-    """Initialize API services."""
-    global _checkpointer_uow
+async def _wire_dependencies() -> None:
+    """Wire ALL dependencies at startup.
 
-    from infrastructure.adapters.elevenlabs import ElevenLabsTTSAdapter
-    from infrastructure.adapters.langgraph import LangGraphLLMAdapter
-    from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
-    from infrastructure.config import get_settings
+    Order matters - wire bottom-up:
+    1. Persistence (checkpointer)
+    2. Core adapters (orchestrator, LLM, TTS)
+    3. Dual-system (reflex + cognition)
+    4. Container overrides
+    """
+    from infrastructure.adapters.factory import (
+        create_cognition,
+        create_dual_system,
+        create_emotion_detector,
+        create_orchestrator,
+        create_reflex,
+    )
     from infrastructure.container import container
-    from presentation.http.handlers.agent import set_llm_service
 
-    settings = get_settings()
-    logger.info("Initializing API", app=settings.app.name)
+    # 1. Persistence
+    _state["checkpointer"] = await _create_checkpointer()
+    container.checkpointer.override(_state["checkpointer"].checkpointer)
 
-    _checkpointer_uow = await _create_checkpointer()
-    await _checkpointer_uow.setup()
+    # 2. Core adapters
+    orchestrator = create_orchestrator()
 
-    graph_manager = create_graph_manager(
-        api_key=settings.llm.api_key,
-        checkpointer=_checkpointer_uow.checkpointer,
-        build_fn=_build_graph,
-    )
+    # 3. Dual-system
+    reflex = create_reflex()
+    cognition = create_cognition(orchestrator=orchestrator)
+    emotion = create_emotion_detector()
+    dual_system = create_dual_system(reflex, cognition, emotion)
 
-    llm_adapter = LangGraphLLMAdapter(
-        api_key=settings.llm.api_key,
-        graph_manager=graph_manager,
-    )
-    container.llm_adapter.override(llm_adapter)
-    set_llm_service(llm_adapter)
+    # 4. Override container (for handlers to access via DI)
+    container.orchestrator.override(lambda: orchestrator)
+    container.dual_system.override(lambda: dual_system)
 
-    if settings.tts.api_key:
-        container.tts_adapter.override(ElevenLabsTTSAdapter(settings.tts.api_key))
-        logger.info("TTS initialized")
-
-    logger.info("API ready")
+    logger.info("Dependencies wired", mode="api")
 
 
-async def _api_shutdown() -> None:
-    """Cleanup API services."""
-    if _checkpointer_uow:
-        await _checkpointer_uow.cleanup()
-    logger.info("API shutdown")
+async def _cleanup_dependencies() -> None:
+    """Cleanup dependencies at shutdown."""
+    if cp := _state.get("checkpointer"):
+        await cp.cleanup()
+    logger.info("Dependencies cleaned up")
 
 
 async def _create_checkpointer():
-    """Create checkpointer based on environment."""
+    """Create checkpointer (Postgres or memory)."""
     from infrastructure.persistence import CheckpointerFactory
 
-    db_host = os.getenv("DB_HOST", "")
-    if db_host:
-        conn = _db_url()
-        return await CheckpointerFactory.create_postgres(conn)
+    if _env("DB_HOST"):
+        return await CheckpointerFactory.create_postgres(_build_db_url())
     return CheckpointerFactory.create_memory()
 
 
-def _db_url() -> str:
-    host = os.getenv("DB_HOST", "localhost")
-    port = os.getenv("DB_PORT", "5432")
-    name = os.getenv("DB_NAME", "homunculy")
-    user = os.getenv("DB_USER", "postgres")
-    pw = os.getenv("DB_PASSWORD", "")
-    return f"postgresql://{user}:{pw}@{host}:{port}/{name}"
-
-
-async def _build_graph(api_key: str, checkpointer, config, bind_tools: bool):
-    """Build chat graph."""
-    from langchain_openai import ChatOpenAI
-    from langgraph.graph import END, START, StateGraph
-    from pydantic import SecretStr
-
-    from application.graphs.state import GraphState
-
-    llm = ChatOpenAI(api_key=SecretStr(api_key), model="gpt-4o-mini")
-
-    async def chat(state: GraphState) -> dict:
-        return {"messages": [await llm.ainvoke(state["messages"])]}
-
-    g = StateGraph(GraphState)
-    g.add_node("chat", chat)
-    g.add_edge(START, "chat")
-    g.add_edge("chat", END)
-    return g.compile(checkpointer=checkpointer)
+def _build_db_url() -> str:
+    """Build database URL from environment."""
+    host = _env("DB_HOST", "localhost")
+    port = _env("DB_PORT", "5432")
+    name = _env("DB_NAME", "homunculy")
+    user = _env("DB_USER", "postgres")
+    password = _env("DB_PASSWORD", "")
+    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
 
 
 # FastAPI app instance (for uvicorn)
@@ -215,22 +185,23 @@ app = create_api()
 
 def main() -> None:
     """CLI entrypoint."""
-    import sys
-
     if "--api" in sys.argv:
-        _run_api()
+        _run_api_server()
     else:
         run_worker()
 
 
-def _run_api() -> None:
+def _run_api_server() -> None:
+    """Run FastAPI server."""
     import uvicorn
 
-    from infrastructure.config import get_settings
+    from settings import settings
 
-    settings = get_settings()
     uvicorn.run(
-        "main:app", host=settings.app.host, port=settings.app.port, reload=settings.app.debug
+        "main:app",
+        host=settings.app.host,
+        port=settings.app.port,
+        reload=settings.app.debug,
     )
 
 

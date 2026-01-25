@@ -35,6 +35,18 @@ test:
 	@echo "Running tests in parallel..."
 	@poetry run pytest -n auto --dist loadfile -q
 
+test-e2e:
+	@echo "Running E2E tests..."
+	@poetry run pytest src/tests/e2e/$(FILE) -v --tb=short -p no:xdist -o addopts=""
+
+test-unit:
+	@echo "Running unit tests..."
+	@poetry run pytest src/ --ignore=src/tests/e2e/ -v --tb=short -o addopts=""
+
+test-cov:
+	@echo "Running tests with coverage..."
+	@poetry run pytest -n auto --dist loadfile --cov=src --cov-report=xml:cov.xml --cov-report=term-missing
+
 up:
 	uvicorn main:app \
 		--port $(PORT) \

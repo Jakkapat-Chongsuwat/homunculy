@@ -68,7 +68,8 @@ class LiveKitRoom(RoomPort):
         """Check if connected."""
         if not self._room:
             return False
-        return str(self._room.connection_state) == "ConnectionState.CONN_CONNECTED"
+        # Use enum comparison instead of string
+        return self._room.connection_state == rtc.ConnectionState.CONN_CONNECTED
 
 
 class LiveKitTokenGenerator(TokenGeneratorPort):

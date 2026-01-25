@@ -1,9 +1,8 @@
 """Transport layer - WebRTC and real-time communication."""
 
-from infrastructure.transport.livekit_worker import (
+from infrastructure.transport.livekit_agent_worker import (
     AGENT_NAME,
-    LiveKitWorker,
-    create_worker,
+    run_worker,
 )
 from infrastructure.transport.pipecat_pipeline import (
     PipecatPipeline,
@@ -19,13 +18,12 @@ from infrastructure.transport.token import create_room_token
 
 __all__ = [
     "AGENT_NAME",
-    "LiveKitWorker",
     "PipelineConfig",
     "PipecatPipeline",
     "TransportConfig",
     "create_livekit_transport",
     "create_pipeline",
     "create_room_token",
-    "create_worker",
+    "run_worker",
     "extract_livekit_parts",
 ]

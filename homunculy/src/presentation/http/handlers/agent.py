@@ -1,6 +1,6 @@
 """Agent HTTP handler."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -9,6 +9,7 @@ from application.use_cases.chat import ChatInput
 from common.logger import get_logger
 from domain.entities import AgentConfiguration, AgentPersonality, AgentProvider
 from domain.interfaces import LLMPort
+from infrastructure.container import container
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -31,40 +32,47 @@ class ChatResponse(BaseModel):
     confidence: float
 
 
-# Dependency injection placeholder
-_llm_service: LLMPort | None = None
+# =============================================================================
+# Dependency Injection
+# =============================================================================
 
 
-def set_llm_service(service: LLMPort) -> None:
-    """Set LLM service for dependency injection."""
-    global _llm_service
-    _llm_service = service
+def get_llm_service() -> LLMPort:
+    """FastAPI dependency to get LLM service."""
+    llm = container.llm_adapter()
+    if not llm:
+        raise HTTPException(status_code=503, detail="LLM service not available")
+    return llm
+
+
+# =============================================================================
+# Endpoints
+# =============================================================================
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    llm: LLMPort = Depends(get_llm_service),
+) -> ChatResponse:
     """Handle chat request."""
-    if not _llm_service:
-        raise HTTPException(status_code=503, detail="LLM service not available")
-
-    use_case = ChatUseCase(_llm_service)
+    use_case = ChatUseCase(llm)
     input_ = _build_input(request)
     output = await use_case.execute(input_)
     return _build_response(output)
 
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest) -> StreamingResponse:
+async def chat_stream(
+    request: ChatRequest,
+    llm: LLMPort = Depends(get_llm_service),
+) -> StreamingResponse:
     """Handle streaming chat request."""
-    if not _llm_service:
-        raise HTTPException(status_code=503, detail="LLM service not available")
-
-    service = _llm_service  # Capture for closure
     config = _build_config(request)
     context = {"thread_id": request.thread_id or "default"}
 
     async def generate():
-        async for chunk in service.stream_chat(config, request.message, context):
+        async for chunk in llm.stream_chat(config, request.message, context):
             yield chunk
 
     return StreamingResponse(generate(), media_type="text/plain")

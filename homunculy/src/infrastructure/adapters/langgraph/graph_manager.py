@@ -15,11 +15,11 @@ class GraphManager:
         self,
         api_key: str,
         checkpointer: Any,
-        build_fn,
+        build_fn=None,
     ) -> None:
         self._api_key = api_key
         self._checkpointer = checkpointer
-        self._build_fn = build_fn
+        self._build_fn = build_fn or _default_build_graph
         self._cache: dict[str, Any] = {}
 
     async def get_or_build(
@@ -53,10 +53,41 @@ def _cache_key(config: AgentConfiguration, bind_tools: bool) -> str:
     return f"{config.model_name}:{config.provider.value}:{bind_tools}"
 
 
+async def _default_build_graph(
+    api_key: str,
+    checkpointer: Any,
+    config: AgentConfiguration,
+    bind_tools: bool,
+) -> Any:
+    """Default LangGraph chat graph builder.
+
+    This encapsulates all LangGraph/LangChain imports in infrastructure layer.
+    """
+    from langchain_openai import ChatOpenAI
+    from langgraph.graph import END, START, StateGraph
+    from pydantic import SecretStr
+
+    from infrastructure.adapters.langgraph.state import GraphState
+
+    llm = ChatOpenAI(
+        api_key=SecretStr(api_key),
+        model=config.model_name or "gpt-4o-mini",
+    )
+
+    async def chat(state: GraphState) -> dict:
+        return {"messages": [await llm.ainvoke(state["messages"])]}
+
+    graph = StateGraph(GraphState)
+    graph.add_node("chat", chat)
+    graph.add_edge(START, "chat")
+    graph.add_edge("chat", END)
+    return graph.compile(checkpointer=checkpointer)
+
+
 def create_graph_manager(
     api_key: str,
     checkpointer: Any,
-    build_fn,
+    build_fn=None,
 ) -> GraphManager:
     """Factory to create graph manager."""
     return GraphManager(api_key, checkpointer, build_fn)

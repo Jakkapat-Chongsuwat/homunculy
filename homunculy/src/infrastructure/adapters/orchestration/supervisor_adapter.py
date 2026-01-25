@@ -39,6 +39,18 @@ class LangGraphSupervisorAdapter(SupervisorPort):
         self._agents: dict[str, Any] = {}
         self._compiled_supervisor: Any = None
 
+    async def close(self) -> None:
+        """Close HTTP connections gracefully."""
+        # ChatOpenAI uses httpx under the hood via OpenAI client
+        # Access the underlying httpx client properly
+        try:
+            if hasattr(self._model, "async_client") and self._model.async_client:
+                http_client = getattr(self._model.async_client, "_client", None)
+                if http_client and hasattr(http_client, "aclose"):
+                    await http_client.aclose()
+        except Exception:
+            pass  # Best effort cleanup
+
     async def route(self, input_: OrchestrationInput) -> str:
         """Route is handled automatically by supervisor."""
         # With langgraph-supervisor, routing is automatic
@@ -79,6 +91,10 @@ class LangGraphSupervisorAdapter(SupervisorPort):
         self._compiled_supervisor = None
         logger.info("ReAct agent registered", name=name, tools=len(tools))
 
+    def get_compiled_graph(self) -> Any:
+        """Get the compiled LangGraph supervisor (for LiveKit integration)."""
+        return self._get_or_build_supervisor()
+
     def _get_or_build_supervisor(self) -> Any:
         """Get or build the compiled supervisor."""
         if self._compiled_supervisor:
@@ -109,6 +125,10 @@ class SupervisorOrchestrator(OrchestratorPort):
         """Stream not yet implemented for supervisor."""
         result = await self.invoke(input_)
         yield result.message
+
+    async def close(self) -> None:
+        """Close supervisor connections."""
+        await self._supervisor.close()
 
 
 # --- Helpers ---

@@ -1,6 +1,6 @@
 """Routing logic for graph edges."""
 
-from application.graphs.state import GraphState
+from application.graphs.state import GraphStateBase
 
 # Node name constants
 NODE_GENERATE = "generate"
@@ -8,13 +8,13 @@ NODE_REWRITE = "rewrite"
 NODE_END = "__end__"
 
 
-def route_question(state: GraphState, has_docs_fn) -> str:
+def route_question(state: GraphStateBase, has_docs_fn) -> str:
     """Route based on document availability."""
     docs = state.get("documents", [])
     return NODE_GENERATE if has_docs_fn(docs) else NODE_REWRITE
 
 
-def decide_to_generate(state: GraphState) -> str:
+def decide_to_generate(state: GraphStateBase) -> str:
     """Decide whether to generate or rewrite."""
     docs = state.get("documents", [])
     return NODE_GENERATE if _has_relevant_docs(docs) else NODE_REWRITE

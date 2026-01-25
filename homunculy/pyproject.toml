@@ -19,11 +19,10 @@ fastapi = "<=1.0.0"
 dependency-injector = "^4.41.0"
 pydantic = ">2.4.0,<3"
 pydantic-settings = "^2.0.0"
-strawberry-graphql = "^0.204.0"
 uvicorn = "^0.23.2"
 langgraph = "^1.0.6"
+langgraph-swarm = "^0.0.1"
 langgraph-supervisor = "^0.0.31"
-langmem = "^0.0.30"
 langchain-openai = "^0.3.0"
 langgraph-checkpoint-postgres = "^2.0.0"
 psycopg = "^3.2.0"
@@ -48,7 +47,6 @@ remove-print-statements = "^0.5.2"
 ruff = "^0.14.13"
 
 [tool.poetry.group.test.dependencies]
-gevent = "^23.9.1"
 httpx = "^0.28.0"
 pytest = "^8.3.0"
 pytest-cov = "^4.1.0"
@@ -59,9 +57,7 @@ pytest-xdist = "^3.5.0"
 testcontainers = "^4.8.0"
 
 [tool.poetry.group.db.dependencies]
-aiosqlite = "^0.19.0"
 asyncpg = "^0.28.0"
-sqlalchemy = ">=2.0.41"
 
 [tool.poetry.group.livekit.dependencies]
 pipecat-ai = { version = "*", extras = ["livekit"] }
@@ -162,7 +158,8 @@ addopts = """
 -p no:logging
 --cov-config=pyproject.toml
 --cov=src
---cov-report=
+--cov-report=xml:cov.xml
+--cov-report=term-missing
 --cov-append
 --no-cov-on-fail
 --asyncio-mode=auto
@@ -177,8 +174,13 @@ filterwarnings = [
   "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning",
   "ignore:The --rsyncdir command line argument and rsyncdirs config variable are deprecated*:DeprecationWarning",
   "ignore:'audioop' is deprecated*:DeprecationWarning",
+  "ignore:create_react_agent has been moved*:langgraph.warnings.LangGraphDeprecatedSinceV10",
+  # httpx/asyncio connection pool cleanup on Windows - third-party issue
+  "ignore:unclosed transport*:ResourceWarning",
+  "ignore:unclosed <socket.socket*:ResourceWarning",
+  "ignore:Exception ignored in*:pytest.PytestUnraisableExceptionWarning",
 ]
-python_files = ["test_*.py"]
+python_files = ["*_test.py"]
 
 [tool.coverage.run]
 concurrency = ["gevent"]                                      # https://stackoverflow.com/a/76033894

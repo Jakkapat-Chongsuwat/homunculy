@@ -1,15 +1,15 @@
 """Rewrite node - Transform query for better retrieval."""
 
-from application.graphs.state import GraphState
+from application.graphs.state import GraphStateBase
 from common.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 async def rewrite_query_node(
-    state: GraphState,
+    state: GraphStateBase,
     rewriter_fn,
-) -> GraphState:
+) -> GraphStateBase:
     """Rewrite query for better retrieval."""
     question = state.get("question", "")
     rewritten = await _rewrite(question, rewriter_fn)

@@ -1,6 +1,6 @@
 """Generate node - Generate response using LLM."""
 
-from application.graphs.state import GraphState, with_generation
+from application.graphs.state import GraphStateBase, with_generation
 from common.logger import get_logger
 from domain.entities import AgentConfiguration
 
@@ -8,10 +8,10 @@ logger = get_logger(__name__)
 
 
 async def generate_node(
-    state: GraphState,
+    state: GraphStateBase,
     llm_fn,
     config: AgentConfiguration,
-) -> GraphState:
+) -> GraphStateBase:
     """Generate response using retrieved documents."""
     question = state.get("question", "")
     docs = state.get("documents", [])

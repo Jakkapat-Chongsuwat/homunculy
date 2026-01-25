@@ -70,7 +70,14 @@ class TTSSettings(BaseSettings):
     default_use_speaker_boost: bool = Field(default=True, description="Enable speaker boost")
 
 
+def _get_elevenlabs_key() -> str | None:
+    """Get ElevenLabs API key from any supported env var."""
+    return (
+        os.getenv("ELEVEN_API_KEY")
+        or os.getenv("ELEVENLABS_API_KEY")
+        or os.getenv("TTS_ELEVENLABS_API_KEY")
+    )
+
+
 # Global TTS settings instance
-tts_settings = TTSSettings(
-    elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY") or os.getenv("TTS_ELEVENLABS_API_KEY"),
-)
+tts_settings = TTSSettings(elevenlabs_api_key=_get_elevenlabs_key())

@@ -1,6 +1,7 @@
 # Homunculy AI Agent Service
 
 🤖 Python/FastAPI backend for AI agents with LiveKit + Pipecat + LangGraph.
+Voice uses LiveKit in infrastructure only, with Swarm-based handoff (assistant ↔ coder) for routing.
 
 ## Architecture
 

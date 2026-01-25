@@ -17,6 +17,18 @@ from domain.interfaces.agent import (
     AgentRouterPort,
     AgentSessionPort,
 )
+from domain.interfaces.dual_system import (
+    CognitionOutput,
+    CognitionPort,
+    DualSystemInput,
+    DualSystemOutput,
+    DualSystemPort,
+    EmotionalTone,
+    EmotionDetectorPort,
+    ReflexOutput,
+    ReflexPort,
+    ResponseType,
+)
 from domain.interfaces.llm import LLMPort
 from domain.interfaces.orchestration import (
     CheckpointerPort,
@@ -55,6 +67,17 @@ __all__ = [
     "AgentPort",
     "AgentRouterPort",
     "AgentSessionPort",
+    # Dual-System (2026 Hybrid Architecture)
+    "CognitionOutput",
+    "CognitionPort",
+    "DualSystemInput",
+    "DualSystemOutput",
+    "DualSystemPort",
+    "EmotionalTone",
+    "EmotionDetectorPort",
+    "ReflexOutput",
+    "ReflexPort",
+    "ResponseType",
     # Orchestration (LangGraph/AutoGen abstraction)
     "CheckpointerPort",
     "OrchestrationConfig",
@@ -77,7 +100,7 @@ __all__ = [
     "TextToSpeechPort",
     "TranscriptionResult",
     "VoiceActivityDetectorPort",
-    # Legacy (to be migrated)
+    # Service ports
     "LLMPort",
     "RAGPort",
     "STTPort",

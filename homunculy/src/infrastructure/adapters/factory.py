@@ -1,8 +1,11 @@
 """
 Adapter Factory - Create adapters based on configuration.
 
-This is the SINGLE POINT where you switch between LangGraph ↔ AutoGen,
-LiveKit ↔ other WebRTC, OpenAI ↔ other providers.
+This is the SINGLE POINT where you switch between:
+- LangGraph ↔ AutoGen (orchestration)
+- LiveKit ↔ Daily (transport)
+- OpenAI ↔ ElevenLabs (pipeline)
+- Reflex ↔ Cognition (dual-system)
 
 Clean Architecture: Infrastructure wiring happens here, not in domain.
 """
@@ -16,8 +19,12 @@ from common.logger import get_logger
 
 if TYPE_CHECKING:
     from domain.interfaces import (
+        CognitionPort,
+        DualSystemPort,
+        EmotionDetectorPort,
         OrchestratorPort,
         PipelinePort,
+        ReflexPort,
         RoomPort,
         SupervisorPort,
         TokenGeneratorPort,
@@ -30,6 +37,7 @@ class OrchestrationFramework(str, Enum):
     """Available orchestration frameworks."""
 
     LANGGRAPH = "langgraph"
+    SWARM = "swarm"
     AUTOGEN = "autogen"  # Future
 
 
@@ -54,6 +62,8 @@ def create_orchestrator(
     """Create orchestrator based on framework."""
     if framework == OrchestrationFramework.LANGGRAPH:
         return _langgraph_orchestrator(**kwargs)
+    if framework == OrchestrationFramework.SWARM:
+        return _swarm_orchestrator(**kwargs)
     if framework == OrchestrationFramework.AUTOGEN:
         return _autogen_orchestrator(**kwargs)
     raise ValueError(f"Unknown framework: {framework}")
@@ -112,17 +122,31 @@ def create_pipeline(
 
 
 def _langgraph_orchestrator(**kwargs) -> "OrchestratorPort":
-    """Create LangGraph orchestrator."""
-    from infrastructure.adapters.orchestration import LangGraphOrchestrator
+    """Create LangGraph orchestrator.
 
-    return LangGraphOrchestrator(**kwargs)
+    For agent use case, wraps the supervisor as orchestrator.
+    If a 'graph' kwarg is provided, uses LangGraphOrchestrator directly.
+    """
+    if "graph" in kwargs:
+        from infrastructure.adapters.orchestration import LangGraphOrchestrator
 
+        return LangGraphOrchestrator(**kwargs)
 
-def _langgraph_supervisor(**kwargs) -> "SupervisorPort":
-    """Create basic LangGraph supervisor (legacy)."""
-    from infrastructure.adapters.orchestration import LangGraphSupervisor
+    # Default: use supervisor-based orchestrator for agents
+    from infrastructure.adapters.orchestration import (
+        LangGraphSupervisorAdapter,
+        SupervisorOrchestrator,
+        register_all_agents,
+    )
+    from infrastructure.config import get_settings
 
-    return LangGraphSupervisor(**kwargs)
+    settings = get_settings()
+    api_key = kwargs.get("api_key", settings.llm.api_key)
+    model = kwargs.get("model", settings.llm.model)
+
+    supervisor = LangGraphSupervisorAdapter(api_key=api_key, model=model)
+    register_all_agents(supervisor, api_key, model)
+    return SupervisorOrchestrator(supervisor)
 
 
 def _langgraph_official_supervisor(
@@ -147,6 +171,17 @@ def _autogen_orchestrator(**kwargs) -> "OrchestratorPort":
     raise NotImplementedError("AutoGen adapter not yet implemented")
 
 
+def _swarm_orchestrator(**kwargs) -> "OrchestratorPort":
+    """Create LangGraph Swarm orchestrator."""
+    from infrastructure.adapters.orchestration import SwarmOrchestrator
+    from infrastructure.config import get_settings
+
+    settings = get_settings()
+    api_key = kwargs.get("api_key", settings.llm.api_key)
+    model = kwargs.get("model", settings.llm.model)
+    return SwarmOrchestrator(api_key=api_key, model=model)
+
+
 def _livekit_room() -> "RoomPort":
     """Create LiveKit room."""
     from infrastructure.adapters.transport import LiveKitRoom
@@ -166,3 +201,52 @@ def _openai_pipeline(**kwargs) -> "PipelinePort":
     from infrastructure.adapters.pipeline import create_openai_pipeline
 
     return create_openai_pipeline(**kwargs)
+
+
+# =============================================================================
+# Dual-System Factories (2026 Architecture)
+# =============================================================================
+
+
+def create_reflex(**kwargs) -> "ReflexPort":
+    """Create reflex adapter for fast responses."""
+    from infrastructure.adapters.dual_system import ReflexAdapter
+
+    return ReflexAdapter(**kwargs)
+
+
+def create_cognition(
+    orchestrator: "OrchestratorPort | None" = None,
+    **kwargs,
+) -> "CognitionPort":
+    """Create cognition adapter for deep reasoning."""
+    from infrastructure.adapters.dual_system import CognitionAdapter
+
+    if orchestrator is None:
+        orchestrator = create_orchestrator()
+    return CognitionAdapter(orchestrator=orchestrator, **kwargs)
+
+
+def create_emotion_detector(**kwargs) -> "EmotionDetectorPort":
+    """Create emotion detector."""
+    from infrastructure.adapters.dual_system import EmotionDetector
+
+    return EmotionDetector(**kwargs)
+
+
+def create_dual_system(
+    reflex: "ReflexPort | None" = None,
+    cognition: "CognitionPort | None" = None,
+    emotion: "EmotionDetectorPort | None" = None,
+) -> "DualSystemPort":
+    """Create dual-system orchestrator.
+
+    This is the main entry point for human-like interaction.
+    Combines reflex (fast) + cognition (deep) in parallel.
+    """
+    from infrastructure.adapters.dual_system import DualSystemOrchestrator
+
+    reflex = reflex or create_reflex()
+    cognition = cognition or create_cognition()
+    emotion = emotion or create_emotion_detector()
+    return DualSystemOrchestrator(reflex, cognition, emotion)

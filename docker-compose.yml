@@ -157,6 +157,7 @@ services:
       dockerfile: Dockerfile
     container_name: management_app
     environment:
+      - LIVEKIT_HOST=http://livekit:7880
       - DB_HOST=management-postgres
       - DB_PORT=5432
       - DB_NAME=management
