@@ -34,8 +34,12 @@ from settings.logging import (
     configure_logging,
     get_logger,
 )
+from settings.telemetry import (
+    configure_opentelemetry,
+)
 
 configure_logging()
+configure_opentelemetry()
 logger = get_logger(__name__)
 
 
@@ -93,10 +97,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Register routes
@@ -121,36 +125,36 @@ async def universal_exception_handler(_, exc):
         exc_info=True,
     )
     return JSONResponse(
-        content={'error': f'{type(exc).__name__}: {exc}'},
+        content={"error": f"{type(exc).__name__}: {exc}"},
         status_code=500,
     )
 
 
 @app.get(
-    '/',
+    "/",
     include_in_schema=False,
 )
 async def root():
     """Root endpoint."""
     return JSONResponse(
         {
-            'service': APP_NAME,
-            'version': APP_VERSION,
-            'status': 'running',
+            "service": APP_NAME,
+            "version": APP_VERSION,
+            "status": "running",
         }
     )
 
 
 @app.get(
-    '/health',
+    "/health",
     include_in_schema=False,
 )
 async def health_check():
     """Health check endpoint."""
     return JSONResponse(
         {
-            'status': 'healthy',
-            'service': APP_NAME,
-            'version': APP_VERSION,
+            "status": "healthy",
+            "service": APP_NAME,
+            "version": APP_VERSION,
         }
     )

@@ -57,10 +57,10 @@ var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithEnvironment("LLM_DEFAULT_TEMPERATURE", "0.7")
     .WithEnvironment("LLM_DEFAULT_MAX_TOKENS", "2000")
     .WithEnvironment("TTS_PROVIDER", "elevenlabs")
-    .WithEnvironment("ELEVEN_API_KEY", elevenLabsApiKey)  // Single source - aliased in code
+    .WithEnvironment("ELEVEN_API_KEY", elevenLabsApiKey)  
     .WithEnvironment("TTS_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     .WithEnvironment("TTS_ELEVENLABS_STREAMING_MODEL_ID", "eleven_turbo_v2_5")
-    .WithEnvironment("TTS_DEFAULT_VOICE_ID", "lhTvHflPVOqgSWyuWQry")  // Custom voice
+    .WithEnvironment("TTS_DEFAULT_VOICE_ID", "lhTvHflPVOqgSWyuWQry")  
     .WithEnvironment("LIVEKIT_URL", livekitWsInternal)
     // Use livekit-worker transport for proper agent framework integration
     .WithEnvironment("AGENT_TRANSPORT", "livekit-worker")
@@ -72,6 +72,7 @@ var homunculyApp = builder.AddContainer("homunculy-app", "homunculy-app")
     .WithEnvironment("LOGGING_LEVEL", "DEBUG")
     .WithEnvironment("LOGGING_FORMAT", "json")
     .WithBindMount("../../homunculy/logs", "/app/logs")
+    .WithOtlpExporter()
     .WaitFor(homunculyMigrations)
     .WaitFor(livekit);
 
@@ -81,6 +82,7 @@ var chatClientWeb = builder.AddContainer("chat-client-web", "chat-client-web")
     .WithHttpEndpoint(port: 5000, targetPort: 5000, name: "http")
     .WithEnvironment("ASPNETCORE_URLS", "http://+:5000")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithOtlpExporter() 
     .WithEnvironment("ConnectionStrings__homunculy-app", homunculyUrl)
     .WithEnvironment("ChatClient__ServerUri", homunculyUrl)
     .WithEnvironment("ChatClient__LiveKit__Url", livekitWsExternal)
@@ -121,6 +123,7 @@ var managementApp = builder.AddContainer("management-app", "management-app")
     .WithEnvironment("LIVEKIT_API_KEY", livekitDevKey)
     .WithEnvironment("LIVEKIT_API_SECRET", livekitDevSecret)
     .WithEnvironment("LIVEKIT_TOKEN_TTL", "3600")
+    .WithOtlpExporter()
     .WithExternalHttpEndpoints()
     .WaitFor(managementMigrations)
     .WaitFor(homunculyApp);
@@ -157,6 +160,10 @@ var ragService = builder.AddContainer("rag-service", "rag-service")
     .WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-small")
     .WithEnvironment("RAG_CHUNK_SIZE", "512")
     .WithEnvironment("RAG_TOP_K", "5")
+    // OpenTelemetry for Aspire Dashboard
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", "http://host.docker.internal:4317")
+    .WithEnvironment("OTEL_SERVICE_NAME", "rag-service")
+    .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
     .WithExternalHttpEndpoints()
     .WaitFor(pineconeLocal);
 

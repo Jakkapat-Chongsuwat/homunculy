@@ -23,10 +23,12 @@ from common.logger import configure_logging, get_logger
 configure_logging()
 logger = get_logger(__name__)
 
+try:
+    from common.telemetry import configure_opentelemetry
 
-# =============================================================================
-# Configuration (single source of truth)
-# =============================================================================
+    configure_opentelemetry()
+except Exception as e:
+    logger.debug("OpenTelemetry not configured", error=str(e))
 
 
 def _env(key: str, default: str = "") -> str:
@@ -40,7 +42,7 @@ def _env_int(key: str, default: int = 0) -> int:
 
 
 # =============================================================================
-# Health Server (minimal - no deps)
+# Health Server
 # =============================================================================
 
 

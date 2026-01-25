@@ -53,7 +53,7 @@ class AssistantAgent(Agent):
         """Greet user on join."""
         logger.info("on_enter called - generating greeting")
         try:
-            self.session.generate_reply(
+            await self.session.generate_reply(
                 instructions="Greet warmly. If you know their name, use it."
             )
             logger.debug("generate_reply called successfully")

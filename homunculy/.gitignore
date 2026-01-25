@@ -44,11 +44,13 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+cov.xml
 *.cover
 *.py,cover
 .hypothesis/
 .pytest_cache/
 cover/
+cov.xml
 
 # Translations
 *.mo
@@ -126,6 +128,9 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+#ruff
+.ruff_cache/
 
 # Pyre type checker
 .pyre/
