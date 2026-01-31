@@ -9,8 +9,10 @@ from domain.entities.agent import (
     AgentResponse,
     AgentStatus,
 )
+from domain.entities.channel import ChannelAccount, ChannelMessage
 from domain.entities.message import Message, MessageRole
 from domain.entities.session import ConversationState, Session
+from domain.entities.tenant import Tenant
 
 __all__ = [
     "Agent",
@@ -20,8 +22,11 @@ __all__ = [
     "AgentProvider",
     "AgentResponse",
     "AgentStatus",
+    "ChannelAccount",
+    "ChannelMessage",
     "ConversationState",
     "Message",
     "MessageRole",
     "Session",
+    "Tenant",
 ]

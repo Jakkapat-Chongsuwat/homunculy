@@ -49,15 +49,6 @@ class TTSSettings:
 
 
 @dataclass
-class LiveKitSettings:
-    """LiveKit settings."""
-
-    url: str = ""
-    api_key: str = ""
-    api_secret: str = ""
-
-
-@dataclass
 class Settings:
     """All application settings."""
 
@@ -65,7 +56,6 @@ class Settings:
     database: DatabaseSettings
     llm: LLMSettings
     tts: TTSSettings
-    livekit: LiveKitSettings
 
 
 @lru_cache
@@ -76,7 +66,6 @@ def get_settings() -> Settings:
         database=_load_database_settings(),
         llm=_load_llm_settings(),
         tts=_load_tts_settings(),
-        livekit=_load_livekit_settings(),
     )
 
 
@@ -120,13 +109,4 @@ def _load_tts_settings() -> TTSSettings:
         api_key=os.getenv("ELEVENLABS_API_KEY", ""),
         model_id=os.getenv("TTS_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"),
         voice_id=os.getenv("TTS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
-    )
-
-
-def _load_livekit_settings() -> LiveKitSettings:
-    """Load LiveKit settings from environment."""
-    return LiveKitSettings(
-        url=os.getenv("LIVEKIT_URL", ""),
-        api_key=os.getenv("LIVEKIT_API_KEY", "devkey"),
-        api_secret=os.getenv("LIVEKIT_API_SECRET", "devsecretdevsecretdevsecretdevsecret"),
     )

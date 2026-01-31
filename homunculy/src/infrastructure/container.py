@@ -15,16 +15,19 @@ from dependency_injector import containers, providers
 from infrastructure.adapters.factory import (
     OrchestrationFramework,
     PipelineProvider,
-    TransportProvider,
     create_cognition,
     create_dual_system,
     create_emotion_detector,
     create_orchestrator,
     create_pipeline,
     create_reflex,
-    create_room,
     create_supervisor,
-    create_token_generator,
+)
+from infrastructure.adapters.gateway.factory import (
+    create_channel_client,
+    create_gateway_orchestrator,
+    create_session_store,
+    create_tenant_policy,
 )
 from infrastructure.adapters.langgraph import LangGraphLLMAdapter
 from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
@@ -39,8 +42,8 @@ class Container(containers.DeclarativeContainer):
     1. Configuration (settings)
     2. Infrastructure (adapters, persistence)
     3. Dual-System (reflex, cognition, orchestrator)
-    4. Transport (LiveKit room, tokens)
-    5. Pipeline (STT/LLM/TTS)
+    4. Pipeline (STT/LLM/TTS)
+    5. Gateway (channel router)
     """
 
     # Configuration
@@ -49,7 +52,6 @@ class Container(containers.DeclarativeContainer):
 
     # --- Framework Selection (change here to switch implementations) ---
     orchestration_framework = providers.Object(OrchestrationFramework.LANGGRAPH)
-    transport_provider = providers.Object(TransportProvider.LIVEKIT)
     pipeline_provider = providers.Object(PipelineProvider.OPENAI)
 
     # --- Orchestration Layer (for Cognition) ---
@@ -76,13 +78,6 @@ class Container(containers.DeclarativeContainer):
         emotion=emotion_detector,
     )
 
-    # --- Transport Layer (LiveKit → Daily swappable) ---
-    room = providers.Factory(create_room, provider=transport_provider)
-    token_generator = providers.Factory(
-        create_token_generator,
-        provider=transport_provider,
-    )
-
     # --- Pipeline Layer (OpenAI → ElevenLabs swappable) ---
     pipeline = providers.Factory(create_pipeline, provider=pipeline_provider)
 
@@ -96,6 +91,15 @@ class Container(containers.DeclarativeContainer):
         ),
         api_key=providers.Callable(lambda s: s.llm.api_key, settings),
         cp=checkpointer,
+    )
+
+    # --- Gateway (channel router) ---
+    session_store = providers.Singleton(create_session_store)
+    tenant_policy = providers.Singleton(create_tenant_policy)
+    channel_client = providers.Singleton(create_channel_client)
+    gateway_orchestrator = providers.Factory(
+        create_gateway_orchestrator,
+        dual_system=dual_system,
     )
 
 
@@ -125,12 +129,12 @@ def get_supervisor():
 
 def get_room():
     """Get room adapter from container."""
-    return container.room()
+    raise RuntimeError("Transport removed from container")
 
 
 def get_token_generator():
     """Get token generator from container."""
-    return container.token_generator()
+    raise RuntimeError("Transport removed from container")
 
 
 def get_pipeline():

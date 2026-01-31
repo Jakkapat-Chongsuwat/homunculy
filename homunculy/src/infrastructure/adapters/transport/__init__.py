@@ -1,16 +1,6 @@
-"""
-Transport Adapters - LiveKit implementation.
+"""Transport Adapters package.
 
-This module provides the LiveKit adapter for TransportPort.
-To switch to another WebRTC solution, create a new adapter implementing the same ports.
+Transport providers were removed. Keep this module for future adapters.
 """
 
-from infrastructure.adapters.transport.livekit_adapter import (
-    LiveKitRoom,
-    LiveKitTokenGenerator,
-)
-
-__all__ = [
-    "LiveKitRoom",
-    "LiveKitTokenGenerator",
-]
+__all__: list[str] = []

@@ -6,6 +6,8 @@ for type-safe configuration with environment variable support.
 """
 
 from .config import settings
+from .gateway import gateway_settings
+from .line import line_settings
 
 # Application settings
 APP_NAME = settings.app.name
@@ -40,6 +42,8 @@ LOG_DATE_FORMAT = settings.logging.date_format
 # Export the settings instance and individual service settings for direct access
 __all__ = [
     "settings",
+    "gateway_settings",
+    "line_settings",
     # Application
     "APP_NAME",
     "APP_VERSION",

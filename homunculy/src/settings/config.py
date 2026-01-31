@@ -17,6 +17,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .app import ApplicationSettings, app_settings
 from .database import DatabaseSettings, database_settings
+from .gateway import GatewaySettings, gateway_settings
+from .line import LineSettings, line_settings
 from .llm import LLMSettings, llm_settings
 from .logging import LoggingSettings, logging_settings
 from .security import SecuritySettings, security_settings
@@ -35,7 +37,9 @@ class Settings(BaseSettings):
 
     app: ApplicationSettings = app_settings
     database: DatabaseSettings = database_settings
+    gateway: GatewaySettings = gateway_settings
     llm: LLMSettings = llm_settings
+    line: LineSettings = line_settings
     security: SecuritySettings = security_settings
     logging: LoggingSettings = logging_settings
     tts: TTSSettings = tts_settings

@@ -1,8 +1,7 @@
-"""
-Transport Ports - Abstract LiveKit/WebRTC.
+"""Transport Ports - Abstract RTC transports.
 
 These interfaces abstract the RTC transport layer so you can
-swap LiveKit for other WebRTC solutions or custom transports.
+swap WebRTC solutions or custom transports.
 """
 
 from abc import ABC, abstractmethod

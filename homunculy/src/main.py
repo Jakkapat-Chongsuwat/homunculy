@@ -9,14 +9,13 @@ Architecture:
 - DualSystemOrchestrator: Coordinates both in parallel
 
 Usage:
-    python -m main              # Worker mode (LiveKit agent)
+    python -m main              # API mode (FastAPI server)
     python -m main --api        # API mode (FastAPI server)
 """
 
 from __future__ import annotations
 
 import os
-import sys
 
 from common.logger import configure_logging, get_logger
 
@@ -34,60 +33,6 @@ except Exception as e:
 def _env(key: str, default: str = "") -> str:
     """Get environment variable."""
     return os.getenv(key, default)
-
-
-def _env_int(key: str, default: int = 0) -> int:
-    """Get integer environment variable."""
-    return int(os.getenv(key, str(default)))
-
-
-# =============================================================================
-# Health Server
-# =============================================================================
-
-
-def _start_health_server(port: int) -> None:
-    """Start background health server."""
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    from threading import Thread
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            ok = self.path == "/health"
-            self.send_response(200 if ok else 404)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"ok" if ok else b"not found")
-
-        def log_message(self, format: str, *args) -> None:  # noqa: A002
-            pass
-
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    Thread(target=server.serve_forever, daemon=True).start()
-    logger.info("Health server started", port=port)
-
-
-# =============================================================================
-# Worker Mode (LiveKit Agent)
-# =============================================================================
-
-
-def run_worker() -> None:
-    """Run as LiveKit agent worker.
-
-    Dependencies wired:
-    1. Health server (background)
-    2. LiveKit worker (foreground)
-    """
-    _start_health_server(_env_int("HEALTH_PORT", 8000))
-    _run_livekit_worker()
-
-
-def _run_livekit_worker() -> None:
-    """Import and run LiveKit worker."""
-    from infrastructure.transport.livekit_agent_worker import run_worker as lk_run
-
-    lk_run()
 
 
 # =============================================================================
@@ -187,10 +132,7 @@ app = create_api()
 
 def main() -> None:
     """CLI entrypoint."""
-    if "--api" in sys.argv:
-        _run_api_server()
-    else:
-        run_worker()
+    _run_api_server()
 
 
 def _run_api_server() -> None:

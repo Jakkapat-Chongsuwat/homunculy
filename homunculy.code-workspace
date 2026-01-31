@@ -1,40 +1,8 @@
 {
 	"folders": [
 		{
-			"name": "management-service",
-			"path": "management-service"
-		},
-		{
-			"name": "homunculy-db",
-			"path": "homunculy-db"
-		},
-		{
-			"name": "management-service-db",
-			"path": "management-service-db"
-		},
-		{
-			"name": "chat-client",
-			"path": "chat-client"
-		},
-		{
-			"name": "aspire",
-			"path": "aspire"
-		},
-		{
 			"name": "homunculy",
 			"path": "homunculy"
-		},
-		{
-			"name": "infra",
-			"path": "infra"
-		},
-		{
-			"name": "rag-service",
-			"path": "rag-service"
-		},
-		{
-			"name": "Homunculy",
-			"path": "."
 		}
 	],
 	"settings": {

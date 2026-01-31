@@ -5,7 +5,7 @@ Infrastructure adapters implement these - allowing swappable implementations.
 
 Key abstractions:
 - OrchestrationPort: LangGraph → AutoGen swappable
-- TransportPort: LiveKit → other WebRTC swappable
+- TransportPort: WebRTC or other transports (optional)
 - PipelinePort: STT/LLM/TTS pipeline abstraction
 """
 
@@ -28,6 +28,13 @@ from domain.interfaces.dual_system import (
     ReflexOutput,
     ReflexPort,
     ResponseType,
+)
+from domain.interfaces.gateway import (
+    ChannelClientPort,
+    ChannelInbound,
+    ChannelOutbound,
+    SessionStorePort,
+    TenantPolicyPort,
 )
 from domain.interfaces.llm import LLMPort
 from domain.interfaces.orchestration import (
@@ -92,6 +99,12 @@ __all__ = [
     "SessionConfig",
     "TokenGeneratorPort",
     "TransportServicePort",
+    # Gateway (channel routing)
+    "ChannelClientPort",
+    "ChannelInbound",
+    "ChannelOutbound",
+    "SessionStorePort",
+    "TenantPolicyPort",
     # Pipeline (STT/LLM/TTS abstraction)
     "PipelineConfig",
     "PipelinePort",

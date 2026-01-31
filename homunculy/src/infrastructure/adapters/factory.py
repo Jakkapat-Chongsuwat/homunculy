@@ -3,12 +3,8 @@ Adapter Factory - Create adapters based on configuration.
 
 This is the SINGLE POINT where you switch between:
 - LangGraph ↔ AutoGen (orchestration)
-- LiveKit ↔ Daily (transport)
 - OpenAI ↔ ElevenLabs (pipeline)
 - Reflex ↔ Cognition (dual-system)
- - LangGraph ↔ AutoGen (orchestration)
- - OpenAI ↔ ElevenLabs (pipeline)
- - Reflex ↔ Cognition (dual-system)
 
 Clean Architecture: Infrastructure wiring happens here, not in domain.
 """
@@ -28,9 +24,7 @@ if TYPE_CHECKING:
         OrchestratorPort,
         PipelinePort,
         ReflexPort,
-        RoomPort,
         SupervisorPort,
-        TokenGeneratorPort,
     )
 
 logger = get_logger(__name__)
@@ -42,12 +36,6 @@ class OrchestrationFramework(str, Enum):
     LANGGRAPH = "langgraph"
     SWARM = "swarm"
     AUTOGEN = "autogen"  # Future
-
-
-class TransportProvider(str, Enum):
-    """Available transport providers."""
-
-    # Transport providers removed (LiveKit/Pipecat removed from project)
 
 
 class PipelineProvider(str, Enum):
@@ -89,23 +77,6 @@ def create_supervisor(
     if framework == OrchestrationFramework.LANGGRAPH:
         return _langgraph_official_supervisor(api_key, model, register_agents)
     raise ValueError(f"Unknown framework: {framework}")
-
-
-def create_room():
-    """Room transport removed from project.
-
-    LiveKit and other transport providers were removed. This factory
-    no longer creates room adapters. Callers should not request
-    transport-specific adapters anymore.
-    """
-    raise NotImplementedError("Transport providers removed from project")
-
-
-def create_token_generator(
-    **kwargs,
-) -> "TokenGeneratorPort":
-    """Token generator removed from project (LiveKit-specific)."""
-    raise NotImplementedError("Token generator removed from project")
 
 
 def create_pipeline(
@@ -180,14 +151,6 @@ def _swarm_orchestrator(**kwargs) -> "OrchestratorPort":
     api_key = kwargs.get("api_key", settings.llm.api_key)
     model = kwargs.get("model", settings.llm.model)
     return SwarmOrchestrator(api_key=api_key, model=model)
-
-
-def _livekit_room() -> "RoomPort":
-    raise NotImplementedError("LiveKit transport removed from project")
-
-
-def _livekit_token_generator(**kwargs) -> "TokenGeneratorPort":
-    raise NotImplementedError("LiveKit token generator removed from project")
 
 
 def _openai_pipeline(**kwargs) -> "PipelinePort":
