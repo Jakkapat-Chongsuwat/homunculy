@@ -7,10 +7,9 @@ var urls = BuildUrls();
 var homunculySecrets = AddHomunculySecrets(builder);
 var managementSecrets = AddManagementSecrets(builder);
 
-var livekit = AddLivekit(builder);
 var homunculyPostgres = AddHomunculyPostgres(builder, homunculySecrets.DbPassword);
 var homunculyMigrations = AddHomunculyMigrations(builder, homunculyPostgres, homunculySecrets.DbPassword);
-var homunculyApp = AddHomunculyApp(builder, homunculySecrets, urls, homunculyMigrations, livekit);
+var homunculyApp = AddHomunculyApp(builder, homunculySecrets, urls, homunculyMigrations);
 
 AddChatClientWeb(builder, urls, homunculyApp);
 
@@ -29,12 +28,8 @@ static IDistributedApplicationBuilder CreateBuilder(string[] args)
 
 static Urls BuildUrls()
     => new(
-        "ws://livekit:7880",
-        "ws://localhost:7880",
         "http://homunculy-app:8000",
-        "http://management-app:8080",
-        "devkey",
-        "devsecretdevsecretdevsecretdevsecret");
+        "http://management-app:8080");
 
 static HomunculySecrets AddHomunculySecrets(IDistributedApplicationBuilder builder)
     => new(
@@ -45,14 +40,7 @@ static HomunculySecrets AddHomunculySecrets(IDistributedApplicationBuilder build
 static ManagementSecrets AddManagementSecrets(IDistributedApplicationBuilder builder)
     => new(builder.AddParameter("management-db-password", secret: true));
 
-static IResourceBuilder<ContainerResource> AddLivekit(IDistributedApplicationBuilder builder)
-    => builder.AddContainer("livekit", "livekit/livekit-server", "v1.9.11")
-        .WithBindMount("../../infra/livekit/livekit.yaml", "/livekit.yaml")
-        .WithArgs("--config", "/livekit.yaml")
-        .WithHttpEndpoint(port: 7880, targetPort: 7880, name: "http")
-        .WithEndpoint(port: 7881, targetPort: 7881, name: "rtc-tcp")
-        .WithEndpoint(port: 50000, targetPort: 50000, name: "rtc-udp", protocol: System.Net.Sockets.ProtocolType.Udp)
-        .WithExternalHttpEndpoints();
+//
 
 static IResourceBuilder<PostgresServerResource> AddHomunculyPostgres(
     IDistributedApplicationBuilder builder,
@@ -82,8 +70,7 @@ static IResourceBuilder<ContainerResource> AddHomunculyApp(
     IDistributedApplicationBuilder builder,
     HomunculySecrets secrets,
     Urls urls,
-    IResourceBuilder<ContainerResource> migrations,
-    IResourceBuilder<ContainerResource> livekit)
+    IResourceBuilder<ContainerResource> migrations)
 {
     return builder.AddContainer("homunculy-app", "homunculy-app")
         .WithDockerfile("../../homunculy", "Dockerfile")
@@ -103,12 +90,8 @@ static IResourceBuilder<ContainerResource> AddHomunculyApp(
         .WithEnvironment("TTS_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
         .WithEnvironment("TTS_ELEVENLABS_STREAMING_MODEL_ID", "eleven_turbo_v2_5")
         .WithEnvironment("TTS_DEFAULT_VOICE_ID", "lhTvHflPVOqgSWyuWQry")
-        .WithEnvironment("LIVEKIT_URL", urls.LivekitWsInternal)
-        .WithEnvironment("AGENT_TRANSPORT", "livekit-worker")
-        .WithEnvironment("AGENT_NAME", "homunculy-super")
         .WithEnvironment("HEALTH_PORT", "8000")
-        .WithEnvironment("LIVEKIT_API_KEY", urls.LivekitDevKey)
-        .WithEnvironment("LIVEKIT_API_SECRET", urls.LivekitDevSecret)
+        //
         .WithEnvironment("OPENAI_API_KEY", secrets.OpenaiApiKey)
         .WithEnvironment("LOGGING_LEVEL", "DEBUG")
         .WithEnvironment("LOGGING_FORMAT", "json")
@@ -116,7 +99,7 @@ static IResourceBuilder<ContainerResource> AddHomunculyApp(
         .WithContainerRuntimeArgs("--add-host=host.docker.internal:host-gateway")
         .WithOtlpExporter(OtlpProtocol.HttpProtobuf)
         .WaitFor(migrations)
-        .WaitFor(livekit);
+        ;
 }
 
 static IResourceBuilder<ContainerResource> AddChatClientWeb(
@@ -132,8 +115,7 @@ static IResourceBuilder<ContainerResource> AddChatClientWeb(
         .WithOtlpExporter(OtlpProtocol.HttpProtobuf)
         .WithEnvironment("ConnectionStrings__homunculy-app", urls.HomunculyUrl)
         .WithEnvironment("ChatClient__ServerUri", urls.HomunculyUrl)
-        .WithEnvironment("ChatClient__LiveKit__Url", urls.LivekitWsExternal)
-        .WithEnvironment("ChatClient__LiveKit__TokenEndpoint", $"{urls.ManagementUrl}/api/v1/livekit/token")
+        //
         .WithExternalHttpEndpoints()
         .WaitFor(homunculyApp);
 
@@ -171,7 +153,7 @@ static IResourceBuilder<ContainerResource> AddManagementApp(
         .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http")
         .WithEnvironment("SERVER_HOST", "0.0.0.0")
         .WithEnvironment("SERVER_PORT", "8080")
-        .WithEnvironment("LIVEKIT_HOST", "http://livekit:7880")
+        //
         .WithEnvironment("DB_HOST", "management-postgres")
         .WithEnvironment("DB_PORT", "5432")
         .WithEnvironment("DB_NAME", "management")
@@ -180,9 +162,7 @@ static IResourceBuilder<ContainerResource> AddManagementApp(
         .WithEnvironment("DB_SSL_MODE", "disable")
         .WithEnvironment("HOMUNCULY_BASE_URL", urls.HomunculyUrl)
         .WithEnvironment("HOMUNCULY_API_KEY", "dev_api_key_123")
-        .WithEnvironment("LIVEKIT_API_KEY", urls.LivekitDevKey)
-        .WithEnvironment("LIVEKIT_API_SECRET", urls.LivekitDevSecret)
-        .WithEnvironment("LIVEKIT_TOKEN_TTL", "3600")
+        //
         .WithContainerRuntimeArgs("--add-host=host.docker.internal:host-gateway")
         .WithOtlpExporter(OtlpProtocol.HttpProtobuf)
         .WithExternalHttpEndpoints()
@@ -190,12 +170,8 @@ static IResourceBuilder<ContainerResource> AddManagementApp(
         .WaitFor(homunculyApp);
 
 record Urls(
-    string LivekitWsInternal,
-    string LivekitWsExternal,
     string HomunculyUrl,
-    string ManagementUrl,
-    string LivekitDevKey,
-    string LivekitDevSecret);
+    string ManagementUrl);
 
 record HomunculySecrets(
     IResourceBuilder<ParameterResource> DbPassword,

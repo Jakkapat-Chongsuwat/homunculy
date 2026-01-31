@@ -15,8 +15,6 @@
   "env_vars": [
     "OPENAI_API_KEY",
     "ELEVENLABS_API_KEY",
-    "LIVEKIT_API_KEY",
-    "LIVEKIT_API_SECRET",
     "DB_HOST",
     "DB_PORT",
     "DB_NAME",

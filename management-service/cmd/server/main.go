@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"management-service/internal/adapters/http/handlers"
 	"management-service/internal/adapters/http/routes"
 	"management-service/internal/infrastructure/config"
 	"management-service/internal/infrastructure/database"
-	"management-service/internal/infrastructure/livekit"
-	livekitusecase "management-service/internal/usecases/livekit"
+
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,7 +23,7 @@ func main() {
 	defer closeDb(dbFactory, logger)
 	initDb(dbFactory, logger)
 	app := newApp(logger)
-	setupRoutes(app, createLiveKitHandler(cfg))
+	setupRoutes(app)
 	startServer(app, cfg, logger)
 	awaitShutdown(app, logger)
 }
@@ -71,8 +69,10 @@ func errorHandler(logger *zap.Logger) fiber.ErrorHandler {
 	}
 }
 
-func setupRoutes(app *fiber.App, livekitHandler *handlers.LiveKitHandler) {
-	routes.SetupRoutes(app, nil, nil, nil, livekitHandler)
+func setupRoutes(app *fiber.App) {
+	// Handlers are currently constructed inside the adapters; pass nil
+	// for optional handlers to avoid wiring LiveKit-specific handlers.
+	routes.SetupRoutes(app, nil, nil, nil)
 }
 
 func startServer(app *fiber.App, cfg *config.Config, logger *zap.Logger) {
@@ -103,34 +103,4 @@ func shutdown(app *fiber.App, logger *zap.Logger) {
 	logger.Info("Server exited")
 }
 
-func createLiveKitHandler(cfg *config.Config) *handlers.LiveKitHandler {
-	issuer := tokenIssuer(cfg)
-	if issuer == nil {
-		return nil
-	}
-	agentJoiner := createAgentJoiner(cfg)
-	return handlers.NewLiveKitHandler(tokenUseCase(issuer, agentJoiner, cfg))
-}
-
-func tokenIssuer(cfg *config.Config) *livekit.TokenIssuer {
-	if missingLiveKit(cfg) {
-		return nil
-	}
-	return livekit.NewTokenIssuer(cfg.LiveKit.APIKey, cfg.LiveKit.APISecret)
-}
-
-func missingLiveKit(cfg *config.Config) bool {
-	return cfg.LiveKit.APIKey == "" || cfg.LiveKit.APISecret == ""
-}
-
-func createAgentJoiner(cfg *config.Config) *livekit.DispatchAgentJoiner {
-	if missingLiveKit(cfg) {
-		return nil
-	}
-	agentName := "homunculy-super" // Default agent name
-	return livekit.NewDispatchAgentJoiner(cfg.LiveKit.Host, cfg.LiveKit.APIKey, cfg.LiveKit.APISecret, agentName)
-}
-
-func tokenUseCase(issuer *livekit.TokenIssuer, joiner *livekit.DispatchAgentJoiner, cfg *config.Config) *livekitusecase.CreateTokenUseCase {
-	return livekitusecase.NewCreateTokenUseCase(issuer, joiner, cfg.LiveKit.TokenTTL)
-}
+// LiveKit integration removed

@@ -32,13 +32,6 @@ opentelemetry-sdk = "^1.26.0"
 opentelemetry-exporter-otlp-proto-http = "^1.26.0"
 opentelemetry-instrumentation-logging = "^0.47b0"
 elevenlabs = "^2.30.0"
-livekit-agents = "^1.3.10"
-livekit-plugins-openai = "^1.3.10"
-livekit-plugins-elevenlabs = "^1.3.10"
-pipecat-ai = "^0.0.98"
-livekit-plugins-silero = "^1.3.10"
-livekit-plugins-langchain = "^1.3.10"
-
 [tool.poetry.group.dev.dependencies]
 autoflake = "^2.3.1"
 libcst = "*"
@@ -63,9 +56,7 @@ testcontainers = "^4.8.0"
 [tool.poetry.group.db.dependencies]
 asyncpg = "^0.28.0"
 
-[tool.poetry.group.livekit.dependencies]
-pipecat-ai = { version = "*", extras = ["livekit"] }
-livekit-agents = { version = "~=1.3", extras = ["langchain"], python = ">=3.12,<3.14" }
+
 
 [tool.pylint]
 extension-pkg-whitelist = ["pydantic"]
@@ -141,8 +132,6 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [
-  "livekit.*",
-  "pipecat.*",
   "langgraph.*",
   "langchain.*",
   "langchain_core.*",

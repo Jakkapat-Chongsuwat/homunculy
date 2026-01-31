@@ -1,7 +1,6 @@
 # Homunculy AI Agent Service
 
-🤖 Python/FastAPI backend for AI agents with LiveKit + Pipecat + LangGraph.
-Voice uses LiveKit in infrastructure only, with Swarm-based handoff (assistant ↔ coder) for routing.
+🤖 Python/FastAPI backend for AI agents with LangGraph.
 
 ## Architecture
 
@@ -40,8 +39,4 @@ poetry install && make up   # :8000
 make test                   # 90+ tests
 ```
 
-## Voice (LiveKit)
-
-```bash
-make livekit-up && make livekit-agent
-```
+<!-- LiveKit and Pipecat removed -->

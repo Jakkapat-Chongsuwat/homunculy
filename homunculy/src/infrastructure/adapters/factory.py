@@ -6,6 +6,9 @@ This is the SINGLE POINT where you switch between:
 - LiveKit ↔ Daily (transport)
 - OpenAI ↔ ElevenLabs (pipeline)
 - Reflex ↔ Cognition (dual-system)
+ - LangGraph ↔ AutoGen (orchestration)
+ - OpenAI ↔ ElevenLabs (pipeline)
+ - Reflex ↔ Cognition (dual-system)
 
 Clean Architecture: Infrastructure wiring happens here, not in domain.
 """
@@ -44,8 +47,7 @@ class OrchestrationFramework(str, Enum):
 class TransportProvider(str, Enum):
     """Available transport providers."""
 
-    LIVEKIT = "livekit"
-    DAILY = "daily"  # Future
+    # Transport providers removed (LiveKit/Pipecat removed from project)
 
 
 class PipelineProvider(str, Enum):
@@ -89,23 +91,21 @@ def create_supervisor(
     raise ValueError(f"Unknown framework: {framework}")
 
 
-def create_room(
-    provider: TransportProvider = TransportProvider.LIVEKIT,
-) -> "RoomPort":
-    """Create room adapter based on provider."""
-    if provider == TransportProvider.LIVEKIT:
-        return _livekit_room()
-    raise ValueError(f"Unknown provider: {provider}")
+def create_room():
+    """Room transport removed from project.
+
+    LiveKit and other transport providers were removed. This factory
+    no longer creates room adapters. Callers should not request
+    transport-specific adapters anymore.
+    """
+    raise NotImplementedError("Transport providers removed from project")
 
 
 def create_token_generator(
-    provider: TransportProvider = TransportProvider.LIVEKIT,
     **kwargs,
 ) -> "TokenGeneratorPort":
-    """Create token generator based on provider."""
-    if provider == TransportProvider.LIVEKIT:
-        return _livekit_token_generator(**kwargs)
-    raise ValueError(f"Unknown provider: {provider}")
+    """Token generator removed from project (LiveKit-specific)."""
+    raise NotImplementedError("Token generator removed from project")
 
 
 def create_pipeline(
@@ -183,17 +183,11 @@ def _swarm_orchestrator(**kwargs) -> "OrchestratorPort":
 
 
 def _livekit_room() -> "RoomPort":
-    """Create LiveKit room."""
-    from infrastructure.adapters.transport import LiveKitRoom
-
-    return LiveKitRoom()
+    raise NotImplementedError("LiveKit transport removed from project")
 
 
 def _livekit_token_generator(**kwargs) -> "TokenGeneratorPort":
-    """Create LiveKit token generator."""
-    from infrastructure.adapters.transport import LiveKitTokenGenerator
-
-    return LiveKitTokenGenerator(**kwargs)
+    raise NotImplementedError("LiveKit token generator removed from project")
 
 
 def _openai_pipeline(**kwargs) -> "PipelinePort":
