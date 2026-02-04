@@ -3,8 +3,7 @@
 # ===========================================
 FROM python:3.12-slim-bookworm AS builder
 
-LABEL project="homunculy-clean-architecture"
-LABEL description="FastAPI-based AI agent management system with Clean Architecture"
+LABEL project="homunculy"
 
 # Set environment variables for Python
 ENV PYTHONUNBUFFERED=1 \
@@ -60,6 +59,9 @@ WORKDIR $APP_HOME
 
 # Copy application code
 COPY --chown=appuser:appuser ./src .
+
+# Copy config files
+COPY --chown=appuser:appuser ./config ./config
 
 # Create logs and nltk_data directories
 RUN mkdir -p logs /app/nltk_data && chown -R appuser:appuser logs /app/nltk_data

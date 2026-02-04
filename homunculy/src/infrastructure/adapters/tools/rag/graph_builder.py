@@ -1,11 +1,9 @@
-"""Graph builder - Abstract graph compilation.
+"""RAG Graph Builder - Application layer graph definition.
 
-This module provides a framework-agnostic interface for building
-orchestration graphs. The actual LangGraph implementation is in
-infrastructure/adapters/orchestration.
+This module defines WHAT the RAG graph does (nodes, edges, routing).
+The actual LangGraph implementation is in infrastructure.
 
-Clean Architecture: Application layer defines WHAT to build,
-Infrastructure defines HOW (LangGraph/AutoGen/etc).
+Moved from application/rag_graph/ to be a tool, not the main agent.
 """
 
 from dataclasses import dataclass
@@ -98,4 +96,4 @@ def _grade_docs_routes() -> dict[str, str]:
 
 def _grade_gen_routes() -> dict[str, str]:
     """Route map for generation grading."""
-    return {"useful": "__end__", "not_useful": REWRITE}
+    return {"end": "__end__", "retry": REWRITE}

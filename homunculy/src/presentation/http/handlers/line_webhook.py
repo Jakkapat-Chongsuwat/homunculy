@@ -1,10 +1,16 @@
 """LINE webhook handler for channel routing."""
 
-from fastapi import APIRouter, Depends, Request
+import base64
+import hashlib
+import hmac
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from application.use_cases.gateway import RouteInboundInput, RouteInboundUseCase
 from infrastructure.container import container
+from settings import line_settings
 
 router = APIRouter()
 
@@ -32,10 +38,18 @@ async def line_webhook(
     use_case: RouteInboundUseCase = Depends(get_gateway_use_case),
 ) -> LineWebhookResponse:
     """Handle LINE webhook events."""
-    payload = await request.json()
+    body = await request.body()
+    _verify_signature(request, body)
+    payload = json.loads(body)
     tenant_id = _tenant_id(request)
     handled = await _handle_events(payload, tenant_id, use_case)
     return LineWebhookResponse(status="ok", handled=handled)
+
+
+@router.get("/line/webhook", include_in_schema=False)
+async def line_webhook_verify() -> LineWebhookResponse:
+    """Handle webhook verification."""
+    return LineWebhookResponse(status="ok", handled=0)
 
 
 async def _handle_events(payload: dict, tenant_id: str, use_case: RouteInboundUseCase) -> int:
@@ -90,6 +104,31 @@ def _meta(event: dict) -> dict:
         "sender_id": _user_id(event),
         "target_id": _target_id(event),
     }
+
+
+def _verify_signature(request: Request, body: bytes) -> None:
+    """Verify LINE signature if secret is configured."""
+    secret = _resolve_secret(request)
+    if not secret:
+        return
+    header = request.headers.get("X-Line-Signature", "")
+    expected = _signature(secret, body)
+    if not hmac.compare_digest(header, expected):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+
+def _signature(secret: str, body: bytes) -> str:
+    """Compute LINE signature header value."""
+    mac = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).digest()
+    return base64.b64encode(mac).decode("utf-8")
+
+
+def _resolve_secret(request: Request) -> str:
+    """Resolve channel secret from token provider or settings."""
+    tenant_id = _tenant_id(request)
+    token_provider = container.token_provider()
+    secret = token_provider.get_secret(tenant_id, "line", "default")
+    return secret or line_settings.channel_secret
 
 
 def _source(event: dict) -> dict:

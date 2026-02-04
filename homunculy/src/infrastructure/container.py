@@ -28,6 +28,7 @@ from infrastructure.adapters.gateway.factory import (
     create_gateway_orchestrator,
     create_session_store,
     create_tenant_policy,
+    create_token_provider,
 )
 from infrastructure.adapters.langgraph import LangGraphLLMAdapter
 from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
@@ -35,23 +36,17 @@ from infrastructure.config import get_settings
 
 
 class Container(containers.DeclarativeContainer):
-    """
-    Main DI container for Homunculy application.
-
-    Wiring order:
-    1. Configuration (settings)
-    2. Infrastructure (adapters, persistence)
-    3. Dual-System (reflex, cognition, orchestrator)
-    4. Pipeline (STT/LLM/TTS)
-    5. Gateway (channel router)
-    """
+    """Main DI container for Homunculy application."""
 
     # Configuration
     config = providers.Configuration()
     settings = providers.Singleton(get_settings)
 
     # --- Framework Selection (change here to switch implementations) ---
-    orchestration_framework = providers.Object(OrchestrationFramework.LANGGRAPH)
+    orchestration_framework = providers.Callable(
+        lambda s: _resolve_orchestration_framework(s),
+        settings,
+    )
     pipeline_provider = providers.Object(PipelineProvider.OPENAI)
 
     # --- Orchestration Layer (for Cognition) ---
@@ -96,6 +91,7 @@ class Container(containers.DeclarativeContainer):
     # --- Gateway (channel router) ---
     session_store = providers.Singleton(create_session_store)
     tenant_policy = providers.Singleton(create_tenant_policy)
+    token_provider = providers.Singleton(create_token_provider)
     channel_client = providers.Singleton(create_channel_client)
     gateway_orchestrator = providers.Factory(
         create_gateway_orchestrator,
@@ -105,6 +101,13 @@ class Container(containers.DeclarativeContainer):
 
 # Global container instance
 container = Container()
+
+
+def _resolve_orchestration_framework(settings) -> OrchestrationFramework:
+    try:
+        return OrchestrationFramework(settings.orchestration.framework)
+    except ValueError:
+        return OrchestrationFramework.LANGGRAPH
 
 
 def get_container() -> Container:

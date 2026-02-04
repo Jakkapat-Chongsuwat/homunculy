@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
+import json
 import tempfile
 
 import pytest
@@ -24,6 +28,10 @@ def postgres_container():
         yield postgres
 
 
+# Test secret for LINE signature verification
+TEST_LINE_SECRET = "test-secret-for-line-webhook"
+
+
 @pytest_asyncio.fixture
 async def test_app(postgres_container: PostgresContainer, monkeypatch):
     conn_url = postgres_container.get_connection_url()
@@ -39,6 +47,8 @@ async def test_app(postgres_container: PostgresContainer, monkeypatch):
     monkeypatch.setenv("DB_PASSWORD", user_pass[1])
     monkeypatch.setenv("GATEWAY_REDIS_EMBEDDED", "true")
     monkeypatch.setenv("GATEWAY_REDIS_FILE", _redis_file())
+    # Set LINE channel secret for signature validation
+    monkeypatch.setenv("LINE_CHANNEL_SECRET", TEST_LINE_SECRET)
 
     from main import create_api
 
@@ -48,6 +58,12 @@ async def test_app(postgres_container: PostgresContainer, monkeypatch):
 
 def _redis_file() -> str:
     return f"{tempfile.mkdtemp()}/homunculy-redis.db"
+
+
+def _compute_signature(secret: str, body: bytes) -> str:
+    """Compute LINE signature header value."""
+    mac = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).digest()
+    return base64.b64encode(mac).decode("utf-8")
 
 
 @pytest_asyncio.fixture
@@ -73,6 +89,16 @@ async def test_line_webhook_accepts_text_event(client: AsyncClient):
             }
         ]
     }
-    response = await client.post("/api/v1/channels/line/webhook", json=payload)
+    body = json.dumps(payload).encode("utf-8")
+    signature = _compute_signature(TEST_LINE_SECRET, body)
+
+    response = await client.post(
+        "/api/v1/channels/line/webhook",
+        content=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Line-Signature": signature,
+        },
+    )
     assert response.status_code == 200
     assert response.json()["handled"] == 1

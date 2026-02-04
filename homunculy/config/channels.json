@@ -1,0 +1,12 @@
+{
+  "tenants": {
+    "default": {
+      "channels": {
+        "line": {
+          "token_env": "LINE_CHANNEL_ACCESS_TOKEN",
+          "secret_env": "LINE_CHANNEL_SECRET"
+        }
+      }
+    }
+  }
+}

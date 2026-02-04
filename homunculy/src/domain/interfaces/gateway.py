@@ -59,3 +59,17 @@ class TenantPolicyPort(ABC):
     def allow(self, inbound: ChannelInbound) -> bool:
         """Check if inbound message is allowed."""
         ...
+
+
+class ChannelTokenProviderPort(ABC):
+    """Provide channel tokens per tenant/target."""
+
+    @abstractmethod
+    def get_token(self, tenant_id: str, channel: str, target_id: str) -> str | None:
+        """Get token for outbound channel call."""
+        ...
+
+    @abstractmethod
+    def get_secret(self, tenant_id: str, channel: str, target_id: str) -> str | None:
+        """Get secret for inbound channel verification."""
+        ...

@@ -11,7 +11,9 @@ from testcontainers.core.container import DockerContainer
 
 from domain.interfaces import ChannelOutbound
 from infrastructure.adapters.channels.line_client import LineChannelClient
+from infrastructure.adapters.gateway.token_provider import ConfigTokenProvider
 from settings import line_settings
+from settings.config import settings
 
 
 @pytest.fixture(scope="module")
@@ -33,9 +35,10 @@ def wiremock():
 @pytest.mark.asyncio
 async def test_line_reply_and_push(wiremock, monkeypatch):
     monkeypatch.setattr(line_settings, "api_base", wiremock)
-    monkeypatch.setattr(line_settings, "channel_access_token", "test-token")
+    monkeypatch.setattr(line_settings, "channel_access_token", "")
+    monkeypatch.setattr(settings.gateway, "channels_config_file", _config_file())
 
-    client = LineChannelClient()
+    client = LineChannelClient(ConfigTokenProvider())
     await client.send(_reply_message())
     await client.send(_push_message())
 
@@ -71,6 +74,10 @@ def _stub_wiremock(base_url: str) -> None:
         "response": {"status": 200, "jsonBody": {"ok": True}},
     }
     _post_with_retry(f"{base_url}/__admin/mappings", payload)
+
+
+def _config_file() -> str:
+    return "config/channels.json"
 
 
 def _post_with_retry(url: str, payload: dict) -> None:

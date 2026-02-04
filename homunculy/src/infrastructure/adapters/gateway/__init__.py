@@ -5,6 +5,7 @@ from infrastructure.adapters.gateway.factory import (
     create_gateway_orchestrator,
     create_session_store,
     create_tenant_policy,
+    create_token_provider,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "create_gateway_orchestrator",
     "create_session_store",
     "create_tenant_policy",
+    "create_token_provider",
 ]

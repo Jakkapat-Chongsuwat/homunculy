@@ -48,5 +48,5 @@ def with_generation(state: GraphStateBase, text: str) -> GraphStateBase:
 
 
 def increment_retry(state: GraphStateBase) -> GraphStateBase:
-    """Return state with incremented retry count."""
+    """Return state with retry count incremented."""
     return {**state, "retry_count": state["retry_count"] + 1}

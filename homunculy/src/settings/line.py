@@ -15,6 +15,7 @@ class LineSettings(BaseSettings):
     )
 
     channel_access_token: str = Field(default="", description="LINE channel access token")
+    channel_secret: str = Field(default="", description="LINE channel secret")
     api_base: str = Field(default="https://api.line.me", description="LINE API base URL")
 
 

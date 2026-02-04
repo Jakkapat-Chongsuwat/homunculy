@@ -27,6 +27,14 @@ except ImportError:
 
 from settings.logging import LogFormat, logging_settings
 
+_NOISY_LOGGERS = (
+    "urllib3",
+    "urllib3.connectionpool",
+    "httpx",
+    "opentelemetry.exporter",
+    "opentelemetry.sdk._logs",
+)
+
 
 @runtime_checkable
 class Logger(Protocol):
@@ -88,6 +96,7 @@ def _configure_standard_logging() -> None:
         datefmt=logging_settings.date_format,
         stream=sys.stdout,
     )
+    _tune_library_loggers()
     logging.info("Standard logging configured", extra={"format": "text"})
 
 
@@ -133,6 +142,7 @@ def _configure_structlog() -> None:
         stream=sys.stdout,
         level=logging_settings.level,
     )
+    _tune_library_loggers()
 
     # Get logger to confirm configuration
     logger = structlog.get_logger()
@@ -141,6 +151,15 @@ def _configure_structlog() -> None:
         format="json" if not is_dev else "console",
         level=logging_settings.level,
     )
+
+
+def _set_logger_levels(names: tuple[str, ...], level: int) -> None:
+    for name in names:
+        logging.getLogger(name).setLevel(level)
+
+
+def _tune_library_loggers() -> None:
+    _set_logger_levels(_NOISY_LOGGERS, logging.WARNING)
 
 
 class StandardLoggerAdapter:

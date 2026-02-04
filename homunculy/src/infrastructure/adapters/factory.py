@@ -34,6 +34,7 @@ class OrchestrationFramework(str, Enum):
     """Available orchestration frameworks."""
 
     LANGGRAPH = "langgraph"
+    SUPERVISOR = "supervisor"
     SWARM = "swarm"
     AUTOGEN = "autogen"  # Future
 
@@ -50,6 +51,8 @@ def create_orchestrator(
     **kwargs,
 ) -> "OrchestratorPort":
     """Create orchestrator based on framework."""
+    if framework == OrchestrationFramework.SUPERVISOR:
+        return _langgraph_supervisor_orchestrator(**kwargs)
     if framework == OrchestrationFramework.LANGGRAPH:
         return _langgraph_orchestrator(**kwargs)
     if framework == OrchestrationFramework.SWARM:
@@ -95,15 +98,19 @@ def create_pipeline(
 def _langgraph_orchestrator(**kwargs) -> "OrchestratorPort":
     """Create LangGraph orchestrator.
 
-    For agent use case, wraps the supervisor as orchestrator.
     If a 'graph' kwarg is provided, uses LangGraphOrchestrator directly.
+    Otherwise defaults to the supervisor-based orchestrator.
     """
     if "graph" in kwargs:
         from infrastructure.adapters.orchestration import LangGraphOrchestrator
 
         return LangGraphOrchestrator(**kwargs)
 
-    # Default: use supervisor-based orchestrator for agents
+    return _langgraph_supervisor_orchestrator(**kwargs)
+
+
+def _langgraph_supervisor_orchestrator(**kwargs) -> "OrchestratorPort":
+    """Create LangGraph supervisor-based orchestrator."""
     from infrastructure.adapters.orchestration import (
         LangGraphSupervisorAdapter,
         SupervisorOrchestrator,

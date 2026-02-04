@@ -9,6 +9,7 @@ from domain.interfaces import (
 from infrastructure.adapters.channels import LineChannelClient
 from infrastructure.adapters.gateway.orchestrator import GatewayOrchestrator
 from infrastructure.adapters.gateway.policy import AllowAllTenantPolicy
+from infrastructure.adapters.gateway.token_provider import ConfigTokenProvider
 from infrastructure.persistence.redislite_session_store import RedisliteSessionStore
 from infrastructure.persistence.session_store import InMemorySessionStore
 from infrastructure.persistence.sqlite_session_store import SQLiteSessionStore
@@ -17,7 +18,7 @@ from settings.config import settings
 
 def create_channel_client() -> ChannelClientPort:
     """Create channel client (LINE stub by default)."""
-    return LineChannelClient()
+    return LineChannelClient(create_token_provider())
 
 
 def create_session_store() -> SessionStorePort:
@@ -45,6 +46,11 @@ def _embedded_store() -> SessionStorePort | None:
 def create_tenant_policy() -> TenantPolicyPort:
     """Create tenant policy implementation."""
     return AllowAllTenantPolicy()
+
+
+def create_token_provider() -> ConfigTokenProvider:
+    """Create channel token provider."""
+    return ConfigTokenProvider()
 
 
 def create_gateway_orchestrator(dual_system) -> OrchestratorPort:

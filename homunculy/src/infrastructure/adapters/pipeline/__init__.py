@@ -5,7 +5,7 @@ This module provides pipeline adapters for STT/LLM/TTS.
 To switch providers, create new adapters implementing the same ports.
 """
 
-from infrastructure.adapters.pipeline.openai_adapter import (
+from infrastructure.adapters.pipeline.openai.adapter import (
     OpenAIPipeline,
     OpenAISTT,
     OpenAITTS,

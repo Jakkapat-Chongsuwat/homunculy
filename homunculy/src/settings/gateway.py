@@ -20,6 +20,9 @@ class GatewaySettings(BaseSettings):
     sqlite_file: str = Field(default=".homunculy.sqlite", description="SQLite session file")
     redis_embedded: bool = Field(default=False, description="Use embedded Redis (redislite)")
     redis_file: str = Field(default=".homunculy-redis.db", description="Embedded Redis data file")
+    channels_config_file: str = Field(
+        default="config/channels.json", description="Channel routing config file"
+    )
 
 
 gateway_settings = GatewaySettings()

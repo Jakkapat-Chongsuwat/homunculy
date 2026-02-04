@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "graphs": {
     "rag": {
-      "entry_point": "application.graphs.builder:build_rag_graph",
-      "state_schema": "application.graphs.state:GraphState"
+      "entry_point": "infrastructure.adapters.tools.rag.graph_builder:build_rag_graph",
+      "state_schema": "infrastructure.adapters.tools.rag.state:GraphStateBase"
     }
   },
   "dependencies": [
