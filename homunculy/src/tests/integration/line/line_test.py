@@ -402,10 +402,10 @@ class TestLineOutbound:
         monkeypatch.setenv("LINE_API_BASE", wiremock)
         monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", TEST_LINE_TOKEN)
 
-        from settings import line_settings
+        # Reload LINE settings after setting env vars
+        from settings import line as line_module
 
-        monkeypatch.setattr(line_settings, "api_base", wiremock)
-        monkeypatch.setattr(line_settings, "channel_access_token", TEST_LINE_TOKEN)
+        line_module.line_settings = line_module.LineSettings()
 
         from infrastructure.adapters.channels.line_client import LineChannelClient
         from infrastructure.adapters.gateway.token_provider import ConfigTokenProvider
@@ -423,11 +423,12 @@ class TestLineOutbound:
         await _clear_wiremock_requests(wiremock)
 
         monkeypatch.setenv("LINE_API_BASE", wiremock)
+        monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", TEST_LINE_TOKEN)
 
-        from settings import line_settings
+        # Reload LINE settings after setting env vars
+        from settings import line as line_module
 
-        monkeypatch.setattr(line_settings, "api_base", wiremock)
-        monkeypatch.setattr(line_settings, "channel_access_token", TEST_LINE_TOKEN)
+        line_module.line_settings = line_module.LineSettings()
 
         from infrastructure.adapters.channels.line_client import LineChannelClient
         from infrastructure.adapters.gateway.token_provider import ConfigTokenProvider

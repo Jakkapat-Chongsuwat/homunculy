@@ -24,3 +24,9 @@ class RAGToolOutput:
     answer: str
     sources: list[dict[str, Any]] | None = None
     confidence: float = 0.0
+
+
+__all__ = [
+    "RAGToolInput",
+    "RAGToolOutput",
+]

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from application.use_cases.gateway import RouteInboundInput, RouteInboundUseCase
 from infrastructure.container import container
-from settings import line_settings
+from settings import line
 
 router = APIRouter()
 
@@ -128,7 +128,7 @@ def _resolve_secret(request: Request) -> str:
     tenant_id = _tenant_id(request)
     token_provider = container.token_provider()
     secret = token_provider.get_secret(tenant_id, "line", "default")
-    return secret or line_settings.channel_secret
+    return secret or line.line_settings.channel_secret
 
 
 def _source(event: dict) -> dict:

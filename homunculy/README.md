@@ -2,69 +2,62 @@
 
 🤖 Python/FastAPI backend for AI agents with LangGraph.
 
-## Request Flow
+## How It Works
 
 ```mermaid
 graph LR
-    A[LINE Webhook] --> B[presentation/webhooks/line.py]
-    B --> C[infrastructure/adapters/gateway]
-    C --> D{Route by tenant}
-    
-    D --> E1[Chat Use Case]
-    D --> E2[Voice Use Case]
-    D --> E3[Companion Use Case]
-    
-    E1 --> F[LangGraph Agent]
-    E2 --> F
-    E3 --> F
-    
-    F --> G1[Memory Service<br/>long-term storage]
-    F --> G2[Checkpointer<br/>thread state]
-    
-    G1 --> H1[(SQLite Store)]
-    G2 --> H2[(Postgres/Memory)]
-    
-    F --> I[LLM Provider]
-    I --> F
-    F --> E1
-    F --> E2
-    F --> E3
-    E1 --> C
-    E2 --> C
-    E3 --> C
-    C --> B
-    B --> A
+    LINE[LINE] -->|webhook| WH[Webhook Handler]
+    API[REST API] -->|/chat| AH[Agent Handler]
+
+    WH --> RI[RouteInbound]
+    AH --> CU[ChatUseCase]
+
+    RI --> GW[GatewayOrchestrator]
+    CU --> LLM
+
+    GW --> DS[DualSystem]
+
+    DS --> R[Reflex<br/>fast ≤300ms]
+    DS --> C[Cognition<br/>deep reasoning]
+
+    R --> LLM[LLM Provider]
+    C --> LG[LangGraph]
+    LG --> LLM
+
+    LG --> MEM[(Memory<br/>SQLite)]
+    LG --> CP[(Checkpointer)]
 ```
 
 ## Layers
 
 ```mermaid
 graph TB
-    subgraph P[Presentation Layer]
-        HTTP[webhooks/line.py<br/>http/api.py]
+    subgraph Presentation
+        H[handlers/line_webhook.py<br/>handlers/agent.py]
     end
-    
-    subgraph A[Application Layer]
-        UC[use_cases/<br/>chat, voice, companion]
-        MS[services/memory.py]
+
+    subgraph Application
+        UC[use_cases/gateway/route_inbound.py<br/>use_cases/chat.py]
+        SV[services/memory.py]
     end
-    
-    subgraph I[Infrastructure Layer]
-        GW[adapters/gateway]
-        ST[adapters/store<br/>in_memory, sqlite]
-        CP[persistence/checkpointer]
-        SS[persistence/session]
+
+    subgraph Domain
+        E[entities/ — agent, message, session]
+        P[interfaces/ — ports]
     end
-    
-    subgraph D[Domain Layer]
-        E[entities/<br/>agent, message, session]
-        IF[interfaces/<br/>ports]
+
+    subgraph Infrastructure
+        GW[adapters/gateway/ — orchestrator, routing]
+        DS[adapters/dual_system/ — reflex, cognition]
+        LG[adapters/langgraph/ — graph manager]
+        ST[adapters/store/ — sqlite, in_memory]
+        PS[persistence/ — checkpointer, session]
     end
-    
-    P --> A
-    A --> I
-    A --> D
-    I --> D
+
+    Presentation --> Application
+    Application --> Domain
+    Infrastructure --> Domain
+    Application -.->|via ports| Infrastructure
 ```
 
 ## Quick Start

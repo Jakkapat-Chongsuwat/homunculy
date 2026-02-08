@@ -17,8 +17,7 @@ from infrastructure.adapters.factory import (
     create_pipeline,
     create_supervisor,
 )
-from infrastructure.adapters.langgraph import LangGraphLLMAdapter
-from infrastructure.adapters.openai import OpenAISTTAdapter
+from infrastructure.adapters.llm import LangGraphLLMAdapter
 from infrastructure.adapters.orchestration import (
     LangGraphOrchestrator,
     SwarmOrchestrator,
@@ -29,6 +28,7 @@ from infrastructure.adapters.pipeline import (
     OpenAITTS,
     SileroVAD,
 )
+from infrastructure.adapters.stt import OpenAISTTAdapter
 
 __all__ = [
     # Factory (use this to create adapters)

@@ -13,12 +13,12 @@ class GraphManager:
 
     def __init__(
         self,
-        api_key: str,
+        llm: Any,
         checkpointer: Any,
         store: Any = None,
         build_fn=None,
     ) -> None:
-        self._api_key = api_key
+        self._llm = llm
         self._checkpointer = checkpointer
         self._store = store
         self._build_fn = build_fn or _default_build_graph
@@ -39,7 +39,7 @@ class GraphManager:
         """Build new graph instance."""
         logger.debug("Building graph", model=config.model_name, tools=bind_tools)
         return await self._build_fn(
-            api_key=self._api_key,
+            llm=self._llm,
             checkpointer=self._checkpointer,
             store=self._store,
             config=config,
@@ -57,26 +57,23 @@ def _cache_key(config: AgentConfiguration, bind_tools: bool) -> str:
 
 
 async def _default_build_graph(
-    api_key: str,
+    llm: Any,
     checkpointer: Any,
     store: Any,
     config: AgentConfiguration,
     bind_tools: bool,
 ) -> Any:
-    """Default LangGraph chat graph builder.
+    """Default LangGraph chat graph builder."""
+    if bind_tools:
+        return _build_tool_graph(llm, checkpointer, store)
+    return _build_simple_graph(llm, checkpointer, store)
 
-    This encapsulates all LangGraph/LangChain imports in infrastructure layer.
-    """
-    from langchain_openai import ChatOpenAI
+
+def _build_simple_graph(llm: Any, checkpointer: Any, store: Any) -> Any:
+    """Build graph without tool support."""
     from langgraph.graph import END, START, StateGraph
-    from pydantic import SecretStr
 
-    from infrastructure.adapters.langgraph.state import GraphState
-
-    llm = ChatOpenAI(
-        api_key=SecretStr(api_key),
-        model=config.model_name or "gpt-4o-mini",
-    )
+    from infrastructure.adapters.llm.state import GraphState
 
     async def chat(state: GraphState) -> dict:
         return {"messages": [await llm.ainvoke(state["messages"])]}
@@ -88,11 +85,34 @@ async def _default_build_graph(
     return graph.compile(checkpointer=checkpointer, store=store)
 
 
+def _build_tool_graph(llm: Any, checkpointer: Any, store: Any) -> Any:
+    """Build graph with memory tools bound to LLM."""
+    from langgraph.graph import START, StateGraph
+    from langgraph.prebuilt import ToolNode, tools_condition
+
+    from infrastructure.adapters.llm.state import GraphState
+    from infrastructure.adapters.tools.memory import save_memory, search_memory
+
+    tools = [search_memory, save_memory]
+    llm_with_tools = llm.bind_tools(tools)
+
+    async def chat(state: GraphState) -> dict:
+        return {"messages": [await llm_with_tools.ainvoke(state["messages"])]}
+
+    graph = StateGraph(GraphState)
+    graph.add_node("chat", chat)
+    graph.add_node("tools", ToolNode(tools))
+    graph.add_edge(START, "chat")
+    graph.add_conditional_edges("chat", tools_condition)
+    graph.add_edge("tools", "chat")
+    return graph.compile(checkpointer=checkpointer, store=store)
+
+
 def create_graph_manager(
-    api_key: str,
+    llm: Any,
     checkpointer: Any,
     store: Any = None,
     build_fn=None,
 ) -> GraphManager:
     """Factory to create graph manager."""
-    return GraphManager(api_key, checkpointer, store, build_fn)
+    return GraphManager(llm, checkpointer, store, build_fn)

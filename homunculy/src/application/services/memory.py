@@ -17,42 +17,39 @@ class MemoryService:
         self._store = store
         logger.info("MemoryService initialized")
 
-    async def get_memory(
+    def get_memory(
         self,
         namespace: tuple[str, ...],
         key: str,
         default: str | None = None,
     ) -> str | None:
         """Get memory or initialize with default."""
-        item = await self._store.get(namespace, key)
+        item = self._store.get(namespace, key)
         if item:
             return _extract_value(item)
-        return await _init_default(self._store, namespace, key, default)
+        return _init_default(self._store, namespace, key, default)
 
-    async def update_memory(
+    def update_memory(
         self,
         namespace: tuple[str, ...],
         key: str,
         content: str,
     ) -> None:
         """Update memory with new content."""
-        await _store_content(self._store, namespace, key, content)
+        _store_content(self._store, namespace, key, content)
         logger.debug("Updated memory", namespace=namespace, key=key)
 
-    async def search_memories(
+    def search_memories(
         self,
         namespace: tuple[str, ...],
         limit: int = 10,
     ) -> list[str]:
         """Search memories in namespace."""
-        from domain.interfaces.store import StoreQuery
-
-        query = StoreQuery(namespace=namespace, limit=limit)
-        items = await self._store.search(query)
+        items = self._store.search(namespace, limit=limit)
         return _extract_values(items)
 
 
-async def _init_default(
+def _init_default(
     store: StorePort,
     namespace: tuple[str, ...],
     key: str,
@@ -61,11 +58,11 @@ async def _init_default(
     """Initialize memory with default value."""
     if default is None:
         return None
-    await _store_content(store, namespace, key, default)
+    _store_content(store, namespace, key, default)
     return default
 
 
-async def _store_content(
+def _store_content(
     store: StorePort,
     namespace: tuple[str, ...],
     key: str,
@@ -73,7 +70,7 @@ async def _store_content(
 ) -> None:
     """Store content in memory."""
     value = {"content": content}
-    await store.put(namespace, key, value)
+    store.put(namespace, key, value)
 
 
 def _extract_value(item) -> str:

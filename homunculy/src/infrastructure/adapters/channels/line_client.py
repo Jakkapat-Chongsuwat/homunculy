@@ -6,7 +6,7 @@ import httpx
 
 from common.logger import get_logger
 from domain.interfaces import ChannelClientPort, ChannelOutbound, ChannelTokenProviderPort
-from settings import line_settings
+from settings import line
 
 logger = get_logger(__name__)
 
@@ -28,12 +28,12 @@ class LineChannelClient(ChannelClientPort):
     def _token(self, message: ChannelOutbound) -> str | None:
         """Resolve token for message."""
         token = self._tokens.get_token(message.tenant_id, message.channel, message.user_id)
-        return token or line_settings.channel_access_token
+        return token or line.line_settings.channel_access_token
 
 
 def _enabled() -> bool:
     """Check if LINE credentials are configured."""
-    return bool(line_settings.channel_access_token)
+    return bool(line.line_settings.channel_access_token)
 
 
 def _log_skip(message: ChannelOutbound) -> None:
@@ -58,14 +58,14 @@ def _reply_token(message: ChannelOutbound) -> str:
 
 async def _reply_message(message: ChannelOutbound, access_token: str, reply_token: str) -> None:
     """Reply using LINE reply API."""
-    url = f"{line_settings.api_base}/v2/bot/message/reply"
+    url = f"{line.line_settings.api_base}/v2/bot/message/reply"
     payload = _reply_payload(reply_token, message.text)
     await _post(url, payload, access_token)
 
 
 async def _push_message(message: ChannelOutbound, token: str) -> None:
     """Push message using LINE Messaging API."""
-    url = f"{line_settings.api_base}/v2/bot/message/push"
+    url = f"{line.line_settings.api_base}/v2/bot/message/push"
     payload = _push_payload(message)
     await _post(url, payload, token)
 

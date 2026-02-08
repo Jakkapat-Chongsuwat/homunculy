@@ -30,8 +30,8 @@ from infrastructure.adapters.gateway.factory import (
     create_tenant_policy,
     create_token_provider,
 )
-from infrastructure.adapters.langgraph import LangGraphLLMAdapter
-from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
+from infrastructure.adapters.llm import LangGraphLLMAdapter
+from infrastructure.adapters.llm.graph_manager import create_graph_manager
 from infrastructure.adapters.store import InMemoryStoreAdapter
 from infrastructure.config import get_settings
 
@@ -83,8 +83,7 @@ class Container(containers.DeclarativeContainer):
     store = providers.Singleton(InMemoryStoreAdapter)
     llm_adapter = providers.Factory(
         lambda api_key, cp, st: LangGraphLLMAdapter(
-            api_key=api_key,
-            graph_manager=create_graph_manager(api_key, cp, st),
+            graph_manager=create_graph_manager(_create_llm(api_key), cp, st),
         ),
         api_key=providers.Callable(lambda s: s.llm.api_key, settings),
         cp=checkpointer,
@@ -111,6 +110,14 @@ def _resolve_orchestration_framework(settings) -> OrchestrationFramework:
         return OrchestrationFramework(settings.orchestration.framework)
     except ValueError:
         return OrchestrationFramework.LANGGRAPH
+
+
+def _create_llm(api_key: str):
+    """Create LLM instance (vendor-specific, isolated here)."""
+    from langchain_openai import ChatOpenAI
+    from pydantic import SecretStr
+
+    return ChatOpenAI(api_key=SecretStr(api_key))
 
 
 def get_container() -> Container:

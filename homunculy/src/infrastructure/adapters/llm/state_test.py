@@ -1,6 +1,6 @@
 """Unit tests for LangGraph state module."""
 
-from infrastructure.adapters.langgraph.state import (
+from infrastructure.adapters.llm.state import (
     GraphConfig,
     increment_retry,
     initial_state,

@@ -6,8 +6,8 @@ from typing import Any
 from common.logger import get_logger
 from domain.entities import AgentConfiguration, AgentResponse
 from domain.interfaces import LLMPort
-from infrastructure.adapters.langgraph.graph_manager import GraphManager
-from infrastructure.adapters.langgraph.helpers import (
+from infrastructure.adapters.llm.graph_manager import GraphManager
+from infrastructure.adapters.llm.helpers import (
     build_messages,
     extract_response,
     invoke_graph,
@@ -24,10 +24,8 @@ class LangGraphLLMAdapter(LLMPort):
 
     def __init__(
         self,
-        api_key: str,
         graph_manager: GraphManager,
     ) -> None:
-        self._api_key = api_key
         self._graph_manager = graph_manager
         logger.info("LangGraph LLM adapter initialized")
 
