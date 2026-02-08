@@ -3,9 +3,11 @@
 import pytest
 
 from domain.interfaces import ChannelInbound
-from infrastructure.persistence.redislite_session_store import RedisliteSessionStore
-from infrastructure.persistence.session_store import InMemorySessionStore
-from infrastructure.persistence.sqlite_session_store import SQLiteSessionStore
+from infrastructure.persistence.session import (
+    InMemorySessionStore,
+    RedisLiteSessionStore,
+    SQLiteSessionStore,
+)
 
 
 def _inbound(user_id: str) -> ChannelInbound:
@@ -31,7 +33,7 @@ def test_different_users_get_different_sessions() -> None:
 def test_redislite_store_round_trip(tmp_path) -> None:
     db_file = tmp_path / "redis.db"
     try:
-        store = RedisliteSessionStore(str(db_file))
+        store = RedisLiteSessionStore(str(db_file))
     except RuntimeError:
         pytest.skip("redislite unavailable on this platform")
     first = store.get_or_create(_inbound("u1"))

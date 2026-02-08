@@ -12,7 +12,7 @@ from domain.interfaces import (
     SessionStorePort,
     TenantPolicyPort,
 )
-from infrastructure.persistence.session_store import InMemorySessionStore
+from infrastructure.persistence.session import InMemorySessionStore
 
 
 class _AllowAll(TenantPolicyPort):

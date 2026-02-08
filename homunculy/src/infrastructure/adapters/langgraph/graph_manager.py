@@ -15,10 +15,12 @@ class GraphManager:
         self,
         api_key: str,
         checkpointer: Any,
+        store: Any = None,
         build_fn=None,
     ) -> None:
         self._api_key = api_key
         self._checkpointer = checkpointer
+        self._store = store
         self._build_fn = build_fn or _default_build_graph
         self._cache: dict[str, Any] = {}
 
@@ -39,6 +41,7 @@ class GraphManager:
         return await self._build_fn(
             api_key=self._api_key,
             checkpointer=self._checkpointer,
+            store=self._store,
             config=config,
             bind_tools=bind_tools,
         )
@@ -56,6 +59,7 @@ def _cache_key(config: AgentConfiguration, bind_tools: bool) -> str:
 async def _default_build_graph(
     api_key: str,
     checkpointer: Any,
+    store: Any,
     config: AgentConfiguration,
     bind_tools: bool,
 ) -> Any:
@@ -81,13 +85,14 @@ async def _default_build_graph(
     graph.add_node("chat", chat)
     graph.add_edge(START, "chat")
     graph.add_edge("chat", END)
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile(checkpointer=checkpointer, store=store)
 
 
 def create_graph_manager(
     api_key: str,
     checkpointer: Any,
+    store: Any = None,
     build_fn=None,
 ) -> GraphManager:
     """Factory to create graph manager."""
-    return GraphManager(api_key, checkpointer, build_fn)
+    return GraphManager(api_key, checkpointer, store, build_fn)

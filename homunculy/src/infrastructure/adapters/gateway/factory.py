@@ -10,9 +10,11 @@ from infrastructure.adapters.channels import LineChannelClient
 from infrastructure.adapters.gateway.orchestrator import GatewayOrchestrator
 from infrastructure.adapters.gateway.policy import AllowAllTenantPolicy
 from infrastructure.adapters.gateway.token_provider import ConfigTokenProvider
-from infrastructure.persistence.redislite_session_store import RedisliteSessionStore
-from infrastructure.persistence.session_store import InMemorySessionStore
-from infrastructure.persistence.sqlite_session_store import SQLiteSessionStore
+from infrastructure.persistence.session import (
+    InMemorySessionStore,
+    RedisLiteSessionStore,
+    SQLiteSessionStore,
+)
 from settings.config import settings
 
 
@@ -38,7 +40,7 @@ def _embedded_store() -> SessionStorePort | None:
     if not cfg.redis_embedded:
         return None
     try:
-        return RedisliteSessionStore(cfg.redis_file)
+        return RedisLiteSessionStore(cfg.redis_file)
     except RuntimeError:
         return None
 

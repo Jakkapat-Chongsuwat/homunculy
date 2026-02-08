@@ -32,6 +32,7 @@ from infrastructure.adapters.gateway.factory import (
 )
 from infrastructure.adapters.langgraph import LangGraphLLMAdapter
 from infrastructure.adapters.langgraph.graph_manager import create_graph_manager
+from infrastructure.adapters.store import InMemoryStoreAdapter
 from infrastructure.config import get_settings
 
 
@@ -77,15 +78,17 @@ class Container(containers.DeclarativeContainer):
     pipeline = providers.Factory(create_pipeline, provider=pipeline_provider)
 
     # --- LLM Adapter (LangGraph) ---
-    # Checkpointer is wired at startup in main.py
+    # Checkpointer and Store wired at startup in main.py
     checkpointer = providers.Object(None)
+    store = providers.Singleton(InMemoryStoreAdapter)
     llm_adapter = providers.Factory(
-        lambda api_key, cp: LangGraphLLMAdapter(
+        lambda api_key, cp, st: LangGraphLLMAdapter(
             api_key=api_key,
-            graph_manager=create_graph_manager(api_key, cp),
+            graph_manager=create_graph_manager(api_key, cp, st),
         ),
         api_key=providers.Callable(lambda s: s.llm.api_key, settings),
         cp=checkpointer,
+        st=store,
     )
 
     # --- Gateway (channel router) ---
@@ -143,3 +146,8 @@ def get_token_generator():
 def get_pipeline():
     """Get pipeline from container."""
     return container.pipeline()
+
+
+def get_store():
+    """Get store from container."""
+    return container.store()

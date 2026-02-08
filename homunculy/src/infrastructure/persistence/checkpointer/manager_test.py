@@ -8,8 +8,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from infrastructure.persistence.checkpointer import (
     CheckpointerFactory,
     CheckpointerUnitOfWork,
-    memory_checkpointer_context,
-    postgres_checkpointer_context,
+    memory_checkpointer,
+    postgres_checkpointer,
 )
 
 
@@ -141,7 +141,7 @@ class TestCheckpointerFactory:
 
 
 class TestPostgresCheckpointerContext:
-    """Tests for postgres_checkpointer_context."""
+    """Tests for postgres_checkpointer."""
 
     @pytest.mark.asyncio
     async def test_context_yields_and_cleans_up(self):
@@ -162,7 +162,7 @@ class TestPostgresCheckpointerContext:
                 "langgraph.checkpoint.postgres.aio.AsyncPostgresSaver",
                 mock_saver_class,
             ):
-                async with postgres_checkpointer_context() as uow:
+                async with postgres_checkpointer() as uow:
                     assert uow.checkpointer is mock_checkpointer
 
                 # After exit, cleanup was called
@@ -170,11 +170,11 @@ class TestPostgresCheckpointerContext:
 
 
 class TestMemoryCheckpointerContext:
-    """Tests for memory_checkpointer_context."""
+    """Tests for memory_checkpointer."""
 
     @pytest.mark.asyncio
     async def test_yields_memory_saver(self):
         """Memory context yields MemorySaver."""
-        async with memory_checkpointer_context() as uow:
+        async with memory_checkpointer() as uow:
             assert isinstance(uow.checkpointer, MemorySaver)
             assert isinstance(uow, CheckpointerUnitOfWork)

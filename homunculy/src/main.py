@@ -61,7 +61,7 @@ async def _wire_dependencies() -> None:
     """Wire ALL dependencies at startup.
 
     Order matters - wire bottom-up:
-    1. Persistence (checkpointer)
+    1. Persistence (checkpointer + store)
     2. Core adapters (orchestrator, LLM, TTS)
     3. Dual-system (reflex + cognition)
     4. Container overrides
@@ -73,10 +73,12 @@ async def _wire_dependencies() -> None:
         create_orchestrator,
         create_reflex,
     )
+    from infrastructure.adapters.store import SQLiteStoreAdapter
     from infrastructure.container import container
 
     # 1. Persistence
     _state["checkpointer"] = await _create_checkpointer()
+    _state["store"] = SQLiteStoreAdapter("data/memory.db")
     container.checkpointer.override(_state["checkpointer"].checkpointer)
 
     # 2. Core adapters
@@ -97,6 +99,9 @@ async def _wire_dependencies() -> None:
 
 async def _cleanup_dependencies() -> None:
     """Cleanup dependencies at shutdown."""
+    if store := _state.get("store"):
+        if hasattr(store, "close"):
+            store.close()
     if cp := _state.get("checkpointer"):
         await cp.cleanup()
     logger.info("Dependencies cleaned up")
